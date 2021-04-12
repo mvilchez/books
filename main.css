@@ -1,0 +1,220 @@
+.row {
+    display: flex;
+}
+
+.column-2 {
+    flex: 15%;
+}
+
+.column-10 {
+    flex: 85%;
+}
+
+.left-column {
+  text-align: right;
+}
+
+.next-lecture-column {
+    border-top: 2px solid #FFF;
+    margin-left: 15px;
+    margin-right: 15px;
+}
+
+.lecture-column {
+    border-top: 2px solid #FFF;
+    margin-left: 15px;
+    margin-right: 15px;
+}
+
+.column-6 {
+    flex: 50%;
+}
+
+.column-12 {
+    flex: 50%;
+}
+
+.lecture-box {
+    display: flex;
+}
+
+.container-next-lectures {
+    background-color: #e32b31;
+    padding-top: 30px;
+    min-height: 375px;
+}
+
+.container-lectures {
+    background-color: #b80f15;
+    min-height: 500px;
+    padding-top: 30px;
+}
+
+.heading {
+    display: block;
+    padding-left: 10px;
+    font-size: 20px;
+    text-align: right;
+}
+
+.body {
+    font-family: Impact, Haettenschweiler, Charcoal, sans-serif;
+    color: #fff;
+    font-weight: 400;
+}
+
+.book-link {
+    text-decoration: none;
+}
+
+.see-more-wrapper {
+    margin-top: 150px;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.see-more-link {
+    border: 2px solid #FFF;
+    border-radius: 22px;
+    color: #FFF;
+    padding: 14px 18px 12px 14px;
+    position: relative;
+    text-decoration: none;
+}
+
+.lecture-item {
+    height: 264px;
+    display: block;
+     width: 100%;
+    color: #000;
+    position: relative;
+    flex-basis: min-content;
+    margin-left: 15px;
+    margin-right: 15px;
+    justify-content: space-around;
+
+}
+
+.recomendador {
+    margin-left: 15px;
+    color: #fff;
+    margin-top: 15px;
+    display: block;
+}
+
+.recomendador-link {
+    color: #fff;
+    text-decoration: none;    
+}
+
+
+.description {
+    font-size: 27px;
+    line-height: 32px;
+    padding-right: 157px;
+    font-family: 'Noto Sans JP', sans-serif;
+    position: absolute;
+    left: 0;
+    bottom: 10%;
+    width: auto;
+    z-index: 100;
+    margin: 0;
+    padding: 0 120px 0 15px;
+    color: #000;
+    font-size: large;
+    font-style: italic;
+    margin-right: 190px;
+}
+
+.item-overlay {
+    bottom: 75px;
+    height: 140px;
+    font-family: "Kievit-Book", "Helvetica", "arial";
+    background-color: #E32B31;
+    font-weight: 400;
+    position: relative;
+}
+
+.title {
+    font-size: 20px;
+    font-weight: 400;
+    text-align: left;
+    color: #fff;
+    margin-left: 15px;
+
+}
+
+.details {
+    margin: 10px 0 5px;
+    bottom: 0;
+    width: 100%;
+    color: #fff;
+    margin-left: 15px;
+}
+
+.details-author {
+    margin: 10px 0 5px;
+    font-size: 16px;
+    margin-top: 15px;
+    color: #fff;
+}
+
+.details-audience, .details-genre {
+    margin: 10px 0 5px;
+    font-size: 12px;
+    margin-bottom: 5px;
+    color: #fff;
+}
+
+.book-cover {
+    height: 280px;
+    max-width: 250px;
+    display: inline-block;
+    position: relative;
+
+}
+
+.next-lecture-pick {
+    height: 400px;
+    display: block;
+    width: 100%;
+    color: #000;
+    position: relative;
+    margin-left: 15px;
+    margin-right: 15px;
+    overflow: auto;
+}
+
+
+.quote-background {
+    margin-right: 75px;
+    width: auto;
+    height: 100%;
+    margin: 0 55px 0 0;
+    background: #fff;
+    z-index: 0;
+}
+
+.img-container {
+    right: 100px;
+    top: 45px;
+    position: absolute;
+}
+.img-container img {
+    max-width: 209px;
+    max-height: 320px;
+    display: block;
+}
+
+.icon {
+    width: 35px;
+    height: 35px;
+}
+
+.icon-div {
+    fill: #c51d12;
+    float: left;
+    height: 50px;
+    width: 50px;
+    margin: 12px 10px 0 0;
+}
