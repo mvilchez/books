@@ -252,7 +252,7 @@
     margin: 12px 50px 0 0;
 }
 
-.year-selector {
+.header {
     background-color: black;
     justify-content: flex-end;
 }
@@ -261,12 +261,24 @@
     background-color: greenyellow;
 }
 
-.year-square {
-    flex: 10%;
+.home-square {
+    flex-grow: 0; 
+    flex-shrink: 0;
+    flex-basis: 5em;
     background-color: #0050ef;
     color: #ffffff;
     margin-right: 10px;
-    width: 100px;
+    margin-top:10px;
+    margin-bottom: 10px;
+}
+
+.year-square {
+    flex-grow: 0; 
+    flex-shrink: 0;
+    flex-basis: 10em;
+    background-color: #0050ef;
+    color: #ffffff;
+    margin-right: 10px;
     height: 100px;
     margin-top:10px;
     margin-bottom: 10px;
@@ -279,4 +291,10 @@
     font-family: 'Noto Sans JP', sans-serif;
     font-size: xx-large;
     padding: 10px;
+}
+
+.home-icon {
+    margin-left: 10px;
+    margin-top: 20px;
+    width: 55px;
 }
