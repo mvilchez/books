@@ -1,5 +1,12 @@
+label {
+    color: black;
+    font-family: 'Noto Sans JP', sans-serif;
+}
+
+
 input[type=text],
 input[type=number],
+input[type=date],
 select {
     width: 100%;
     padding: 12px 20px;
@@ -12,6 +19,7 @@ select {
 
 input[type=number]:focus,
 input[type=text]:focus,
+input[type=date]:focus,
 select:focus {
     background-color: lightblue;
 }
