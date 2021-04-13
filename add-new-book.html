@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+        <meta charset='utf-8'>
+        <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+        <title>Page Title</title>
+        <meta name='viewport' content='width=device-width, initial-scale=1'>
+        <link rel="stylesheet" type="text/css" href="add-book.css">
+        <link rel="stylesheet" type="text/css" href="main.css">
+        <link rel="preconnect" href="https://fonts.gstatic.com">
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP&display=swap" rel="stylesheet">
+    </head>
+
+    <body class="body">
+        <div class="row header">
+            <div class="home-square">
+                <img src="images/home.svg" alt="Home icon" class="home-icon"></img> 
+            </div>
+            <div class="year-square">
+                <div class="year-content">
+                    2021 <img src="images/current.svg" alt="Flag icon" class="icon"></img> 
+                </div>
+            </div> 
+            <div class="year-square">
+                <div class="year-content">
+                    2020
+                </div>
+            </div> 
+            <div class="year-square">
+                <div class="year-content">
+                    2019
+                </div>
+            </div> 
+        </div>
+       <div class="add-new-book-container">
+        <form action="/action_page.php">
+            <label for="title">Title</label>
+            <input type="text" id="title" name="booktitle" placeholder="Book title..">
+        
+            <label for="author">Author</label>
+            <input type="text" id="author" name="bookauthor" placeholder="Author..">
+        
+            <label for="origin">Origin</label>
+            <select id="origin" name="origin">
+              <option value="personal">Personal Collection</option>
+              <option value="borrowed">Borrowed</option>
+              <option value="ebook">Ebook</option>
+            </select>
+
+            <label for="pages">Number of pages</label>
+            <input type="number" id="pages" name="pages" placeholder="300..">
+
+            <label for="genre">Genre</label>
+            <select id="genre" name="genre">
+              <option value="fiction">Fiction</option>
+              <option value="ensayo">Ensayo</option>
+              <option value="novela">Novela</option>
+            </select>
+          
+            <label for="year">Publication</label>
+            <input type="number" id="year" name="year" placeholder="2021..">
+
+            <input type="submit" value="Submit">
+          </form>
+       </div>
+    </body>
+</html>
