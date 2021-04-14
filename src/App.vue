@@ -1,7 +1,7 @@
 <template>
   <div id="app" class="body">
-    <book-header :readingBooks="readingBooks" />
-    <reading />
+    <book-header />
+    <reading  v-bind:readingBooks="readingBooks"/>
     <read />
   </div>
 </template>
