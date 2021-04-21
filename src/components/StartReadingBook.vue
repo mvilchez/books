@@ -7,7 +7,11 @@
         id="title"
         name="booktitle"
         placeholder="Book title.."
+        ref="title"
         v-model="book.title"
+        :class="{ 'is-invalid': loading && invalidBookTitle }"
+        @focus="resetEstado"
+        @keypress="resetEstado"
       />
 
       <label for="author">Author</label>
@@ -17,6 +21,8 @@
         name="bookauthor"
         placeholder="Author.."
         v-model="book.author"
+        :class="{ 'is-invalid': loading && invalidBookAuthor }"
+        @focus="resetEstado"
       />
 
       <label for="cover">Cover</label>
@@ -69,6 +75,8 @@
         name="pages"
         placeholder="300.."
         v-model="book.pages"
+        :class="{ 'is-invalid': loading && invalidNumberOfPages }"
+        @focus="resetEstado"
       />
 
       <label for="genre">Genre</label>
@@ -122,11 +130,17 @@ export default {
       this.loading = true;
       this.resetEstado();
       // Comprobamos la presencia de errores
-      if (this.invalidBookTitle || this.invalidBookAuthor || this.invalidNumberOfPages) {
+      if (
+        this.invalidBookTitle ||
+        this.invalidBookAuthor ||
+        this.invalidNumberOfPages
+      ) {
         this.error = true;
         return;
       }
       this.$emit("add-book", this.book);
+      this.$refs.title.focus();
+
       this.error = false;
       this.sucess = true;
       this.loading = false;
@@ -145,7 +159,7 @@ export default {
           name: "",
           place: "",
           url: "",
-        }
+        },
       };
     },
     resetEstado() {
@@ -212,5 +226,9 @@ input[type="submit"]:hover {
   border-radius: 5px;
   background-color: white;
   padding: 20px;
+}
+
+input[class="is-invalid"] {
+  border: 1px solid red;
 }
 </style>
