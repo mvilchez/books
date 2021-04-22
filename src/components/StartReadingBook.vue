@@ -226,6 +226,7 @@ input[type="submit"]:hover {
   border-radius: 5px;
   background-color: white;
   padding: 20px;
+  max-width: 500px;
 }
 
 input[class="is-invalid"] {
