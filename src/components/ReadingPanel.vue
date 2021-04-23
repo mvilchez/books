@@ -1,72 +1,62 @@
 <template>
-    <div class="row">
-      <div class="column-2 next-lecture-column">
-        <h2 class="heading">Lecturas en marcha</h2>
-      </div>
-      <div class="column-10">
-        <div class="row">
-          <div class="column-6" v-for="book in readingBooks" :key="book.id">
-            <div class="next-lecture-pick">
-              <div class="icon-read-div">
-                <img
-                  src="@/assets/checklist.png"
-                  alt="Flag icon"
-                  class="icon"
-                />
-              </div>
-              <div class="icon-delete-div">
-                <button @click="$emit('finish-lecture', book.id)">
-                  <img
-                    src="@/assets/finish.svg"
-                    alt="Finish icon"
-                    class="icon"
-                  />
-                </button>
-              </div>
-              <div class="quote-background"></div>
-              <div class="description">
-                {{ book.quote }}
-              </div>
-              <div class="img-container">
-                <img
-                  src="@/assets/covers/fuego_abismo_vernor_vringe.jpg"
-                  alt="Black No More"
-                />
-              </div>
+  <div class="row">
+    <div class="column-2 next-lecture-column">
+      <h2 class="heading">Lecturas en marcha</h2>
+    </div>
+    <div class="column-10">
+      <div class="row">
+        <div class="column-6" v-for="book in readingBooks" :key="book.id">
+          <div class="next-lecture-pick">
+            <div class="icon-read-div">
+              <img src="@/assets/checklist.png" alt="Flag icon" class="icon" />
             </div>
-            <div class="recomendador">
-              <div class="icon-div">
-                <img src="@/assets/lion.png" alt="Lion icon" class="icon" />
-              </div>
-              <p class="name">{{ book.curator.name }}</p>
-              <p class="title">
-                <a
-                  class="recomendador-link"
-                  href="https://www.fabulantes.com/2014/04/un-fuego-sobre-el-abismo-vernon-vinge/"
-                >
-                  {{ book.curator.place }}
-                </a>
-              </p>
+            <div class="icon-delete-div">
+              <button @click="$emit('finish-lecture', book.id)">
+                <img src="@/assets/finish.svg" alt="Finish icon" class="icon" />
+              </button>
             </div>
+            <div class="quote-background"></div>
+            <div class="description">
+              {{ book.quote }}
+            </div>
+            <div class="img-container">
+              <img
+                :src="book.cover"
+                alt="Black No More"
+              />
+            </div>
+          </div>
+          <div class="recomendador">
+            <div class="icon-div">
+              <img src="@/assets/lion.png" alt="Lion icon" class="icon" />
+            </div>
+            <p class="name">{{ book.curator.name }}</p>
+            <p class="title">
+              <a
+                class="recomendador-link"
+                href="https://www.fabulantes.com/2014/04/un-fuego-sobre-el-abismo-vernon-vinge/"
+              >
+                {{ book.curator.place }}
+              </a>
+            </p>
           </div>
         </div>
       </div>
     </div>
+  </div>
 </template>
 
 <script>
 export default {
   name: "reading-panel",
-props: {
+  props: {
     readingBooks: Array,
   },
-  methods: {
-  },
+  methods: {},
 };
 </script>
 
 <style scoped>
-
 .next-lecture-column {
   border-top: 2px solid #fff;
   margin-left: 15px;
@@ -95,7 +85,6 @@ props: {
   overflow: auto;
   border: 1px;
 }
-
 
 .icon-read-div {
   float: right;
