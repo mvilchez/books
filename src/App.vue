@@ -1,8 +1,13 @@
 <template>
   <div id="app" class="body">
     <book-header />
-    <reading v-bind:readingBooks="readingBooks" v-bind:readBooks="readBooks"/>
-    <read  v-bind:readBooks="readBooks" />
+    <reading
+      v-bind:readingBooks="readingBooks"
+      v-bind:readBooks="readBooks"
+      @finish-lecture="finishLecture"
+      @add-book="startReadingBook"
+    />
+    <read v-bind:readBooks="readBooks" />
   </div>
 </template>
 
@@ -27,7 +32,7 @@ export default {
           author: "Vernor Vringe",
           quote:
             "Vernor Vinge es una pluma grande, inmensa, cuya formación e ideas han abonado algunas de las mejores novelas de este género jamás escritas. Uno de los pocos escritores vivos que pertenece a la época de los grandes clásicos de la ciencia-ficción, a ese tiempo tan añorado que nos abandona poco a poco, a cuenta gotas, conforme el tiempo avanza inexorable.",
-          cover: require('@/assets/covers/fuego_abismo_vernor_vringe.jpg'),
+          cover: require("@/assets/covers/fuego_abismo_vernor_vringe.jpg"),
           curator: {
             name: "Francisco Martínez Hidalgo",
             place: "Fabulantes",
@@ -41,7 +46,7 @@ export default {
           author: "Claire North",
           quote:
             "Harry August nació en 1919 en el lavabo de señoras de una estación de tren. Su vida no tuvo mayor relevancia: participó en la Segunda Guerra Mundial y volvió a casa a heredar las tierras de sus padres, donde se quedó hasta morir en 1989. Entonces, volvió a nacer otra vez, en 1919, pero con los recuerdos de su anterior vida intactos.",
-          cover: require('@/assets/covers/quince-primeras-vidas.jpeg'),
+          cover: require("@/assets/covers/quince-primeras-vidas.jpeg"),
           curator: {
             name: "Laura Huelin",
             place: "La Nave Invisible",
@@ -55,7 +60,7 @@ export default {
           id: 1,
           title: "Nieve en los bolsillos",
           author: "Kim",
-          cover: require('@/assets/covers/nieve-bolsillos.jpg'),
+          cover: require("@/assets/covers/nieve-bolsillos.jpg"),
           genre: "Comic",
           audience: "Adult",
         },
@@ -63,7 +68,7 @@ export default {
           id: 2,
           title: "Un abismo en el cielo",
           author: "Vernor Vringe",
-          cover: require('@/assets/covers/abismo_cielo.jpg'),
+          cover: require("@/assets/covers/abismo_cielo.jpg"),
           genre: "Science Fiction",
           audience: "Adult",
         },
@@ -71,7 +76,7 @@ export default {
           id: 3,
           title: "Stoner",
           author: "John Williams",
-          cover: require('@/assets/covers/stoner.jpg'),
+          cover: require("@/assets/covers/stoner.jpg"),
           genre: "Fiction",
           audience: "Adult",
         },
@@ -79,7 +84,7 @@ export default {
           id: 4,
           title: "Lemmy",
           author: "Ian Kilmister",
-          cover: require('@/assets/covers/lemmy.jpeg'),
+          cover: require("@/assets/covers/lemmy.jpeg"),
           genre: "Biography",
           audience: "Adult",
         },
@@ -87,22 +92,36 @@ export default {
           id: 5,
           title: "Criopolis",
           author: "Lois McMaster Bujold",
-          cover: require('@/assets/covers/criopolis.jpeg'),
+          cover: require("@/assets/covers/criopolis.jpeg"),
           genre: "Science fiction / Space Opera",
           audience: "Adult",
         },
         {
           id: 6,
-          title: "Viaje de Londres a Génova a través de Inglaterra, Portugal, España y Francia",
+          title:
+            "Viaje de Londres a Génova a través de Inglaterra, Portugal, España y Francia",
           author: "Giuseppe Baretti",
-          cover: require('@/assets/covers/viaje-londres-genova.jpg'),
+          cover: require("@/assets/covers/viaje-londres-genova.jpg"),
           genre: "Literatura de viajes",
           audience: "Young",
         },
       ],
     };
   },
-  methods: {},
+  methods: {
+    finishLecture(id) {
+      this.readingBooks = this.readingBooks.filter((book) => book.id !== id);
+    },
+    startReadingBook(book) {
+      let id = 0;
+
+      if (this.readingBooks.length > 0) {
+        id = this.readingBooks[this.readingBooks.length - 1].id + 1;
+      }
+
+      this.readingBooks = [...this.readingBooks, { ...book, id }];
+    },
+  },
 };
 </script>
 

@@ -29,19 +29,13 @@ export default {
   },
   methods: {
     addBook(book) {
-      let id = 0;
-
-      if (this.readingBooks.length > 0) {
-        id = this.readingBooks[this.readingBooks.length - 1].id + 1;
-      }
-
-      this.readingBooks = [...this.readingBooks, { ...book, id }];
+      this.$emit('add-book', book);
     },
     finishLecture(id) {
 
       let book = this.readingBooks.find( (book) => book.id === id);  
 
-      this.readingBooks = this.readingBooks.filter((book) => book.id !== id);
+      //this.readingBooks = this.readingBooks.filter((book) => book.id !== id);
 
       console.log("Book cover "+book.cover);
 
@@ -53,6 +47,8 @@ export default {
           audience: "Adult",
       };
       this.readBooks.push(readBook);
+
+      this.$emit('finish-lecture', id);
     },
   },
 };

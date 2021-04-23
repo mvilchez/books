@@ -13,7 +13,7 @@
                   class="book-cover"
                   :src="book.cover"
                   :title="book.title"
-                  alt="Owed by Joshua Bennett"
+                  :alt="book.title"
                 />
                 <div class="item-overlay">
                   <p class="title">{{ book.title }}</p>
