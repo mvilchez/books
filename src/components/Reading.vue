@@ -25,6 +25,7 @@ export default {
   name: "reading",
   props: {
     readingBooks: Array,
+    readBooks: Array,
   },
   methods: {
     addBook(book) {
@@ -37,7 +38,21 @@ export default {
       this.readingBooks = [...this.readingBooks, { ...book, id }];
     },
     finishLecture(id) {
+
+      let book = this.readingBooks.find( (book) => book.id === id);  
+
       this.readingBooks = this.readingBooks.filter((book) => book.id !== id);
+
+      console.log("Book cover "+book.cover);
+
+      let readBook= {
+          title: book.title,
+          author: book.author,
+         // cover: require('@/assets/covers/'+book.cover),
+          genre: book.genre,
+          audience: "Adult",
+      };
+      this.readBooks.push(readBook);
     },
   },
 };

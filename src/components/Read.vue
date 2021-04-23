@@ -6,7 +6,7 @@
       </div>
       <div class="column-10">
         <div class="row">
-          <div class="lecture-box" v-for="book in readBooks" :key="book.id">
+          <div class="lecture-box" v-for="book in readBooks.slice(0).slice(-6)" :key="book.id">
             <div class="lecture-item">
               <a href="/kim-nieve-en-los-bolsillos" class="book-link">
                 <img
