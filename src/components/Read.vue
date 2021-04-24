@@ -6,7 +6,11 @@
       </div>
       <div class="column-10">
         <div class="row">
-          <div class="lecture-box" v-for="book in sortedReadBooks.slice(0).slice(-6)" :key="book.id">
+          <div
+            class="lecture-box"
+            v-for="book in sortedReadBooks.slice(0).slice(-6)"
+            :key="book.id"
+          >
             <div class="lecture-item">
               <a href="/kim-nieve-en-los-bolsillos" class="book-link">
                 <img
@@ -44,8 +48,7 @@
 </template>
 
 <script>
-import moment from "moment";
-
+import sortByDateField from "../js/common-functions.js";
 
 export default {
   name: "read",
@@ -53,17 +56,13 @@ export default {
     readBooks: Array,
   },
   methods: {
-    getCoverPath (cover) {
-        return cover ? require(`@/assets/covers/${cover}`) : ''
-    }
+    getCoverPath(cover) {
+      return cover ? require(`@/assets/covers/${cover}`) : "";
+    },
   },
   computed: {
     sortedReadBooks: function () {
-      return this.readBooks.slice(0).sort((a, b) => {
-        return (
-          moment(a.startDate, "DD/MM/YYYY") - moment(b.startDate, "DD/MM/YYYY")
-        );
-      });
+      return sortByDateField(this.readBooks, "startDate");
     },
   },
 };

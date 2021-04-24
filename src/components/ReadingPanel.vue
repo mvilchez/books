@@ -45,7 +45,6 @@
 
 <script>
 import sortByDateField from '../js/common-functions.js';
-//import moment from 'moment';
 
 export default {
   name: "reading-panel",
@@ -60,11 +59,6 @@ export default {
   computed: {
     sortedReadingBooks: function () {
       return sortByDateField(this.readingBooks, "startDate");
-  /*    return this.readingBooks.slice(0).sort((a, b) => {
-        return (
-          moment(a.startDate, "DD/MM/YYYY") - moment(b.startDate, "DD/MM/YYYY")
-        );
-      });*/
     },
   },
 };
