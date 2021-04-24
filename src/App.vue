@@ -110,7 +110,19 @@ export default {
   },
   methods: {
     finishLecture(id) {
+      let book = this.readingBooks.find( (book) => book.id === id);  
+
       this.readingBooks = this.readingBooks.filter((book) => book.id !== id);
+
+      let readBook= {
+          title: book.title,
+          author: book.author,
+          cover: book.cover,
+          genre: book.genre,
+          audience: "Adult",
+      };
+      this.readBooks.push(readBook);
+
     },
     startReadingBook(book) {
       let id = 0;

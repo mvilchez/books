@@ -32,18 +32,6 @@ export default {
       this.$emit('add-book', book);
     },
     finishLecture(id) {
-
-      let book = this.readingBooks.find( (book) => book.id === id);  
-
-      let readBook= {
-          title: book.title,
-          author: book.author,
-          cover: book.cover,
-          genre: book.genre,
-          audience: "Adult",
-      };
-      this.readBooks.push(readBook);
-
       this.$emit('finish-lecture', id);
     },
   },
