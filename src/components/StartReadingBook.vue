@@ -101,6 +101,8 @@
 </template>
 
 <script>
+import moment from 'moment';
+
 export default {
   name: "add-new-book",
   data() {
@@ -115,6 +117,7 @@ export default {
         pages: 0,
         genre: "",
         year: 2021,
+        startDate: "",
         quote: "",
         cover: "",
         curator: {
@@ -138,6 +141,7 @@ export default {
         this.error = true;
         return;
       }
+      this.book.startDate = moment().format("DD/MM/YYYY");
       this.$emit("add-book", this.book);
       this.$refs.title.focus();
 
@@ -153,6 +157,7 @@ export default {
         pages: 0,
         genre: "",
         year: 2021,
+        startDate: "",
         quote: "",
         cover: "",
         curator: {

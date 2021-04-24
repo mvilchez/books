@@ -6,7 +6,7 @@
       </div>
       <div class="column-10">
         <div class="row">
-          <div class="lecture-box" v-for="book in readBooks.slice(0).slice(-6)" :key="book.id">
+          <div class="lecture-box" v-for="book in sortedReadBooks.slice(0).slice(-6)" :key="book.id">
             <div class="lecture-item">
               <a href="/kim-nieve-en-los-bolsillos" class="book-link">
                 <img
@@ -44,6 +44,9 @@
 </template>
 
 <script>
+import moment from "moment";
+
+
 export default {
   name: "read",
   props: {
@@ -53,6 +56,15 @@ export default {
     getCoverPath (cover) {
         return cover ? require(`@/assets/covers/${cover}`) : ''
     }
+  },
+  computed: {
+    sortedReadBooks: function () {
+      return this.readBooks.slice(0).sort((a, b) => {
+        return (
+          moment(a.startDate, "DD/MM/YYYY") - moment(b.startDate, "DD/MM/YYYY")
+        );
+      });
+    },
   },
 };
 </script>

@@ -15,6 +15,8 @@
 import BookHeader from "@/components/Header.vue";
 import Reading from "@/components/Reading.vue";
 import Read from "@/components/Read.vue";
+import moment from "moment";
+
 
 export default {
   name: "App",
@@ -33,6 +35,7 @@ export default {
           quote:
             "Vernor Vinge es una pluma grande, inmensa, cuya formación e ideas han abonado algunas de las mejores novelas de este género jamás escritas. Uno de los pocos escritores vivos que pertenece a la época de los grandes clásicos de la ciencia-ficción, a ese tiempo tan añorado que nos abandona poco a poco, a cuenta gotas, conforme el tiempo avanza inexorable.",
           cover: "fuego_abismo_vernor_vringe.jpg",
+          startDate: "27/03/2021",
           curator: {
             name: "Francisco Martínez Hidalgo",
             place: "Fabulantes",
@@ -47,6 +50,7 @@ export default {
           quote:
             "Harry August nació en 1919 en el lavabo de señoras de una estación de tren. Su vida no tuvo mayor relevancia: participó en la Segunda Guerra Mundial y volvió a casa a heredar las tierras de sus padres, donde se quedó hasta morir en 1989. Entonces, volvió a nacer otra vez, en 1919, pero con los recuerdos de su anterior vida intactos.",
           cover: "quince-primeras-vidas.jpeg",
+          startDate: "08/04/2021",
           curator: {
             name: "Laura Huelin",
             place: "La Nave Invisible",
@@ -63,6 +67,8 @@ export default {
           cover: "nieve-bolsillos.jpg",
           genre: "Comic",
           audience: "Adult",
+          startDate: "03/04/2021",
+          endDate: "08/04/2021",
         },
         {
           id: 2,
@@ -71,6 +77,8 @@ export default {
           cover: "abismo_cielo.jpg",
           genre: "Science Fiction",
           audience: "Adult",
+          startDate: "20/02/2021",
+          endDate: "27/03/2021",
         },
         {
           id: 3,
@@ -79,6 +87,8 @@ export default {
           cover: "stoner.jpg",
           genre: "Fiction",
           audience: "Adult",
+          startDate: "31/01/2021",
+          endDate: "01/03/2021",
         },
         {
           id: 4,
@@ -87,6 +97,8 @@ export default {
           cover: "lemmy.jpeg",
           genre: "Biography",
           audience: "Adult",
+          startDate: "23/01/2021",
+          endDate: "27/02/2021",
         },
         {
           id: 5,
@@ -95,6 +107,8 @@ export default {
           cover: "criopolis.jpeg",
           genre: "Science fiction / Space Opera",
           audience: "Adult",
+          startDate: "07/01/2021",
+          endDate: "31/01/2021",
         },
         {
           id: 6,
@@ -104,6 +118,8 @@ export default {
           cover: "viaje-londres-genova.jpg",
           genre: "Literatura de viajes",
           audience: "Young",
+          startDate: "07/01/2021",
+          endDate: "31/01/2021",
         },
       ],
     };
@@ -120,6 +136,8 @@ export default {
           cover: book.cover,
           genre: book.genre,
           audience: "Adult",
+          startDate: book.startDate,
+          endDate: moment().format("DD/MM/YYYY"),
       };
       this.readBooks.push(readBook);
 

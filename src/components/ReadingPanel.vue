@@ -5,7 +5,7 @@
     </div>
     <div class="column-10">
       <div class="row">
-        <div class="column-6" v-for="book in readingBooks" :key="book.id">
+        <div class="column-6" v-for="book in sortedReadingBooks" :key="book.id">
           <div class="next-lecture-pick">
             <div class="icon-read-div">
               <img src="@/assets/checklist.png" alt="Flag icon" class="icon" />
@@ -20,10 +20,7 @@
               {{ book.quote }}
             </div>
             <div class="img-container">
-              <img
-                :src="getCoverPath(book.cover)"
-                alt="Black No More"
-              />
+              <img :src="getCoverPath(book.cover)" alt="Black No More" />
             </div>
           </div>
           <div class="recomendador">
@@ -47,15 +44,28 @@
 </template>
 
 <script>
+import sortByDateField from '../js/common-functions.js';
+//import moment from 'moment';
+
 export default {
   name: "reading-panel",
   props: {
     readingBooks: Array,
   },
   methods: {
-    getCoverPath (cover) {
-        return cover ? require(`@/assets/covers/${cover}`) : ''
-    }
+    getCoverPath(cover) {
+      return cover ? require(`@/assets/covers/${cover}`) : "";
+    },
+  },
+  computed: {
+    sortedReadingBooks: function () {
+      return sortByDateField(this.readingBooks, "startDate");
+  /*    return this.readingBooks.slice(0).sort((a, b) => {
+        return (
+          moment(a.startDate, "DD/MM/YYYY") - moment(b.startDate, "DD/MM/YYYY")
+        );
+      });*/
+    },
   },
 };
 </script>
