@@ -11,7 +11,7 @@
               <a href="/kim-nieve-en-los-bolsillos" class="book-link">
                 <img
                   class="book-cover"
-                  :src="book.cover"
+                  :src="getCoverPath(book.cover)"
                   :title="book.title"
                   :alt="book.title"
                 />
@@ -48,6 +48,11 @@ export default {
   name: "read",
   props: {
     readBooks: Array,
+  },
+  methods: {
+    getCoverPath (cover) {
+        return cover ? require(`@/assets/covers/${cover}`) : ''
+    }
   },
 };
 </script>

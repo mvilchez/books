@@ -35,14 +35,10 @@ export default {
 
       let book = this.readingBooks.find( (book) => book.id === id);  
 
-      //this.readingBooks = this.readingBooks.filter((book) => book.id !== id);
-
-      console.log("Book cover "+book.cover);
-
       let readBook= {
           title: book.title,
           author: book.author,
-         // cover: require('@/assets/covers/'+book.cover),
+          cover: book.cover,
           genre: book.genre,
           audience: "Adult",
       };

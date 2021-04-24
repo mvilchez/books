@@ -21,7 +21,7 @@
             </div>
             <div class="img-container">
               <img
-                :src="book.cover"
+                :src="getCoverPath(book.cover)"
                 alt="Black No More"
               />
             </div>
@@ -52,7 +52,11 @@ export default {
   props: {
     readingBooks: Array,
   },
-  methods: {},
+  methods: {
+    getCoverPath (cover) {
+        return cover ? require(`@/assets/covers/${cover}`) : ''
+    }
+  },
 };
 </script>
 
