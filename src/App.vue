@@ -1,6 +1,9 @@
 <template>
   <div id="app" class="body">
-    <book-header />
+    <book-header
+      v-bind:currentYear="currentYear"
+      @changed-selected-year="changeYear"
+    />
     <reading
       v-bind:readingBooks="readingBooks"
       v-bind:readBooks="readBooks"
@@ -16,7 +19,6 @@ import BookHeader from "@/components/Header.vue";
 import Reading from "@/components/Reading.vue";
 import Read from "@/components/Read.vue";
 import moment from "moment";
-
 
 export default {
   name: "App",
@@ -121,26 +123,55 @@ export default {
           startDate: "07/01/2021",
           endDate: "31/01/2021",
         },
+        {
+          id: 7,
+          title: "Miles Vorkosigan 14 – Inmunidad diplomática",
+          author: "Lois McMaster Bujold",
+          cover: "inmunidad-diplomatica.jpg",
+          genre: "Science fiction / Space Opera",
+          audience: "Adult",
+          startDate: "01/01/2021",
+          endDate: "06/01/2021",
+        },
+        {
+          id: 8,
+          title: "El beso del exilio",
+          author: "George Alec Effinger",
+          cover: "beso-exilio.jpg",
+          genre: "Science fiction",
+          audience: "Adult",
+          startDate: "29/12/2020",
+          endDate: "01/01/2021",
+        },
+        {
+          id: 9,
+          title: "Un fuego en el sol",
+          author: "George Alec Effinger",
+          cover: "fuego-sol.jpg",
+          genre: "Science fiction",
+          audience: "Adult",
+          startDate: "20/12/2020",
+          endDate: "29/12/2020",
+        },
       ],
     };
   },
   methods: {
     finishLecture(id) {
-      let book = this.readingBooks.find( (book) => book.id === id);  
+      let book = this.readingBooks.find((book) => book.id === id);
 
       this.readingBooks = this.readingBooks.filter((book) => book.id !== id);
 
-      let readBook= {
-          title: book.title,
-          author: book.author,
-          cover: book.cover,
-          genre: book.genre,
-          audience: "Adult",
-          startDate: book.startDate,
-          endDate: moment().format("DD/MM/YYYY"),
+      let readBook = {
+        title: book.title,
+        author: book.author,
+        cover: book.cover,
+        genre: book.genre,
+        audience: "Adult",
+        startDate: book.startDate,
+        endDate: moment().format("DD/MM/YYYY"),
       };
       this.readBooks.push(readBook);
-
     },
     startReadingBook(book) {
       let id = 0;
@@ -150,6 +181,17 @@ export default {
       }
 
       this.readingBooks = [...this.readingBooks, { ...book, id }];
+    },
+    changeYear(year) {
+      this.readingBooks = this.readingBooks.filter(
+        (book) =>
+          moment(book.startDate, "DD/MM/YYYY").toDate().getFullYear === year
+      );
+    },
+  },
+  computed: {
+    currentYear: function () {
+      return moment("2009-01-01", "YYYY-MM-DD").toDate().getFullYear();
     },
   },
 };
