@@ -69,26 +69,29 @@ The ingestion module and core relational schemas are mapped tightly against your
    }
    ```
 
-#### Step 1.2: Designing the Ingestion Sandbox (CLI Engine)
-1. Place a sample copy of your existing tracking spreadsheet (`library.xlsx`) inside a temporary folder located at the root directory: `mkdir telemetry_sandbox && cp ~/Downloads/my_reading_list.xlsx ./telemetry_sandbox/source.xlsx`.
-2. Draft a decoupled script file named `src/scripts/validate-ingestion.ts`. This bypasses the browser environment entirely and executes raw Node.js processes using `ts-node` or Next.js experimental execution runners.
-3. Architect the internal parsing structure using defensive programming patterns:
-   *   Initialize the `ExcelJS.Workbook` memory buffer.
-   *   Load the file asynchronously via `await workbook.xlsx.readFile('./telemetry_sandbox/source.xlsx')`.
-   *   Acquire the first active worksheet: `const worksheet = workbook.getWorksheet(1);`.
-   *   Implement an iterative row handler loop skipping the header row (`rowNumber === 1`). Extract the underlying data values carefully by managing both raw string text and computed cell structures:
-     ```typescript
-     worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-       if (rowNumber === 1) return; // Skip headers
-       const title = row.getCell(1).text.trim();
-       const author = row.getCell(2).text.trim();
-       const pages = Number(row.getCell(3).value);
-       const rating = row.getCell(4).value ? Number(row.getCell(4).value) : null;
-       const year = Number(row.getCell(5).value);
-       
-       console.log(`[Row ${rowNumber}] Parsed Document: "${title}" authored by ${author} (${pages} total pages) | Rating: ${rating} | Year: ${year}`);
-     });
-     ```
+#### Step 1.2: Designing the Ingestion Sandbox (CLI Engine) — ✅ DONE
+1. Place a sample copy of your existing tracking spreadsheet inside a temporary folder at the root: `mkdir telemetry_sandbox && cp <your-file> ./telemetry_sandbox/source.xlsx`.
+   > **Note:** the file must be a genuine OOXML **`.xlsx`** (a ZIP starting with `PK\x03\x04`). Legacy `.xls`/OLE2 files are **not** supported by ExcelJS and will fail with *"Can't find end of central directory"* — re-save as `.xlsx` first.
+2. Draft a decoupled script `src/scripts/validate-ingestion.ts`. It bypasses the browser and runs as a raw Node process via **`tsx`** (esbuild-based runner; `ts-node` does not cleanly support this project's `moduleResolution: "bundler"` + ESM on Node 18). Invoke with `npm run validate:ingestion [optionalPath]`.
+3. **MULTI-TAB, header-name-driven parsing** (implemented). Key design decisions:
+   *   Iterate **all** worksheets via `workbook.worksheets`. Treat a tab as a "read books" sheet when its **name** starts with `Leidos/Leídos`; skip non-read tabs (`Pendientes`, `Descartados`, `kindle`, `Proxima Visita`, `Gráficos`).
+   *   Derive the **reading year from the tab name** (`Leídos 2013` → `2013`); the optional `Año` column is the book's **publication** year (distinct field).
+   *   Match columns **by header name** (diacritic/case/space-insensitive), never by fixed index, because column sets vary per tab and `Autor` appears **twice** on some tabs.
+   *   Defensive cell coercion for ExcelJS's `CellValue` union: `Date` → ISO date, **rich-text** → concatenated runs, **formula** → `.result`, `#N/A`/errors → text, null → empty.
+   *   Ratings are **decimal 0–10** (`Puntuación (del 1 al 10)`); `-`/`0`/blank = unrated. Pages (`Paginas`) may be legitimately **null** for pre-2014 rows.
+   *   **Skip footer/summary rows** at the bottom of each tab (`Libros Leídos`, `Estadísticas`, aggregate formulas) — they are not books.
+   *   Safe cell accessor avoids ExcelJS's *"column 0 out of bounds"* throw on sheets lacking an optional column.
+   ```typescript
+   worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+     if (rowNumber === 1) return; // skip header
+     const titulo = colText(row, headerMap, "titulo");      // by header name
+     const paginas = /* number | null */;
+     const puntuacion = cellToRating(/* decimal 0–10, null if unrated */);
+     if (isFooter(titulo)) { result.footerRows++; return; }  // skip stats rows
+     // ...validate + collect...
+   });
+   ```
+4. **Validation result (real workbook, 25 tabs):** 20 read tabs parsed, **830 records, 0 validation errors**, 447 unique authors, 338 footer rows skipped, 5 non-read tabs skipped. `tsc --noEmit` and ESLint clean.
 
 ---
 
@@ -107,6 +110,7 @@ The ingestion module and core relational schemas are mapped tightly against your
    npx prisma init
    ```
 2. Refactor the generated `prisma/schema.prisma` file to map our entity relationships cleanly. We will build a one-to-many relationship (`Author` -> `Book`) to avoid duplicating author names across rows, and hook up a `Genre` table to satisfy analytics tracking:
+   > **Revised after Step 1.2** to match the real multi-tab source: `rating` is a **decimal 1–10** (`Float?`, from `Puntuación (del 1 al 10)`); `totalPages` is **nullable** (pre-2014 rows lack page counts); `readingYear` comes from the **tab name** while `publicationYear` comes from the `Año` **column**; and `origen`/`fechaInicio`/`fechaFin` are captured too.
    ```prisma
    datasource db {
      provider = "postgresql"
@@ -125,21 +129,25 @@ The ingestion module and core relational schemas are mapped tightly against your
    }
 
    model Book {
-     id           String        @id @default(uuid())
-     title        String
-     totalPages   Int           @map("numero_de_paginas")
-     currentPages Int           @default(0)
-     status       ReadingStatus @default(PENDING)
-     rating       Int?          @map("nota_personal")
-     readingYear  Int           @map("ano")
-     authorId     String
-     author       Author        @relation(fields: [authorId], references: [id], onDelete: Cascade)
-     genreId      String?
-     genre        Genre?        @relation(fields: [genreId], references: [id], onDelete: SetNull)
-     createdAt    DateTime      @default(now())
-     updatedAt    DateTime      @updatedAt
+     id             String         @id @default(uuid())
+     title          String
+     totalPages     Int?           @map("numero_de_paginas")   // nullable: historical gaps
+     currentPages   Int            @default(0)
+     status         ReadingStatus  @default(PENDING)
+     rating         Float?         @map("nota_personal")      // decimal 1–10
+     readingYear    Int            @map("ano")                // from the TAB NAME
+     publicationYear Int?          @map("ano_publicacion")    // from the "Año" COLUMN
+     origin         String?        @map("origen")
+     startDate      DateTime?      @map("fecha_inicio")
+     finishDate     DateTime?      @map("fecha_fin")
+     authorId       String
+     author         Author         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+     genreId        String?
+     genre          Genre?         @relation(fields: [genreId], references: [id], onDelete: SetNull)
+     createdAt      DateTime       @default(now())
+     updatedAt      DateTime       @updatedAt
 
-     @@unique([title, authorId])
+     @@unique([title, authorId, readingYear])
    }
 
    model Author {
@@ -156,6 +164,7 @@ The ingestion module and core relational schemas are mapped tightly against your
      createdAt DateTime @default(now())
    }
    ```
+   > **Idempotency note:** because the same book can appear on multiple yearly tabs, the composite unique key now includes `readingYear` (`@@unique([title, authorId, readingYear])`) so re-imports upsert rather than collide.
 
 #### Step 2.2: Infrastructure Scaffolding (Local PostgreSQL Engine)
 1. To safeguard development efficiency while staying offline on your Linux workstation, spin up an isolated database container using **Docker Compose**. Create a `docker-compose.yml` file in the root workspace:
@@ -203,39 +212,49 @@ The ingestion module and core relational schemas are mapped tightly against your
        const buffer = Buffer.from(await file.arrayBuffer());
        const workbook = new ExcelJS.Workbook();
        await workbook.xlsx.load(buffer);
-       const worksheet = workbook.getWorksheet(1);
+       // MULTI-TAB (revised after Step 1.2): iterate only "read" tabs (name starts with
+       // Leidos/Leidos), derive readingYear from the tab name, match columns by header
+       // name, and skip footer/summary rows. Reuse the helpers proven in
+       // src/scripts/validate-ingestion.ts instead of fixed column indices.
+       const isReadTab = (name: string) => /^leidos/i.test(normalize(name));
+       const readTabs = workbook.worksheets.filter((ws) => isReadTab(ws.name));
 
        let recordsIngested = 0;
 
        await prisma.$transaction(async (tx) => {
-         for (let i = 2; i <= worksheet.rowCount; i++) {
-           const row = worksheet.getRow(i);
-           if (!row.getCell(1).value) continue;
+         for (const worksheet of readTabs) {
+           const readingYear = Number(worksheet.name.match(/(\d{4})/)?.[1]);
+           const headerMap = buildHeaderMap(worksheet.getRow(1)); // name -> column index(es)
 
-           const title = row.getCell(1).text.trim();
-           const authorName = row.getCell(2).text.trim();
-           const totalPages = Number(row.getCell(3).value) || 0;
-           const rating = row.getCell(4).value ? Number(row.getCell(4).value) : null;
-           const year = Number(row.getCell(5).value) || new Date().getFullYear();
+           for (let i = 2; i <= worksheet.rowCount; i++) {
+             const row = worksheet.getRow(i);
+             const title = colText(row, headerMap, "titulo");
+             if (!title || isFooter(title)) continue; // skip blank + stats rows
 
-           // Basic inline default status assignment based on history metrics
-           const status = 'COMPLETED';
+             const authorName = colText(row, headerMap, "autor");
+             const totalPages = cellToIntNullable(row, headerMap, "paginas"); // may be null
+             const rating = cellToRating(row, headerMap, "puntuacion (del 1 al 10)"); // decimal 0-10 | null
+             const publicationYear = cellToIntNullable(row, headerMap, "ano");
+             const status = "COMPLETED";
 
-           const author = await tx.author.upsert({
-             where: { name: authorName },
-             update: {},
-             create: { name: authorName }
-           });
+             if (!readingYear) continue; // "Leidos antes" has no year -> skip or default
 
-           await tx.book.upsert({
-             where: {
-               title_authorId: { title, authorId: author.id }
-             },
-             update: { totalPages, rating, readingYear: year, status },
-             create: { title, totalPages, rating, readingYear: year, status, authorId: author.id }
-           });
+             const author = await tx.author.upsert({
+               where: { name: authorName },
+               update: {},
+               create: { name: authorName },
+             });
 
-           recordsIngested++;
+             await tx.book.upsert({
+               where: {
+                 title_authorId_readingYear: { title, authorId: author.id, readingYear },
+               },
+               update: { totalPages, rating, publicationYear, status },
+               create: { title, totalPages, rating, readingYear, publicationYear, status, authorId: author.id },
+             });
+
+             recordsIngested++;
+           }
          }
        });
 

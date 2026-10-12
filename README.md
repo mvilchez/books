@@ -1,5 +1,14 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Books — Reading Analytics Platform
+
+A lightweight, high-performance web app / PWA that replaces a multi-year Excel
+reading tracker, preserving the historical ledger while unlocking server-side
+statistics and interactive dashboards.
+
+- **Stack:** Next.js 16 (App Router, RSC, Server Actions) · TypeScript (strict) · Tailwind CSS 4 · Prisma + PostgreSQL (Supabase prod / Docker dev) · ExcelJS · Recharts.
+- **Source data:** a multi-tab `.xlsx` workbook (25 tabs). Only tabs named `Leidos/Leídos` are "read" records; the reading year comes from the tab name.
+
 ## Getting Started
 
 First, run the development server:
@@ -28,6 +37,26 @@ To learn more about Next.js, take a look at the following resources:
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Ingestion Sandbox (Step 1.2)
+
+A decoupled, browser-free CLI that parses the source workbook and validates the
+ingestion layer against the real schema — **no database required**. It iterates
+every `Leidos/Leídos` tab, matches columns by header name, coerces ExcelJS cell
+types defensively (dates, rich-text, formulas), and skips footer/summary rows.
+
+```bash
+# Parse the default workbook at telemetry_sandbox/source.xlsx
+npm run validate:ingestion
+
+# Or point it at a specific .xlsx file
+npm run validate:ingestion -- /path/to/your.xlsx
+```
+
+Requirements / notes:
+- The workbook must be a genuine OOXML **`.xlsx`** (a ZIP starting with `PK\x03\x04`). Legacy `.xls` files are **not** supported by ExcelJS — re-save as `.xlsx`.
+- Runs on Node via [`tsx`](https://github.com/privatenumber/tsx) (esbuild-based TypeScript runner).
+- Exits non-zero on fatal errors (missing/invalid file) or when no records parse.
 
 ## Deploy on Vercel
 
