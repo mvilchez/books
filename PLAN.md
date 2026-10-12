@@ -12,7 +12,7 @@
 *   **Language Ecosystem:** TypeScript 5.x (Strict Mode enabled).
 *   **Styling Engine:** Tailwind CSS 4.x / Component Isolation.
 *   **Data Access Layer:** Prisma ORM (Type-safe query builder).
-*   **Production Database:** Managed Cloud PostgreSQL via Supabase (Free Tier, 500MB storage allocation).
+*   **Production Database:** Managed Cloud **MariaDB** via **SkySQL** (MariaDB's official cloud service; free/dev tiers available). Prisma targets MariaDB through its `mysql` provider.
 *   **Data Ingestion Engine:** ExcelJS (Streamed workbook parsing).
 *   **Deployment Infrastructure:** Render Web Services (Free Tier PaaS instance).
 *   **Client Distribution:** Progressive Web App (PWA) with Service Workers for home-screen standalone execution.
@@ -99,7 +99,7 @@ The ingestion module and core relational schemas are mapped tightly against your
 **Objective:** Design a normalization schema to transform flat spreadsheet columns into a relational database, and build an idempotent transactional migration API route.
 
 ```
-[Web UI File Upload] ──> [/api/v1/import] ──> [ORM Data Sanitization] ──> [Supabase Transaction Engine]
+[Web UI File Upload] ──> [/api/v1/import] ──> [ORM Data Sanitization] ──> [MariaDB Transaction Engine]
 ```
 
 #### Step 2.1: Relational Schema Design
@@ -113,7 +113,7 @@ The ingestion module and core relational schemas are mapped tightly against your
    > **Revised after Step 1.2** to match the real multi-tab source: `rating` is a **decimal 1–10** (`Float?`, from `Puntuación (del 1 al 10)`); `totalPages` is **nullable** (pre-2014 rows lack page counts); `readingYear` comes from the **tab name** while `publicationYear` comes from the `Año` **column**; and `origen`/`fechaInicio`/`fechaFin` are captured too.
    ```prisma
    datasource db {
-     provider = "postgresql"
+     provider = "mysql"   // MariaDB uses Prisma's "mysql" provider (there is no "mariadb" provider)
      url      = env("DATABASE_URL")
    }
 
@@ -165,32 +165,42 @@ The ingestion module and core relational schemas are mapped tightly against your
    }
    ```
    > **Idempotency note:** because the same book can appear on multiple yearly tabs, the composite unique key now includes `readingYear` (`@@unique([title, authorId, readingYear])`) so re-imports upsert rather than collide.
+>
+> **MariaDB compatibility (moved off Supabase/PostgreSQL):** MariaDB is driven by Prisma's `mysql` provider, so the schema is unchanged apart from `provider`. Everything the model relies on is fully supported on MariaDB — `enum`, `@default(uuid())` (a Prisma-level default that makes the column `VARCHAR(191)`), `onDelete: Cascade` / `SetNull`, and the composite `@@unique(...)`. Nothing PostgreSQL-specific is used: no `?schema=public`, no `pgbouncer`, no arrays, no `dbgenerated`/extension functions.
 
-#### Step 2.2: Infrastructure Scaffolding (Local PostgreSQL Engine)
+#### Step 2.2: Infrastructure Scaffolding (Local MariaDB Engine)
 1. To safeguard development efficiency while staying offline on your Linux workstation, spin up an isolated database container using **Docker Compose**. Create a `docker-compose.yml` file in the root workspace:
    ```yaml
    version: '3.8'
    services:
-     postgres_dev:
-       image: postgres:15-alpine
+     mariadb_dev:
+       image: mariadb:11-alpine
        container_name: books_db
        environment:
-         POSTGRES_USER: engine_developer
-         POSTGRES_PASSWORD: secure_dev_password_2026
-         POSTGRES_DB: reading_tracker_local
+         MARIADB_USER: engine_developer
+         MARIADB_PASSWORD: secure_dev_password_2026
+         MARIADB_DATABASE: reading_tracker_local
+         MARIADB_RANDOM_ROOT_PASSWORD: 'yes'   # never bake a fixed root password
        ports:
-         - "5432:5432"
+         - "3306:3306"
        volumes:
-         - postgres_data:/var/lib/postgresql/data
+         - mariadb_data:/var/lib/mysql
+       healthcheck:                            # wait until the engine accepts connections
+         test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+         interval: 5s
+         timeout: 3s
+         retries: 20
 
    volumes:
-     postgres_data:
+     mariadb_data:
    ```
+   > **Note:** the official MariaDB image uses the `MARIADB_*` environment variables (not `POSTGRES_*`), listens on port **3306** (not 5432), and stores its data in `/var/lib/mysql` (not `/var/lib/postgresql/data`).
 2. Boot the engine: `docker-compose up -d`.
 3. Configure your local runtime parameters inside the `.env` file:
    ```env
-   DATABASE_URL="postgresql://engine_developer:secure_dev_password_2026@localhost:5432/reading_tracker_local?schema=public"
+   DATABASE_URL="mysql://engine_developer:secure_dev_password_2026@localhost:3306/reading_tracker_local"
    ```
+   > **Note:** MariaDB/MySQL connection strings start with `mysql://` and drop the PostgreSQL-only `?schema=public` suffix.
 4. Push your schema layout onto the local Docker database instance: `npx prisma db push`.
 
 #### Step 2.3: Building the Transactional Bulk Ingestion Route
@@ -363,15 +373,16 @@ The ingestion module and core relational schemas are mapped tightly against your
 ---
 
 ### PHASE 4: Cloud Engine Provisioning & Production Pipelines
-**Objective:** Deploy your local workspace configurations to enterprise cloud infrastructure by initializing a managed production database on Supabase and setting up automated deployments via Render.
+**Objective:** Deploy your local workspace configurations to enterprise cloud infrastructure by initializing a managed production database on **MariaDB** (SkySQL) and setting up automated deployments via Render.
 
-#### Step 4.1: Managed Database Orchestration
-1. Log into your **Supabase** management console and create a new project named `Books Application Engine`.
-2. Navigate to **Project Settings -> Database** and copy the Transaction-based Connection String URL.
+#### Step 4.1: Managed Database Orchestration (SkySQL / MariaDB)
+1. Log into your **SkySQL** console (MariaDB's official managed cloud — https://www.mariadb.com/products/skysql/) and create a new database service named `Books Application Engine`.
+2. Navigate to the service's **Connection** tab and copy the Transaction-based Connection String URL (a `mysql://` URI).
 3. Update your local git repository configuration by shifting target connections. Create a `.env.production` file to hold the connection string:
    ```env
-   DATABASE_URL="postgresql://postgres:[YOUR_DB_PASSWORD]@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1"
+   DATABASE_URL="mysql://DB_USER:[YOUR_DB_PASSWORD]@YOUR_MARIADB_HOST:PORT/reading_tracker?sslaccept=strict"
    ```
+   > **Note:** managed MariaDB endpoints enforce TLS. Append `?sslaccept=strict` (paired with `sslcert`) for the SkySQL endpoint, and keep `connection_limit` modest for the pooled PaaS instance.
 4. Run your migration schemas directly against the production instance to verify access permissions:
    ```bash
    npx prisma db push
@@ -523,5 +534,5 @@ export default function AdvancedAnalyticsPanel({ stats, discovery }: { stats: an
 
 ## 📈 Long-Term Operational Strategies
 *   **Encapsulation Validation:** As your tracking database grows, wrap the raw database queries inside isolated service files to keep your application logic cleanly separated.
-*   **Database Scaling:** Keep an eye on Supabase's built-in indexing tools. If you scale up to thousands of book records, adding an index to fields like `status` or `updatedAt` will keep your queries lightning-fast.
+*   **Database Scaling:** Keep an eye on MariaDB's indexing (InnoDB secondary/composite indexes declared via `@@index`). If you scale up to thousands of book records, adding an index to fields like `status` or `updatedAt` will keep your queries lightning-fast.
 *   **Offline Support:** In the future, you can configure your PWA's Service Worker to cache network requests, allowing you to view and update your reading lists even when you're completely offline.

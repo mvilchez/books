@@ -17,7 +17,7 @@ The primary business goal is to **preserve and migrate a historical ledger conta
 If this session breaks, the incoming AI engine must strictly maintain this architectural baseline:
 *   **Framework:** Next.js 15+ (App Router, React Server Components, Server Actions for mutations).
 *   **Language Ecosystem:** TypeScript 5.x running under strict compiler flags (`strictNullChecks`, `noImplicitAny`).
-*   **Database & ORM:** Prisma ORM communicating with a managed PostgreSQL engine (Supabase in production, local Docker container for development).
+*   **Database & ORM:** Prisma ORM communicating with a managed MariaDB engine (SkySQL in production, local Docker container for development). Prisma drives MariaDB through its `mysql` provider.
 *   **File Parsing Core:** ExcelJS (Streamed, non-blocking asynchronous workbook interpreter).
 *   **Visualizations:** Recharts Framework (Reactive client wrappers optimized for Tailwind CSS canvas environments).
 

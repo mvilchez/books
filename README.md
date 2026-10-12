@@ -6,7 +6,7 @@ A lightweight, high-performance web app / PWA that replaces a multi-year Excel
 reading tracker, preserving the historical ledger while unlocking server-side
 statistics and interactive dashboards.
 
-- **Stack:** Next.js 16 (App Router, RSC, Server Actions) · TypeScript (strict) · Tailwind CSS 4 · Prisma + PostgreSQL (Supabase prod / Docker dev) · ExcelJS · Recharts.
+- **Stack:** Next.js 16 (App Router, RSC, Server Actions) · TypeScript (strict) · Tailwind CSS 4 · Prisma + MariaDB (SkySQL prod / Docker dev, via the `mysql` provider) · ExcelJS · Recharts.
 - **Source data:** a multi-tab `.xlsx` workbook (25 tabs). Only tabs named `Leidos/Leídos` are "read" records; the reading year comes from the tab name.
 
 ## Getting Started
