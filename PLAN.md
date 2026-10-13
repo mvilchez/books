@@ -177,8 +177,8 @@ The ingestion module and core relational schemas are mapped tightly against your
        image: mariadb:11-alpine
        container_name: books_db
        environment:
-         MARIADB_USER: engine_developer
-         MARIADB_PASSWORD: secure_dev_password_2026
+         MARIADB_USER: book
+         MARIADB_PASSWORD: password
          MARIADB_DATABASE: reading_tracker_local
          MARIADB_RANDOM_ROOT_PASSWORD: 'yes'   # never bake a fixed root password
        ports:
@@ -198,7 +198,7 @@ The ingestion module and core relational schemas are mapped tightly against your
 2. Boot the engine: `docker-compose up -d`.
 3. Configure your local runtime parameters inside the `.env` file:
    ```env
-   DATABASE_URL="mysql://engine_developer:secure_dev_password_2026@localhost:3306/reading_tracker_local"
+   DATABASE_URL="mysql://book:password@localhost:3306/reading_tracker_local"
    ```
    > **Note:** MariaDB/MySQL connection strings start with `mysql://` and drop the PostgreSQL-only `?schema=public` suffix.
 4. Push your schema layout onto the local Docker database instance: `npx prisma db push`.

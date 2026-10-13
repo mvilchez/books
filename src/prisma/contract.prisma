@@ -1,0 +1,77 @@
+// use prisma-next
+
+// ---------------------------------------------------------------------------
+// books — data contract (PLAN.md Step 2.1, migrated to Prisma 8 RC / "Prisma
+// Next")
+//
+// Replaces the multi-tab Excel ledger with a normalized relational model:
+//   Author (1) ──< Book (M) ──> Genre (0..1)
+// Author names are de-duplicated into the Author table (1-to-Many); the Genre
+// table powers the analytics rankings. The composite unique key keeps
+// re-imports idempotent because the same title can legitimately appear on
+// multiple yearly tabs.
+//
+// TARGET CHANGE: the Prisma 8 RC toolchain only ships a PostgreSQL target
+// (`@prisma/orm-postgres`); there is no MySQL/MariaDB target in this RC. This
+// contract therefore targets PostgreSQL >= 15 (see prisma.config.ts + .env).
+//
+// Field mapping rationale (revised after Step 1.2 to match the real source):
+//   rating          -> "Puntuación (del 1 al 10)" : decimal 1–10, Float?
+//   totalPages      -> "Paginas"                  : nullable (pre-2014 gaps)
+//   readingYear     -> derived from the TAB NAME  : NOT the publication year
+//   publicationYear -> "Año" COLUMN (2014+ tabs)  : the book's original year
+//   origin/startDate/finishDate -> Origen/Fecha Inicio/Fecha Fin columns
+//
+// After editing, run `npx prisma contract emit` to regenerate contract.json
+// and contract.d.ts (both are emitted artefacts — never hand-edit them).
+// ---------------------------------------------------------------------------
+
+// Reading lifecycle status for a book.
+enum ReadingStatus {
+  @@type("pg/text@1")
+  PENDING = "PENDING"
+  READING = "READING"
+  COMPLETED = "COMPLETED"
+  WISH_LIST = "WISH_LIST"
+}
+
+model Author {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  books     Book[]
+  createdAt TimestamptzString @default(now())
+}
+
+model Genre {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  books     Book[]
+  createdAt TimestamptzString @default(now())
+}
+
+model Book {
+  id              String             @id @default(uuid())
+  title           String
+  totalPages      Int?               @map("numero_de_paginas") // nullable: pre-2014 gaps
+  currentPages    Int                @default(0)
+  status          ReadingStatus      @default(PENDING)
+  rating          Float?             @map("nota_personal")     // decimal 0–10 (1–10 scale)
+  readingYear     Int                @map("ano")               // derived from the TAB NAME
+  publicationYear Int?               @map("ano_publicacion")   // from the "Año" COLUMN
+  origin          String?            @map("origen")
+  startDate       TimestampString?   @map("fecha_inicio")
+  finishDate      TimestampString?   @map("fecha_fin")
+  authorId        String
+  author          Author             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  genreId         String?
+  genre           Genre?             @relation(fields: [genreId], references: [id], onDelete: SetNull)
+  createdAt       TimestamptzString  @default(now())
+  updatedAt       temporal.updatedAtString()
+
+  // Idempotent re-imports: the same title+author can recur across yearly tabs,
+  // so readingYear is part of the natural key.
+  @@unique([title, authorId, readingYear])
+  @@index([authorId])
+  @@index([genreId])
+}
+
