@@ -247,7 +247,7 @@ The ingestion module and core relational schemas are mapped tightly against your
    * `Author` — upserted once per **unique** name (`@@unique([name])`), then the id is reused from a `Map`.
    * `Genre` — upserted once per unique `Tipo` value; rows with no `Tipo` keep `genreId = null`.
    * `Book` — upserted on `title + authorId + readingYear + editionKey`; this keeps re-imports idempotent while retaining rereads and editions.
-4. **All modelled fields are now populated** (not just title/author/pages): `totalPages`, `rating`, `publicationYear`, `origin`, `startDate`, `finishDate`, `genreId`, `status = COMPLETED`. Dates are normalised to UTC midnight, since MariaDB `DATETIME` stores no timezone.
+4. **All modelled fields are now populated** (not just title/author/pages): `totalPages`, `rating`, `publicationYear`, `origin`, `startDate`, `finishDate`, `genreId`, and a status derived from `finishDate` (`COMPLETED` only when the finish date exists; otherwise `READING`). Dates are normalised to UTC midnight, since MariaDB `DATETIME` stores no timezone. Re-import the workbook to update rows already in the database.
 5. **`readingYear` backfill decision (the open question in §2.3):** `Leidos antes` has no year in its tab name, so it is persisted under the documented sentinel **`PRE_TAB_READING_YEAR_SENTINEL = 2007`** (`src/lib/ingestion/workbook-parser.ts`) — the last year before the first yearly tab (2008) — instead of being silently dropped. The response reports `backfilledReadingYear` so the substitution is always visible.
 6. **Error contract:** `400` for a missing/empty/oversized/non-`.xlsx` payload or an unparseable workbook (with the actionable *"re-save as .xlsx"* message); `500` **only** for a genuine persistence failure, reported as `Import failed and was rolled back: …`; `405` for non-POST verbs (Next's automatic `OPTIONS`/`Allow` handling).
 7. **Existing database cleanup:** use `npx prisma db push` to apply the `editionKey` schema before running the importer/cleanup script on an existing database. The importer migrates old rows to their edition fingerprints during re-import. `npm run cleanup:books` previews footer/aggregate rows and same-year duplicate editions; `npm run cleanup:books -- --execute` removes only those rows, keeping the oldest row in each duplicate group.
@@ -403,6 +403,7 @@ export async function POST(request: Request) {
      );
    }
    ```
+   **Year browsing:** the dashboard now defaults to the current calendar year, accepts `/?year=<year>`, and displays previous/next links plus direct links for years present in the ledger. The book query is scoped to the selected `readingYear`; the query-parameter and Prisma reads remain inside a `<Suspense>` boundary.
 
 #### Step 3.2: Creating the High-Performance Interactive Components
 1. Inside `src/components/BookCard.tsx`, assemble the layout logic using Tailwind utility classes.
@@ -1187,6 +1188,8 @@ export default function Loading() {
 2.  **Rating scale fix (Step 3.2).** `BookCard` displayed `Rating: {book.rating}/5`; the ledger scale is decimal **0–10** (CONTEXT.md §2.1). The snippet now shows `/10`.
 3.  **Post-import freshness.** The import route needs no `revalidatePath` today: `/stats` reads are uncached, so a plain reload after `POST /api/v1/import` shows fresh numbers. Revisit only if you adopt the `'use cache'` stretch goal below.
 4.  **Prisma singleton everywhere.** The Phase 3 snippet previously instantiated `new PrismaClient()` inline; it now imports the Step 2.3 singleton, exactly like `analytics.ts`.
+5.  **Completion-date source of truth.** The import route sets `COMPLETED` only when `finishDate` is present; rows without an ending date are saved as `READING` and are excluded from completed-book analytics. Re-import the workbook to correct previously imported statuses.
+6.  **Dashboard year navigation.** `/` defaults to the current calendar year and filters the shelf by `readingYear`; `/?year=YYYY`, previous/next links, and links for recorded years provide navigation while retaining server rendering.
 
 #### Step 5.6: Verification & Acceptance Checklist
 
@@ -1196,10 +1199,12 @@ export default function Loading() {
 | `npx tsc --noEmit` | clean — no `any` reaches a chart prop; DTOs shared via `import type` |
 | `npx eslint .` | clean — every chart file starts with `"use client"` |
 | `npm run build` | `/stats` emitted as dynamic (ƒ); **no blocking-prerender / missing-Suspense errors** from `cacheComponents` |
-| `npm run dev` → `/stats` | KPIs match the verified import baseline: 830 books (all years), 327.490 pages, avg rating 7.2, 157 unrated |
+| `npm run dev` → `/stats` | Completed-book KPIs exclude records without `finishDate`; verify against the re-imported workbook rather than the historical pre-correction count |
 | `/stats?year=2019` | 2019 pill active; KPIs, pace chart and suggestions scoped to 2019 |
 | `/stats?year=banana` | falls back to the newest reading year; no crash |
 | `/stats?year=2007` | pill reads "pre-2008"; shows the "Leidos antes" back-catalogue |
+| `/` | defaults to the current calendar year; changing year updates the shelf and URL |
+| Import row without `Fecha Fin` | saved as `READING`, not `COMPLETED` |
 | Trend chart | one bar per ingested reading year (≤2007 sentinel + 2008–2026) |
 | Empty database | skeleton → "No books imported yet" empty states; no zero-axis lies |
 | 375 px viewport | `h-[300px]` parents keep charts visible (no zero-height collapse) |

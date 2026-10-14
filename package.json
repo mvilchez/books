@@ -11,14 +11,14 @@
     "cleanup:books": "tsx --tsconfig tsconfig.json src/scripts/cleanup-invalid-books.ts",
     "postinstall": "prisma generate || exit 0"
   },
-
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "dotenv": "^18.0.8",
     "exceljs": "^4.4.0",
     "next": "16.4.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",

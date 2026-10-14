@@ -9,6 +9,17 @@ statistics and interactive dashboards.
 - **Stack:** Next.js 16 (App Router, RSC, Server Actions) · TypeScript (strict) · Tailwind CSS 4 · Prisma + MariaDB (SkySQL prod / Docker dev, via the `mysql` provider) · ExcelJS · Recharts.
 - **Source data:** a multi-tab `.xlsx` workbook (25 tabs). Only tabs named `Leidos/Leídos` are "read" records; the reading year comes from the tab name.
 
+## Capabilities
+
+- **Browse the reading ledger:** View books by reading year, navigate between years, and see each book's author, genre (when present), rating, reading status, and page progress. The pre-2008 "Leídos antes" records are grouped under 2007.
+- **Track an active read:** Use **+10 Pages** on an in-progress book to record reading progress. Progress is clamped between zero and the known total page count. Completed books are displayed as finished and cannot be incremented.
+- **Import and update books:** Upload a `.xlsx` workbook from the dashboard. The importer reads `Leidos/Leídos` tabs, matches columns by header, ignores footer/summary rows, and imports valid rows in one transaction. Re-importing matching records updates them rather than creating duplicates; distinct reading years and editions remain separate. Invalid rows are reported and skipped.
+- **Explore reading statistics:** The `/stats` page includes all-time yearly completion and page trends; year-filtered KPIs (books completed, pages read, averages, rating, and active reads) and monthly finish pace; rating and genre distributions; author rankings; top genres; and up to three wishlist suggestions from the two most-read genres when matching wishlist records exist.
+- **Validate a workbook locally:** Run the ingestion parser against a workbook without connecting to the database (see [Ingestion Sandbox](#ingestion-sandbox-step-12)).
+- **Clean imported data:** A CLI cleanup tool can identify known summary rows and certain duplicate reading entries. It defaults to a dry run; deletion requires the explicit `--execute` flag (see [Remove imported summary rows](#remove-imported-summary-rows)).
+
+**Book management limits:** There is no dashboard action to manually edit a book's metadata or delete an individual book. Matching workbook imports update imported fields; title, author, reading year, and edition identify a record, so changing those values does not edit the original record. The UI's direct edit action is limited to active reading progress. Wishlist suggestions are displayed when matching wishlist records exist, but the dashboard does not provide a way to manage them. The cleanup command is for the specific summary/duplicate cases described below, not general-purpose deletion.
+
 ## Getting Started
 
 First, run the development server:

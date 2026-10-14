@@ -282,7 +282,7 @@ async function persistBook(
     startDate: book.startDate,
     finishDate: book.finishDate,
     genreId,
-    status: "COMPLETED",
+    status: book.finishDate ? "COMPLETED" : "READING",
   } as const;
 
   if (legacyMatch) {
