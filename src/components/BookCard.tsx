@@ -2,6 +2,8 @@
 
 import { updateBookProgress } from "@/app/actions/bookActions";
 import type { Prisma } from "@prisma/client";
+import Link from "next/link";
+import BookCover from "@/components/BookCover";
 
 /** The exact shape `BookGrid` passes down: a Book with its author included. */
 type BookWithAuthor = Prisma.BookGetPayload<{ include: { author: true } }>;
@@ -24,35 +26,48 @@ export default function BookCard({ book }: { book: BookWithAuthor }) {
         : 0;
 
   return (
-    <div className="bg-slate-800 rounded-xl border border-slate-700/60 p-5 shadow-xl transition hover:border-emerald-500/40 flex flex-col justify-between">
-      <div>
-        <div className="flex justify-between items-start gap-2">
-          <h3 className="font-bold text-lg text-white tracking-wide truncate">
-            {book.title}
-          </h3>
-          <span
-            className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
-              book.status === "COMPLETED"
-                ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                : book.status === "READING"
-                  ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
-                  : "bg-slate-700 text-slate-400"
-            }`}
-          >
-            {book.status}
+    <article className="bg-slate-800 rounded-xl border border-slate-700/60 p-5 shadow-xl transition hover:border-emerald-500/40 flex flex-col justify-between">
+      <Link
+        href={`/books/${book.id}`}
+        className="group flex gap-4 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+        aria-label={`View details for ${book.title} by ${book.author.name}`}
+      >
+        <BookCover
+          editionKey={book.editionKey}
+          title={book.title}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex justify-between items-start gap-2">
+            <h3 className="font-bold text-lg text-white tracking-wide truncate group-hover:text-emerald-300">
+              {book.title}
+            </h3>
+            <span
+              className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
+                book.status === "COMPLETED"
+                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                  : book.status === "READING"
+                    ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                    : "bg-slate-700 text-slate-400"
+              }`}
+            >
+              {book.status}
+            </span>
+          </div>
+          <p className="text-slate-400 text-sm mt-1 mb-2 italic">
+            by {book.author.name}
+          </p>
+          {book.rating ? (
+            <div className="text-amber-400 text-xs font-semibold mb-4">
+              Rating: {book.rating}/10 ★
+            </div>
+          ) : null}
+          <span className="text-xs font-semibold text-emerald-400">
+            View book details →
           </span>
         </div>
-        <p className="text-slate-400 text-sm mt-1 mb-2 italic">
-          by {book.author.name}
-        </p>
-        {book.rating ? (
-          <div className="text-amber-400 text-xs font-semibold mb-4">
-            Rating: {book.rating}/10 ★
-          </div>
-        ) : null}
-      </div>
+      </Link>
 
-      <div className="mt-2">
+      <div className="mt-4">
         <div className="flex justify-between text-xs text-slate-400 mb-1.5 font-medium">
           <span>
             Progress: {pagesRead} / {book.totalPages ?? "—"} pages
@@ -82,6 +97,6 @@ export default function BookCard({ book }: { book: BookWithAuthor }) {
           </div>
         )}
       </div>
-    </div>
+    </article>
   );
 }

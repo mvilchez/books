@@ -11,7 +11,7 @@ statistics and interactive dashboards.
 
 ## Capabilities
 
-- **Browse the reading ledger:** View books by reading year, navigate between years, and see each book's author, genre (when present), rating, reading status, and page progress. The pre-2008 "Leídos antes" records are grouped under 2007.
+- **Browse the reading ledger:** View books by reading year, navigate between years, and see each book's author, genre (when present), rating, reading status, and page progress. Open a book for its recorded metadata and cover when its ISBN is available. The pre-2008 "Leídos antes" records are grouped under 2007.
 - **Track an active read:** Use **+10 Pages** on an in-progress book to record reading progress. Progress is clamped between zero and the known total page count. Completed books are displayed as finished and cannot be incremented.
 - **Import and update books:** Upload a `.xlsx` workbook from the dashboard. The importer reads `Leidos/Leídos` tabs, matches columns by header, ignores footer/summary rows, and imports valid rows in one transaction. Re-importing matching records updates them rather than creating duplicates; distinct reading years and editions remain separate. Invalid rows are reported and skipped.
 - **Explore reading statistics:** The `/stats` page includes all-time yearly completion and page trends; year-filtered KPIs (books completed, pages read, averages, rating, and active reads) and monthly finish pace; rating and genre distributions; author rankings; top genres; and up to three wishlist suggestions from the two most-read genres when matching wishlist records exist.

@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { prisma } from "@/lib/prisma"; // Step 2.3 singleton — never `new PrismaClient()` in app code
 import BookCard from "@/components/BookCard";
 import IngestionWidget from "@/components/IngestionWidget";
+import { getYearKpis } from "@/lib/analytics";
 import type { Prisma } from "@prisma/client";
 
 type DashboardSearchParams = PageProps<"/">["searchParams"];
@@ -55,7 +56,7 @@ async function DashboardContent({
       ? requestedYear
       : currentYear;
 
-  const [availableYears, books] = await Promise.all([
+  const [availableYears, books, kpis] = await Promise.all([
     prisma.book.findMany({
       select: { readingYear: true },
       distinct: ["readingYear"],
@@ -64,8 +65,9 @@ async function DashboardContent({
     prisma.book.findMany({
       where: { readingYear: year },
       include: { author: true },
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ startDate: "desc" }, { updatedAt: "desc" }],
     }),
+    getYearKpis(year),
   ]);
   const years = Array.from(
     new Set([...availableYears.map(({ readingYear }) => readingYear), currentYear]),
@@ -110,6 +112,14 @@ async function DashboardContent({
           ))}
         </div>
       </nav>
+      <section
+        aria-label={`${year} reading summary`}
+        className="grid grid-cols-1 sm:grid-cols-3 gap-3"
+      >
+        <YearStat label="Books completed" value={kpis.booksCompleted} />
+        <YearStat label="Pages read" value={kpis.pagesRead} />
+        <YearStat label="Currently reading" value={kpis.activeReads} />
+      </section>
       <BookGrid books={books} year={year} />
     </div>
   );
@@ -139,19 +149,41 @@ function BookGrid({ books, year }: { books: DashboardBook; year: number }) {
   );
 }
 
+function YearStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-800/60 px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        {label}
+      </p>
+      <p className="mt-1 text-xl font-bold text-white">
+        {value.toLocaleString("es-ES")}
+      </p>
+    </div>
+  );
+}
+
 function BookGridSkeleton() {
   return (
-    <section
-      aria-busy="true"
-      aria-label="Loading books"
-      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-pulse"
-    >
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div
-          key={i}
-          className="h-48 rounded-xl bg-slate-800 border border-slate-700/60"
-        />
-      ))}
-    </section>
+    <div className="space-y-6 animate-pulse" aria-busy="true">
+      <section
+        aria-label="Loading yearly reading summary"
+        className="grid grid-cols-1 sm:grid-cols-3 gap-3"
+      >
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="h-16 rounded-xl bg-slate-800" />
+        ))}
+      </section>
+      <section
+        aria-label="Loading books"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+      >
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-48 rounded-xl bg-slate-800 border border-slate-700/60"
+          />
+        ))}
+      </section>
+    </div>
   );
 }

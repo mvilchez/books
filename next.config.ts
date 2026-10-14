@@ -4,6 +4,16 @@ const nextConfig: NextConfig = {
   /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "covers.openlibrary.org",
+        pathname: "/b/isbn/**",
+        search: "?default=false",
+      },
+    ],
+  },
   turbopack: {
     rules: {
       "*.css": {
