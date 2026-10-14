@@ -1,0 +1,22 @@
+version: '3.8'
+   services:
+     mariadb_dev:
+       image: mariadb:11-alpine
+       container_name: books_db
+       environment:
+         MARIADB_USER: book
+         MARIADB_PASSWORD: password
+         MARIADB_DATABASE: reading_tracker_local
+         MARIADB_RANDOM_ROOT_PASSWORD: 'yes'   # never bake a fixed root password
+       ports:
+         - "3306:3306"
+       volumes:
+         - mariadb_data:/var/lib/mysql
+       healthcheck:                            # wait until the engine accepts connections
+         test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+         interval: 5s
+         timeout: 3s
+         retries: 20
+
+   volumes:
+     mariadb_data:

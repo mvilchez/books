@@ -11,8 +11,8 @@
 *   **Application Framework:** Next.js 15+ (App Router Architecture, React Server Components, Server Actions).
 *   **Language Ecosystem:** TypeScript 5.x (Strict Mode enabled).
 *   **Styling Engine:** Tailwind CSS 4.x / Component Isolation.
-*   **Data Access Layer:** Prisma ORM (Type-safe query builder).
-*   **Production Database:** Managed Cloud **MariaDB** via **SkySQL** (MariaDB's official cloud service; free/dev tiers available). Prisma targets MariaDB through its `mysql` provider.
+*   **Data Access Layer:** Prisma ORM (stable **v6**, type-safe query builder; `PrismaClient`). MariaDB is driven by Prisma's `mysql` provider.
+*   **Production Database:** Managed Cloud **MariaDB** via **SkySQL** (MariaDB's official cloud service; free/dev tiers available). Local development uses the workstation's local **MariaDB** service (`127.0.0.1:3306`). Prisma targets MariaDB through its `mysql` provider (there is no "mariadb" provider).
 *   **Data Ingestion Engine:** ExcelJS (Streamed workbook parsing).
 *   **Deployment Infrastructure:** Render Web Services (Free Tier PaaS instance).
 *   **Client Distribution:** Progressive Web App (PWA) with Service Workers for home-screen standalone execution.
@@ -24,8 +24,8 @@ The ingestion module and core relational schemas are mapped tightly against your
 *   **titulo:** Main string representation of the literary piece.
 *   **autor:** Unique relational constraint matching the author entity.
 *   **numero de paginas:** Integer value defining total physical target pages.
-*   **nota personal:** Integer scale constraint (e.g., 1 to 5) or null reference.
-*   **año:** Metric calendar year indicating completion context.
+*   **nota personal:** Rating, **decimal 1–10** (e.g. `8.5`) from `Puntuación (del 1 al 10)`, or null when unrated. (Revised after Step 1.2 — the old blueprint assumed a 1–5 integer scale.)
+*   **año (tab):** the **reading** year, derived from the sheet/tab name (`Leídos 2013` → `2013`); `Leidos antes` has none. The optional `Año` **column** (2014+ tabs) is the book's original **publication** year — a separate field.
 
 ---
 
@@ -99,17 +99,27 @@ The ingestion module and core relational schemas are mapped tightly against your
 **Objective:** Design a normalization schema to transform flat spreadsheet columns into a relational database, and build an idempotent transactional migration API route.
 
 ```
-[Web UI File Upload] ──> [/api/v1/import] ──> [ORM Data Sanitization] ──> [MariaDB Transaction Engine]
+[Web UI File Upload] ──> [/api/v1/import] ──> [Prisma ORM (PrismaClient, $transaction)] ──> [MariaDB Transaction Engine]
 ```
 
-#### Step 2.1: Relational Schema Design
-1. Initialize the **Prisma ORM** scaffolding inside your workspace:
+#### Step 2.1: Relational Schema Design — Prisma ORM (stable v6) + MariaDB — ✅ DONE
+
+> **Toolchain decision (stable Prisma + local MariaDB).** This workspace uses **stable Prisma v6** (`prisma@6.19.3`, `@prisma/client@6.19.3`) targeting the local **MariaDB** service through Prisma's `mysql` provider — the classic `prisma init` → `prisma/schema.prisma` → `prisma generate` → `prisma db push` flow. (An earlier attempt used the Prisma 8 RC "Prisma Next" toolchain, but that RC ships **only** a PostgreSQL target — no MySQL/MariaDB — so it was reverted in favour of stable Prisma on MariaDB, per the requirement to use a local Linux MariaDB.)
+>
+> **Terminology.** The schema is a single `prisma/schema.prisma`. `prisma generate` builds the typed `PrismaClient`; queries go through `new PrismaClient()` imported from `@prisma/client`.
+
+1. Install the stable Prisma CLI (dev) and client (app), plus `dotenv`:
    ```bash
-   npm install @prisma/client
-   npm install prisma --save-dev
+   npm install -D prisma@6            # CLI
+   npm install @prisma/client@6 dotenv
+   ```
+   > Versions in use here: `prisma@6.19.3` and `@prisma/client@6.19.3` (keep the CLI and client on the same version).
+2. Initialize Prisma. This creates `prisma/schema.prisma` and reads `DATABASE_URL` from `.env`:
+   ```bash
    npx prisma init
    ```
-2. Refactor the generated `prisma/schema.prisma` file to map our entity relationships cleanly. We will build a one-to-many relationship (`Author` -> `Book`) to avoid duplicating author names across rows, and hook up a `Genre` table to satisfy analytics tracking:
+   `prisma init` writes a starter `prisma/schema.prisma` (with a `datasource db` block) and a `.env` containing `DATABASE_URL`. Point the datasource at **`mysql`** and the local MariaDB (see Step 2.2 §3 for the exact URL).
+3. Refactor the generated `prisma/schema.prisma` file to map our entity relationships cleanly. We build a one-to-many relationship (`Author` -> `Book`) to avoid duplicating author names across rows, and hook up a `Genre` table to satisfy analytics tracking:
    > **Revised after Step 1.2** to match the real multi-tab source: `rating` is a **decimal 1–10** (`Float?`, from `Puntuación (del 1 al 10)`); `totalPages` is **nullable** (pre-2014 rows lack page counts); `readingYear` comes from the **tab name** while `publicationYear` comes from the `Año` **column**; and `origen`/`fechaInicio`/`fechaFin` are captured too.
    ```prisma
    datasource db {
@@ -165,11 +175,17 @@ The ingestion module and core relational schemas are mapped tightly against your
    }
    ```
    > **Idempotency note:** because the same book can appear on multiple yearly tabs, the composite unique key now includes `readingYear` (`@@unique([title, authorId, readingYear])`) so re-imports upsert rather than collide.
->
-> **MariaDB compatibility (moved off Supabase/PostgreSQL):** MariaDB is driven by Prisma's `mysql` provider, so the schema is unchanged apart from `provider`. Everything the model relies on is fully supported on MariaDB — `enum`, `@default(uuid())` (a Prisma-level default that makes the column `VARCHAR(191)`), `onDelete: Cascade` / `SetNull`, and the composite `@@unique(...)`. Nothing PostgreSQL-specific is used: no `?schema=public`, no `pgbouncer`, no arrays, no `dbgenerated`/extension functions.
+   >
+   > **MariaDB compatibility (moved off Supabase/PostgreSQL):** MariaDB is driven by Prisma's `mysql` provider, so the schema is unchanged apart from `provider`. Everything the model relies on is fully supported on MariaDB — `enum`, `@default(uuid())` (a Prisma-level default that makes the column `VARCHAR(191)`), `onDelete: Cascade` / `SetNull`, and the composite `@@unique(...)`. Nothing PostgreSQL-specific is used: no `?schema=public`, no `pgbouncer`, no arrays, no `dbgenerated`/extension functions.
+4. Validate the schema and generate the typed `PrismaClient`:
+   ```bash
+   npx prisma validate        # static check of the PSL
+   npx prisma generate        # emits PrismaClient into node_modules/.prisma/client (run after every schema edit)
+   ```
+   There is **no `prisma.config.ts`** on stable Prisma v6 — connection and the schema path are read straight from the `datasource` block in `schema.prisma` + `DATABASE_URL` in `.env`.
 
 #### Step 2.2: Infrastructure Scaffolding (Local MariaDB Engine)
-1. To safeguard development efficiency while staying offline on your Linux workstation, spin up an isolated database container using **Docker Compose**. Create a `docker-compose.yml` file in the root workspace:
+1. **Local MariaDB is already running** on this Linux workstation (system service `mariadb`, active; listening on `127.0.0.1:3306`, socket `/run/mysqld/mysqld.sock`). No container is required. If you prefer an isolated Docker engine instead, this is the equivalent compose file:
    ```yaml
    version: '3.8'
    services:
@@ -195,13 +211,21 @@ The ingestion module and core relational schemas are mapped tightly against your
      mariadb_data:
    ```
    > **Note:** the official MariaDB image uses the `MARIADB_*` environment variables (not `POSTGRES_*`), listens on port **3306** (not 5432), and stores its data in `/var/lib/mysql` (not `/var/lib/postgresql/data`).
-2. Boot the engine: `docker-compose up -d`.
-3. Configure your local runtime parameters inside the `.env` file:
+2. Verify connectivity (using the `book` app user that owns the schema; the socket-root account is locked down here):
+   ```bash
+   mysql -u book -p -h 127.0.0.1 -e "SELECT VERSION(); SHOW DATABASES;"
+   ```
+3. Configure your local runtime parameters inside the `.env` file (copy `.env.example` → `.env`; `.env` is gitignored):
    ```env
-   DATABASE_URL="mysql://book:password@localhost:3306/reading_tracker_local"
+   DATABASE_URL="mysql://book:password@127.0.0.1:3306/reading_tracker_local"
    ```
    > **Note:** MariaDB/MySQL connection strings start with `mysql://` and drop the PostgreSQL-only `?schema=public` suffix.
-4. Push your schema layout onto the local Docker database instance: `npx prisma db push`.
+4. Push your schema layout onto the local MariaDB instance. On stable Prisma this is **`npx prisma db push`** (it syncs the schema to the DB and runs `prisma generate`):
+   ```bash
+   npx prisma db push          # creates the Author/Book/Genre tables + emits PrismaClient
+   # npx prisma db push --skip-generate   # schema sync only
+   ```
+   > `db push` reads `DATABASE_URL` from the `datasource` block in `prisma/schema.prisma` (value loaded from `.env`). It is the right tool for the dev loop on MariaDB. (If you later adopt versioned migrations, swap to `npx prisma migrate dev --name <slug>` so each change is recorded under `prisma/migrations/`.)
 
 #### Step 2.3: Building the Transactional Bulk Ingestion Route
 1. Build a robust Next.js Route Handler inside `src/app/api/v1/import/route.ts`.
@@ -274,6 +298,7 @@ The ingestion module and core relational schemas are mapped tightly against your
      }
    }
    ```
+   > **Reading year nuance:** `Leidos antes` has no year in its tab name, so `readingYear` is `NaN`. Because `readingYear` is `NOT NULL` and part of the composite unique key, decide explicitly how to backfill it (e.g. a sentinel like `2007`, or a dedicated pre-2008 tab) rather than skipping silently. On MariaDB the unique index that backs the composite key is limited to 191 chars per indexed `VARCHAR`, which the `title` + `authorId` + `ano` key fits comfortably.
 
 ---
 
@@ -383,10 +408,12 @@ The ingestion module and core relational schemas are mapped tightly against your
    DATABASE_URL="mysql://DB_USER:[YOUR_DB_PASSWORD]@YOUR_MARIADB_HOST:PORT/reading_tracker?sslaccept=strict"
    ```
    > **Note:** managed MariaDB endpoints enforce TLS. Append `?sslaccept=strict` (paired with `sslcert`) for the SkySQL endpoint, and keep `connection_limit` modest for the pooled PaaS instance.
-4. Run your migration schemas directly against the production instance to verify access permissions:
+4. For production, apply the schema through a versioned migration (preferred over `db push`, so every change is reviewed and recorded under `prisma/migrations/`):
    ```bash
-   npx prisma db push
+   npx prisma migrate dev --name init      # first migration against the prod DB
+   npx prisma migrate deploy               # apply pending migrations in the deploy pipeline
    ```
+   > `db push` (Step 2.2 §4) is fine for the local dev loop, but `migrate dev`/`migrate deploy` is the safe, auditable path for production.
 
 ---
 
@@ -409,7 +436,8 @@ export async function getReadingAnalytics(targetYear: number) {
   });
 
   const totalBooks = completedBooks.length;
-  const totalPagesInYear = completedBooks.reduce((acc, b) => acc + b.totalPages, 0);
+  // totalPages is nullable (pre-2014 rows): coalesce to 0 in the reduce.
+  const totalPagesInYear = completedBooks.reduce((acc, b) => acc + (b.totalPages ?? 0), 0);
   const totalPagesReadAcumulated = totalPagesInYear + activeBooks.reduce((acc, b) => acc + b.currentPages, 0);
 
   const avgPagesPerBook = totalBooks > 0 ? Math.round(totalPagesInYear / totalBooks) : 0;
@@ -534,5 +562,5 @@ export default function AdvancedAnalyticsPanel({ stats, discovery }: { stats: an
 
 ## 📈 Long-Term Operational Strategies
 *   **Encapsulation Validation:** As your tracking database grows, wrap the raw database queries inside isolated service files to keep your application logic cleanly separated.
-*   **Database Scaling:** Keep an eye on MariaDB's indexing (InnoDB secondary/composite indexes declared via `@@index`). If you scale up to thousands of book records, adding an index to fields like `status` or `updatedAt` will keep your queries lightning-fast.
+*   **Database Scaling:** Keep an eye on MariaDB's indexing (InnoDB secondary/composite indexes declared via `@@index`). The current `Book` model carries a composite unique on `title`+`authorId`+`ano` and FK indexes on `authorId`/`genreId`. As you scale to thousands of rows, add `@@index([status])` / `@@index([ano])` / `@@index([updatedAt])` to the `Book` model, then re-run `npx prisma db push` (dev) or a `migrate dev` migration (prod) to create them.
 *   **Offline Support:** In the future, you can configure your PWA's Service Worker to cache network requests, allowing you to view and update your reading lists even when you're completely offline.
