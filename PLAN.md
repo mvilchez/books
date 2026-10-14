@@ -227,78 +227,123 @@ The ingestion module and core relational schemas are mapped tightly against your
    ```
    > `db push` reads `DATABASE_URL` from the `datasource` block in `prisma/schema.prisma` (value loaded from `.env`). It is the right tool for the dev loop on MariaDB. (If you later adopt versioned migrations, swap to `npx prisma migrate dev --name <slug>` so each change is recorded under `prisma/migrations/`.)
 
-#### Step 2.3: Building the Transactional Bulk Ingestion Route
-1. Build a robust Next.js Route Handler inside `src/app/api/v1/import/route.ts`.
-2. This API endpoint will capture `FormData` containing the file payload, process the workbook rows using `ExcelJS`, and execute a database transaction. The transaction uses an upsert strategy to seamlessly connect books to existing authors without triggering key constraint violations:
+#### Step 2.3: Building the Transactional Bulk Ingestion Route — ✅ DONE
+1. Built the Next.js Route Handler at `src/app/api/v1/import/route.ts`. It captures `multipart/form-data` (field `file`), parses the workbook with ExcelJS, and writes every row inside **one** Prisma interactive transaction, using an upsert strategy so books attach to existing authors without key-constraint violations.
    ```typescript
-   import { NextResponse } from 'next/server';
-   import { PrismaClient } from '@prisma/client';
-   import ExcelJS from 'exceljs';
-
-   const prisma = new PrismaClient();
-
+   export const runtime /* not set: Node.js default (Edge is deprecated) */;
    export async function POST(request: Request) {
-     try {
-       const data = await request.formData();
-       const file = data.get('file') as File | null;
-       if (!file) return NextResponse.json({ error: 'Payload missing file entity' }, { status: 400 });
-
-       const buffer = Buffer.from(await file.arrayBuffer());
-       const workbook = new ExcelJS.Workbook();
-       await workbook.xlsx.load(buffer);
-       // MULTI-TAB (revised after Step 1.2): iterate only "read" tabs (name starts with
-       // Leidos/Leidos), derive readingYear from the tab name, match columns by header
-       // name, and skip footer/summary rows. Reuse the helpers proven in
-       // src/scripts/validate-ingestion.ts instead of fixed column indices.
-       const isReadTab = (name: string) => /^leidos/i.test(normalize(name));
-       const readTabs = workbook.worksheets.filter((ws) => isReadTab(ws.name));
-
-       let recordsIngested = 0;
-
-       await prisma.$transaction(async (tx) => {
-         for (const worksheet of readTabs) {
-           const readingYear = Number(worksheet.name.match(/(\d{4})/)?.[1]);
-           const headerMap = buildHeaderMap(worksheet.getRow(1)); // name -> column index(es)
-
-           for (let i = 2; i <= worksheet.rowCount; i++) {
-             const row = worksheet.getRow(i);
-             const title = colText(row, headerMap, "titulo");
-             if (!title || isFooter(title)) continue; // skip blank + stats rows
-
-             const authorName = colText(row, headerMap, "autor");
-             const totalPages = cellToIntNullable(row, headerMap, "paginas"); // may be null
-             const rating = cellToRating(row, headerMap, "puntuacion (del 1 al 10)"); // decimal 0-10 | null
-             const publicationYear = cellToIntNullable(row, headerMap, "ano");
-             const status = "COMPLETED";
-
-             if (!readingYear) continue; // "Leidos antes" has no year -> skip or default
-
-             const author = await tx.author.upsert({
-               where: { name: authorName },
-               update: {},
-               create: { name: authorName },
-             });
-
-             await tx.book.upsert({
-               where: {
-                 title_authorId_readingYear: { title, authorId: author.id, readingYear },
-               },
-               update: { totalPages, rating, publicationYear, status },
-               create: { title, totalPages, rating, readingYear, publicationYear, status, authorId: author.id },
-             });
-
-             recordsIngested++;
-           }
-         }
-       });
-
-       return NextResponse.json({ success: true, processed: recordsIngested }, { status: 200 });
-     } catch (error: any) {
-       return NextResponse.json({ error: error.message }, { status: 500 });
-     }
+     const data = await request.formData();          // no bodyParser needed
+     const file = data.get('file') as File | null;
+     if (!file) return NextResponse.json({ error: 'Payload missing file entity' }, { status: 400 });
+     const workbook = await parseWorkbookBuffer(Buffer.from(await file.arrayBuffer()));
+     await prisma.$transaction(async (tx) => { /* authors → genres → books */ },
+       { timeout: 120_000, maxWait: 15_000 });
    }
    ```
-   > **Reading year nuance:** `Leidos antes` has no year in its tab name, so `readingYear` is `NaN`. Because `readingYear` is `NOT NULL` and part of the composite unique key, decide explicitly how to backfill it (e.g. a sentinel like `2007`, or a dedicated pre-2008 tab) rather than skipping silently. On MariaDB the unique index that backs the composite key is limited to 191 chars per indexed `VARCHAR`, which the `title` + `authorId` + `ano` key fits comfortably.
+2. **Shared parser (no duplicated logic).** Per the plan's own instruction to *"reuse the helpers proven in `src/scripts/validate-ingestion.ts`"*, those helpers were **extracted** into `src/lib/ingestion/workbook-parser.ts` (`normalize`, `cellToText`, `cellToInt`, `cellToRating`, `cellToDate`, `buildHeaderMap`, `isReadSheet`, `yearFromSheetName`, `colText`, `cellValueAt`, `isFooterTitle`, `parseSheet`, `parseWorkbook`, `parseWorkbookBuffer`). Both the CLI sandbox and the API import through it, so the parsing contract cannot drift.
+3. **Writes in dependency order, one write per distinct entity:**
+   * `Author` — upserted once per **unique** name (`@@unique([name])`), then the id is reused from a `Map`, collapsing 830 rows into ~447 author writes.
+   * `Genre` — upserted once per unique `Tipo` value; rows with no `Tipo` keep `genreId = null`.
+   * `Book` — upserted on the composite natural key `title_authorId_readingYear`.
+4. **All modelled fields are now populated** (not just title/author/pages): `totalPages`, `rating`, `publicationYear`, `origin`, `startDate`, `finishDate`, `genreId`, `status = COMPLETED`. Dates are normalised to UTC midnight, since MariaDB `DATETIME` stores no timezone.
+5. **`readingYear` backfill decision (the open question in §2.3):** `Leidos antes` has no year in its tab name, so it is persisted under the documented sentinel **`PRE_TAB_READING_YEAR_SENTINEL = 2007`** (`src/lib/ingestion/workbook-parser.ts`) — the last year before the first yearly tab (2008) — instead of being silently dropped. The response reports `backfilledReadingYear` so the substitution is always visible.
+6. **Error contract:** `400` for a missing/empty/oversized/non-`.xlsx` payload or an unparseable workbook (with the actionable *"re-save as .xlsx"* message); `500` **only** for a genuine persistence failure, reported as `Import failed and was rolled back: …`; `405` for non-POST verbs (Next's automatic `OPTIONS`/`Allow` handling).
+   > Prisma transaction timeouts are raised to `timeout: 120_000` / `maxWait: 15_000` because ~830 rows issue ~1,300 round-trips, far beyond the 5s default.
+
+**Validation performed (live, against the local MariaDB):**
+| Check | Result |
+|---|---|
+| First import (empty DB) | `200`, `processed 830`, `created 830`, `updated 0`, 443 authors, 25 genres |
+| Re-import (idempotency) | `200`, `processed 830`, `created 0`, `updated 830`; DB stayed **830 / 443 / 25** — no duplicates |
+| DB field parity vs CLI baseline | 807 rows with pages, 157 unrated, avg **7.20**, **327 490** pages, 23 null pages, 1 sentinel row |
+| Atomicity | A deliberate mid-transaction throw rolled back **all** writes (830 → 830, 0 orphan authors) |
+| CLI parity after refactor | `npm run validate:ingestion` still reports **25 tabs / 20 read / 5 skipped, 830 records, 0 errors, 447 authors, 338 footer rows** |
+| `npx tsc --noEmit` / `eslint` | Clean for every new/changed file |
+| `next build` | `BUILD_EXIT=0`; `/api/v1/import` emitted as `ƒ (Dynamic)` |
+
+> **MariaDB collation note (by design, not a bug).** `Author.name` / `Genre.name` use Prisma's default `utf8mb4_unicode_ci`, which folds accents and case. The workbook's 447 distinct author strings therefore collapse to **443** rows: `China Miéville`/`China Mieville`, `Camilo Jose Cela`/`Camilo José Cela`, `Lois Mcmaster Bujold`/`Lois McMaster Bujold`, `Juan Antonio Cebrián`/`Juan Antonio Cebrian`. That is desirable deduplication for the author rankings; the route reports both `total` (distinct names seen) and `created` (rows actually inserted). Use `@db.VarChar(191)` with an explicit `_bin`/`_as_cs` collation if exact byte-level names are ever required.
+>
+> **ExcelJS typing note.** `exceljs@4.4.0` ships an incorrect `.d.ts` (`declare interface Buffer extends ArrayBuffer`), which shadows Node's real `Buffer` and makes `workbook.xlsx.load(buffer)` fail to type-check. `parseWorkbookBuffer` normalises any `Buffer | Uint8Array | ArrayBuffer` into a Node `Buffer` (preserving `byteOffset`/`byteLength`) and applies one documented `as unknown as ArrayBuffer` cast. At runtime JSZip accepts a Node `Buffer`.
+
+**Also done:** added the `tsx` devDependency and the `validate:ingestion` npm script (`tsx --tsconfig tsconfig.json src/scripts/validate-ingestion.ts`) that Step 1.2 documented but `package.json` never declared.
+
+<details>
+<summary>Superseded pre-implementation sketch (kept for traceability)</summary>
+
+```typescript
+import { NextResponse } from 'next/server';
+import { PrismaClient } from '@prisma/client';
+import ExcelJS from 'exceljs';
+
+const prisma = new PrismaClient();
+
+export async function POST(request: Request) {
+  try {
+    const data = await request.formData();
+    const file = data.get('file') as File | null;
+    if (!file) return NextResponse.json({ error: 'Payload missing file entity' }, { status: 400 });
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    // MULTI-TAB (revised after Step 1.2): iterate only "read" tabs (name starts with
+    // Leidos/Leidos), derive readingYear from the tab name, match columns by header
+    // name, and skip footer/summary rows. Reuse the helpers proven in
+    // src/scripts/validate-ingestion.ts instead of fixed column indices.
+    const isReadTab = (name: string) => /^leidos/i.test(normalize(name));
+    const readTabs = workbook.worksheets.filter((ws) => isReadTab(ws.name));
+
+    let recordsIngested = 0;
+
+    await prisma.$transaction(async (tx) => {
+      for (const worksheet of readTabs) {
+        const readingYear = Number(worksheet.name.match(/(\d{4})/)?.[1]);
+        const headerMap = buildHeaderMap(worksheet.getRow(1)); // name -> column index(es)
+
+        for (let i = 2; i <= worksheet.rowCount; i++) {
+          const row = worksheet.getRow(i);
+          const title = colText(row, headerMap, "titulo");
+          if (!title || isFooter(title)) continue; // skip blank + stats rows
+
+          const authorName = colText(row, headerMap, "autor");
+          const totalPages = cellToIntNullable(row, headerMap, "paginas"); // may be null
+          const rating = cellToRating(row, headerMap, "puntuacion (del 1 al 10)"); // decimal 0-10 | null
+          const publicationYear = cellToIntNullable(row, headerMap, "ano");
+          const status = "COMPLETED";
+
+          if (!readingYear) continue; // "Leidos antes" has no year -> skip or default
+
+          const author = await tx.author.upsert({
+            where: { name: authorName },
+            update: {},
+            create: { name: authorName },
+          });
+
+          await tx.book.upsert({
+            where: {
+              title_authorId_readingYear: { title, authorId: author.id, readingYear },
+            },
+            update: { totalPages, rating, publicationYear, status },
+            create: { title, totalPages, rating, readingYear, publicationYear, status, authorId: author.id },
+          });
+
+          recordsIngested++;
+        }
+      }
+    });
+
+    return NextResponse.json({ success: true, processed: recordsIngested }, { status: 200 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+```
+
+> **Reading year nuance:** `Leidos antes` has no year in its tab name, so `readingYear` is `NaN`. Because `readingYear` is `NOT NULL` and part of the composite unique key, decide explicitly how to backfill it (e.g. a sentinel like `2007`, or a dedicated pre-2008 tab) rather than skipping silently. On MariaDB the unique index that backs the composite key is limited to 191 chars per indexed `VARCHAR`, which the `title` + `authorId` + `ano` key fits comfortably.
+>
+> **Resolved** by point 5 above: the `2007` sentinel was chosen, and the shared parser now returns `readingYear: null` for that tab so the decision lives in exactly one place.
+
+</details>
 
 ---
 
