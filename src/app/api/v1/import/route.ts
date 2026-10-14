@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
+  editionKeyFromMetadata,
+  normalize,
   PRE_TAB_READING_YEAR_SENTINEL,
   parseWorkbookBuffer,
   type ParsedBook,
@@ -9,6 +11,15 @@ import {
 
 /** The transactional client handed to a Prisma interactive transaction callback. */
 type PrismaTransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+interface LegacyBook {
+  id: string;
+  title: string;
+  authorId: string;
+  readingYear: number;
+  publicationYear: number | null;
+  totalPages: number | null;
+}
 
 /**
  * POST /api/v1/import — transactional bulk ingestion (PLAN.md Step 2.3)
@@ -19,14 +30,14 @@ type PrismaTransactionClient = Parameters<Parameters<typeof prisma.$transaction>
  *
  *   Author (upsert by unique name)  ── avoids duplicating author names
  *   Genre  (upsert by unique name)  ── derived from the "Tipo" column
- *   Book   (upsert by composite unique key `title + authorId + readingYear`)
+ *   Book   (upsert by title + author + reading year + edition fingerprint)
  *
  * Atomicity: either every valid row lands, or nothing does — a failure anywhere
  * rolls the whole import back, so a half-imported ledger can never exist.
  *
  * Idempotency: re-uploading the same workbook upserts instead of colliding,
- * because the same title legitimately recurs across yearly tabs and
- * `readingYear` is part of the natural key.
+ * because each reading year is a distinct reading event, and the edition
+ * fingerprint distinguishes editions read within the same year.
  *
  * Runtime note (Next.js 16): Route Handlers read the body via
  * `request.formData()` — no `bodyParser` config needed. The Edge Runtime is
@@ -35,8 +46,8 @@ type PrismaTransactionClient = Parameters<Parameters<typeof prisma.$transaction>
  */
 
 /**
- * Bulk imports can far exceed the 5s default transaction budget: a ~830-row
- * workbook performs ~1,300 round-trips. Raise both the Prisma transaction
+ * Bulk imports can far exceed the 5s default transaction budget: an ~812-row
+ * workbook performs over 1,200 round-trips. Raise both the Prisma transaction
  * budget and the platform execution limit well above that.
  */
 const PRISMA_TRANSACTION_TIMEOUT_MS = 120_000;
@@ -135,8 +146,8 @@ export async function POST(request: Request): Promise<NextResponse> {
     await prisma.$transaction(
       async (tx) => {
         // 3a. Authors — upsert each UNIQUE name once, then reuse the id.
-        // Upserting per row would repeat ~830 identical lookups; the set
-        // collapses the workbook's ~447 distinct authors into 447 writes.
+        // Upserting per row would repeat identical lookups; the set collapses
+        // the workbook's author names into one write per distinct name.
         for (const name of new Set(workbook.books.map((b) => b.authorName))) {
           const author = await tx.author.upsert({ where: { name }, update: {}, create: { name } });
           authorIds.set(name, author.id);
@@ -148,9 +159,32 @@ export async function POST(request: Request): Promise<NextResponse> {
           genreIds.set(name, genre.id);
         }
 
-        // 3c. Books — upsert on the composite natural key.
+        // Upgrade existing rows written before edition fingerprints were added.
+        const legacyBooks = new Map<string, LegacyBook[]>();
+        const legacyRows = await tx.book.findMany({
+          where: { editionKey: "" },
+          select: {
+            id: true,
+            title: true,
+            authorId: true,
+            readingYear: true,
+            publicationYear: true,
+            totalPages: true,
+          },
+        });
+        for (const legacyBook of legacyRows) {
+          const key = legacyEditionLookupKey(
+            legacyBook.title,
+            legacyBook.authorId,
+            legacyBook.readingYear,
+            editionKeyFromMetadata(legacyBook.publicationYear, legacyBook.totalPages),
+          );
+          legacyBooks.set(key, [...(legacyBooks.get(key) ?? []), legacyBook]);
+        }
+
+        // 3c. Books — upsert on title, author, reading year, and edition.
         for (const book of workbook.books) {
-          await persistBook(tx, book, authorIds, genreIds);
+          await persistBook(tx, book, authorIds, genreIds, legacyBooks);
           if (book.readingYear === null) backfilledReadingYear++;
         }
       },
@@ -170,7 +204,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   // --- 4. Report ---------------------------------------------------------
   // created = net row growth, updated = the remainder. Two COUNT queries beat
-  // ~830 extra existence checks just to label each row.
+  // per-row existence checks just to label each row.
   const created = (await prisma.book.count()) - booksBefore;
   const payload: ImportResult = {
     success: true,
@@ -198,6 +232,15 @@ function isPresent(value: string | null): value is string {
   return typeof value === "string" && value.trim() !== "";
 }
 
+function legacyEditionLookupKey(
+  title: string,
+  authorId: string,
+  readingYear: number,
+  editionKey: string,
+): string {
+  return `${normalize(title)}\u0000${authorId}\u0000${readingYear}\u0000${editionKey}`;
+}
+
 /**
  * Upsert one parsed row onto the relational schema.
  *
@@ -210,6 +253,7 @@ async function persistBook(
   book: ParsedBook,
   authorIds: Map<string, string>,
   genreIds: Map<string, string>,
+  legacyBooks: Map<string, LegacyBook[]>,
 ): Promise<void> {
   const authorId = authorIds.get(book.authorName);
   if (!authorId) {
@@ -219,14 +263,21 @@ async function persistBook(
   const readingYear = book.readingYear ?? PRE_TAB_READING_YEAR_SENTINEL;
   const genreName = book.genreName?.trim() || null;
   const genreId = genreName ? (genreIds.get(genreName) ?? null) : null;
+  const legacyKey = legacyEditionLookupKey(
+    book.title,
+    authorId,
+    readingYear,
+    editionKeyFromMetadata(book.publicationYear, book.totalPages),
+  );
+  const legacyMatch = legacyBooks.get(legacyKey)?.shift();
 
-  // Both branches carry identical field values; the composite unique key
-  // (title + authorId + readingYear) makes the upsert idempotent, so a
-  // re-import refreshes the same rows instead of violating the constraint.
+  // Both branches carry identical field values; this natural key makes
+  // re-imports idempotent without merging rereads or distinct editions.
   const fields = {
     totalPages: book.totalPages,
     rating: book.rating,
     publicationYear: book.publicationYear,
+    editionKey: book.editionKey,
     origin: book.origin,
     startDate: book.startDate,
     finishDate: book.finishDate,
@@ -234,8 +285,20 @@ async function persistBook(
     status: "COMPLETED",
   } as const;
 
+  if (legacyMatch) {
+    await tx.book.update({ where: { id: legacyMatch.id }, data: fields });
+    return;
+  }
+
   await tx.book.upsert({
-    where: { title_authorId_readingYear: { title: book.title, authorId, readingYear } },
+    where: {
+      title_authorId_readingYear_editionKey: {
+        title: book.title,
+        authorId,
+        readingYear,
+        editionKey: book.editionKey,
+      },
+    },
     update: fields,
     create: { ...fields, title: book.title, readingYear, authorId },
   });

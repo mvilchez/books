@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { createHash } from "node:crypto";
 
 /**
  * Shared multi-tab workbook parser — Step 1.2 (sandbox) + Step 2.3 (import route)
@@ -46,6 +47,10 @@ export const FOOTER_TITLES = new Set([
   "media paginas por libro",
   "autor mas leido",
   "tipo mas leido",
+  "nº paginas leidas",
+  "no paginas leidas",
+  "paginas leidas",
+  "total paginas leidas",
   "[object object]",
   "libros leidos.",
 ]);
@@ -68,6 +73,8 @@ export interface ParsedBook {
   rating: number | null;
   /** Publication year from the optional "Año" column (NOT the reading year). */
   publicationYear: number | null;
+  /** Stable edition fingerprint from ISBN/edition data or year + page count. */
+  editionKey: string;
   /** "Origen" column, or `null` when absent/empty. */
   origin: string | null;
   /** "Fecha Inicio" column as a UTC-midnight Date, or `null`. */
@@ -248,6 +255,50 @@ export function isFooterTitle(title: string): boolean {
   return normalized === "" || FOOTER_TITLES.has(normalized);
 }
 
+/** Detect summary rows where aggregate numbers shifted into title/author columns. */
+export function isNumericAggregatePair(title: string, author: string): boolean {
+  const numericValue = /^[+-]?\d+(?:[.,]\d+)?$/;
+  return numericValue.test(title.trim()) && numericValue.test(author.trim());
+}
+
+/** Edition key fallback for database rows without an explicit ISBN/edition value. */
+export function editionKeyFromMetadata(
+  publicationYear: number | null,
+  totalPages: number | null,
+): string {
+  return `metadata:${publicationYear ?? "?"}:${totalPages ?? "?"}`;
+}
+
+/**
+ * Use explicit ISBN/edition columns when available; otherwise use the
+ * publication year and page count as the edition fingerprint.
+ */
+export function editionKeyFromExtras(
+  extras: Record<string, string>,
+  publicationYear: number | null,
+  totalPages: number | null,
+): string {
+  const isbn = Object.entries(extras).find(
+    ([key, value]) => key.startsWith("isbn") && /^[0-9x]{10,13}$/i.test(value.replace(/[^0-9x]/gi, "")),
+  )?.[1];
+  if (isbn) {
+    const normalizedIsbn = normalize(isbn).replace(/[^a-z0-9]/g, "");
+    return `isbn:${normalizedIsbn}`;
+  }
+
+  const edition = Object.entries(extras).find(
+    ([key, value]) =>
+      (key === "edicion" || key === "edition") &&
+      !["", "-", "--", "n/a", "na", "s/c"].includes(normalize(value)),
+  )?.[1];
+  if (edition) {
+    const normalizedEdition = normalize(edition);
+    return `edition:${createHash("sha256").update(normalizedEdition).digest("hex")}`;
+  }
+
+  return editionKeyFromMetadata(publicationYear, totalPages);
+}
+
 /** Parse a single worksheet into validated book rows + row-level errors. */
 export function parseSheet(worksheet: ExcelJS.Worksheet): ParsedSheet {
   const sheetName = worksheet.name;
@@ -308,8 +359,8 @@ export function parseSheet(worksheet: ExcelJS.Worksheet): ParsedSheet {
     const anoPublicacion = cellToInt(cellValueAt(row, headerMap.get("ano")?.[0]));
 
     // Skip footer / summary rows (aggregate stats at the bottom of each tab):
-    // an empty title, or a known stats label. These are not books.
-    if (isFooterTitle(titulo)) {
+    // labels, or count formulas shifted into both title and author columns.
+    if (isFooterTitle(titulo) || isNumericAggregatePair(titulo, autor)) {
       result.footerRows++;
       return;
     }
@@ -345,7 +396,7 @@ export function parseSheet(worksheet: ExcelJS.Worksheet): ParsedSheet {
       extras[key] = cellToText(row.getCell(cols[0]).value);
     }
 
-    result.books.push({
+    const book: ParsedBook = {
       sheetName,
       readingYear: result.readingYear,
       rowNumber,
@@ -355,12 +406,15 @@ export function parseSheet(worksheet: ExcelJS.Worksheet): ParsedSheet {
       totalPages: paginas,
       rating: puntuacion,
       publicationYear: anoPublicacion,
+      editionKey: "",
       origin: colText(row, headerMap, "origen") || null,
       startDate: cellToDate(cellValueAt(row, headerMap.get("fecha inicio")?.[0])),
       finishDate: cellToDate(cellValueAt(row, headerMap.get("fecha fin")?.[0])),
       genreName: colText(row, headerMap, "tipo") || null,
       extras,
-    });
+    };
+    book.editionKey = editionKeyFromExtras(extras, anoPublicacion, paginas);
+    result.books.push(book);
   });
 
   return result;

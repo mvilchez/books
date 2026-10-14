@@ -58,6 +58,38 @@ Requirements / notes:
 - Runs on Node via [`tsx`](https://github.com/privatenumber/tsx) (esbuild-based TypeScript runner).
 - Exits non-zero on fatal errors (missing/invalid file) or when no records parse.
 
+## Remove imported summary rows
+
+The importer skips named footer labels and aggregate count rows. The cleanup
+script also detects duplicate reading entries by normalized title, author,
+reading year, and edition fingerprint. It keeps the oldest row in each duplicate
+group, so rereads in other years and editions with different fingerprints are
+preserved. The spreadsheet has no ISBN/edition column today; the fingerprint
+uses ISBN/edition columns if present, otherwise publication year and page count.
+Rows lacking edition metadata are not deleted as duplicates. Without an ISBN or
+edition identifier, two editions with the same publication year and page count
+cannot be distinguished from this workbook alone.
+
+Before running the importer or cleanup script on an existing database, apply the
+schema change for the edition fingerprint:
+
+```bash
+npx prisma db push
+```
+
+To inspect the records that would be deleted, run the cleanup in dry-run mode:
+
+```bash
+npm run cleanup:books
+```
+
+It targets known footer labels, numeric aggregate rows, and exact same-year
+edition matches. Nothing is deleted unless explicitly requested:
+
+```bash
+npm run cleanup:books -- --execute
+```
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.

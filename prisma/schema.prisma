@@ -8,8 +8,8 @@
 //   Author (1) ──< Book (M) ──> Genre (0..1)
 // Author names are de-duplicated into the Author table (1-to-Many); the Genre
 // table powers the analytics rankings. The composite unique key keeps
-// re-imports idempotent because the same title can legitimately appear on
-// multiple yearly tabs.
+// re-imports idempotent per reading year and edition, while preserving
+// rereads in different years.
 //
 // Field mapping rationale (revised after Step 1.2 to match the real source):
 //   rating          -> "Puntuación (del 1 al 10)" : decimal 1–10, Float?
@@ -45,6 +45,7 @@ model Book {
   rating          Float?        @map("nota_personal")     // decimal 0–10 (1–10 scale)
   readingYear     Int           @map("ano")               // derived from the TAB NAME
   publicationYear Int?          @map("ano_publicacion")   // from the "Año" COLUMN
+  editionKey      String        @default("") @map("edition_key")
   origin          String?       @map("origen")
   startDate       DateTime?     @map("fecha_inicio")
   finishDate      DateTime?     @map("fecha_fin")
@@ -55,9 +56,9 @@ model Book {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  // Idempotent re-imports: the same title+author can recur across yearly tabs,
-  // so readingYear is part of the natural key.
-  @@unique([title, authorId, readingYear])
+  // Each row is a reading event: rereads in different years remain distinct,
+  // while the same edition read in one year upserts idempotently.
+  @@unique([title, authorId, readingYear, editionKey])
 }
 
 model Author {

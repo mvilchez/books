@@ -79,30 +79,32 @@ The analytical engine must execute the following mathematical algorithms on the 
 ## 5. Next Steps for Implementation
 The project is divided into 5 phases (Setup, Migration, CRUD Development, Cloud Provisioning, Analytics Framework).
 
-**Status:** Phase 1 is **complete** — Step 1.1 (workspace bootstrap) and Step 1.2 (multi-tab ingestion sandbox CLI, `src/scripts/validate-ingestion.ts`) are done. The sandbox parses all 20 `Leidos/Leídos` tabs of the real workbook with **0 validation errors** (830 records, 447 authors).
+**Status:** Phase 1 is **complete** — Step 1.1 (workspace bootstrap) and Step 1.2 (multi-tab ingestion sandbox CLI, `src/scripts/validate-ingestion.ts`) are done. The sandbox parses all 20 `Leidos/Leídos` tabs of the real workbook with **0 validation errors** (812 books, 430 authors, 356 footer/aggregate rows skipped).
 Phase 2 is **complete** — Step 2.1 (Prisma v6 schema on MariaDB), Step 2.2 (local MariaDB engine), and Step 2.3 (transactional bulk import route) are done.
 
 **Step 2.3 — what was built:**
 * `src/lib/ingestion/workbook-parser.ts` — the Step 1.2 parsing helpers, **extracted** so the CLI sandbox and the API share one contract. Exports `parseWorkbookBuffer`, `parseWorkbook`, `parseSheet`, the cell/header helpers, and `PRE_TAB_READING_YEAR_SENTINEL = 2007`. Contains **no** database code.
 * `src/lib/prisma.ts` — `PrismaClient` singleton cached on `globalThis`, so Next dev hot-reloads do not exhaust MariaDB's `max_connections`. Always import the client from here.
-* `src/app/api/v1/import/route.ts` — `POST /api/v1/import`, one Prisma interactive transaction writing `Author` → `Genre` → `Book` (upserts on `@@unique([name])` and the composite `title + authorId + readingYear`). Node.js runtime (the Edge runtime is deprecated in Next 16); no `runtime` export is declared.
+* `src/app/api/v1/import/route.ts` — `POST /api/v1/import`, one Prisma interactive transaction writing `Author` → `Genre` → `Book` (upserts books by title + author + reading year + edition fingerprint). Node.js runtime (the Edge runtime is deprecated in Next 16); no `runtime` export is declared.
 
-**Verified against the live local MariaDB:**
+**Historical database checks (before footer fix; the database was not changed by the parser fix):**
 | Check | Result |
 |---|---|
-| First import | `200` · `processed 830` · `created 830` · `updated 0` · 443 authors · 25 genres |
-| Re-import | `200` · `created 0` · `updated 830`; DB stayed **830 / 443 / 25** (idempotent) |
+| First import (historical, before footer fix) | `200` · `processed 830` · `created 830` · `updated 0` · 443 authors · 25 genres |
+| Re-import (historical, before footer fix) | `200` · `created 0` · `updated 830`; DB stayed **830 / 443 / 25** (idempotent) |
 | Field parity vs the CLI baseline | 807 rows with pages, 157 unrated, avg **7.20**, **327 490** pages, 23 null `totalPages` |
 | Atomicity | A forced mid-transaction error rolled back every write |
-| CLI parity after the refactor | still 25 tabs / 20 read / 5 skipped, 830 records, 0 errors, 338 footer rows |
+| CLI parsing after the footer fix | 25 tabs / 20 read / 5 skipped, 812 books, 0 errors, 356 footer/aggregate rows |
 | `tsc --noEmit`, `eslint`, `next build` | clean; `/api/v1/import` emitted as `ƒ (Dynamic)` |
+
+The updated parser excludes 18 additional footer/aggregate rows (812 books instead of 830). Review and delete the previously imported summary rows with the cleanup script before re-importing the corrected workbook.
 
 **Decisions worth preserving:**
 * **`Leidos antes` → `readingYear` sentinel `2007`** (not skipped). `readingYear` is `NOT NULL` and part of the composite unique key, so silently dropping the pre-2008 back-catalogue would lose data; the sentinel is exported and the API reports `backfilledReadingYear`.
-* **Authors collapse 447 → 443 rows** because `Author.name` uses MariaDB's default `utf8mb4_unicode_ci`, which folds accents/case (`China Miéville` ≡ `China Mieville`, plus 3 more). Good for the author rankings; switch to an explicit `_bin`/`_as_cs` collation if exact spellings ever matter.
+* **Historical author counts** were recorded before aggregate-row filtering. `Author.name` uses MariaDB's default `utf8mb4_unicode_ci`, which folds accents/case; clean old footer rows before comparing current import counts.
+* **Reading events, editions, and idempotency:** the importer upserts by title + author + reading year + edition fingerprint. The workbook has no ISBN/edition column; it uses ISBN/edition if present, otherwise publication year + page count. Different reading years and distinct edition fingerprints are retained. Without an explicit identifier, editions sharing publication year and page count cannot be distinguished. Run `npm run cleanup:books` to preview footer/aggregate rows and exact same-year duplicates; add `-- --execute` to remove only listed rows. Run `npx prisma db push` before using the updated importer or cleanup script on an existing database.
 * **All modelled fields are now ingested**, not just title/author/pages: `rating` (decimal 0–10), `publicationYear` (from the `Año` column, distinct from `readingYear`), `origin`, `startDate`/`finishDate` (UTC midnight — MariaDB `DATETIME` has no timezone), and `genre` (from `Tipo`).
 * **`exceljs@4.4.0` has an incorrect `.d.ts`** (`declare interface Buffer extends ArrayBuffer`). `parseWorkbookBuffer` normalises `Buffer | Uint8Array | ArrayBuffer` into a Node `Buffer` and applies one documented cast.
 * Added the missing `tsx` devDependency + `validate:ingestion` npm script (Step 1.2 referenced a command that `package.json` never declared).
 
-**Next up:** Phase 3 — Step 3.1 (`src/app/page.tsx` server-side dashboard reading via the `prisma` singleton) and Step 3.2 (interactive components). The `Book`/`Author`/`Genre` tables are now populated, so the dashboard has real data to render.
-
+**Next up:** Phase 3 — Step 3.1 (`src/app/page.tsx` server-side dashboard reading via the `prisma` singleton) and Step 3.2 (interactive components). The `Book`/`Author`/`Genre` tables contain the earlier import; clean the legacy summary rows and re-import before relying on dashboard totals.

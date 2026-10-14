@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "validate:ingestion": "tsx --tsconfig tsconfig.json src/scripts/validate-ingestion.ts",
+    "cleanup:books": "tsx --tsconfig tsconfig.json src/scripts/cleanup-invalid-books.ts",
     "postinstall": "prisma generate || exit 0"
   },
 
