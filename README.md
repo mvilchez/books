@@ -1,53 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
 ## Books — Reading Analytics Platform
 
-A lightweight, high-performance web app / PWA that replaces a multi-year Excel
+A lightweight web app that replaces a multi-year Excel
 reading tracker, preserving the historical ledger while unlocking server-side
 statistics and interactive dashboards.
 
-- **Stack:** Next.js 16 (App Router, RSC, Server Actions) · TypeScript (strict) · Tailwind CSS 4 · Prisma + MariaDB (SkySQL prod / Docker dev, via the `mysql` provider) · ExcelJS · Recharts.
+- **Stack:** Next.js 16 (App Router, React Server Components, Server Actions) · TypeScript (strict) · Tailwind CSS 4 · Prisma 6 + MariaDB (via the `mysql` provider) · ExcelJS · Recharts 3.
 - **Source data:** a multi-tab `.xlsx` workbook (25 tabs). Only tabs named `Leidos/Leídos` are "read" records; the reading year comes from the tab name.
 
 ## Capabilities
 
-- **Browse the reading ledger:** View books by reading year, navigate between years, and see each book's author, genre (when present), rating, reading status, and page progress. Open a book for its recorded metadata and cover when its ISBN is available. The pre-2008 "Leídos antes" records are grouped under 2007.
+- **Browse the reading ledger:** Select a reading year and switch between the default card view and a table list. List rows are ordered by reading start date ascending; books without a start date appear last. The year defaults to the latest year recorded in the database, or 2007 when the ledger is empty. Year navigation preserves the selected view.
+- **See yearly reading stats:** The dashboard shows books completed, pages read, active reads, average rating, and average pages per book for the selected year.
+- **Inspect and edit a book:** Open a book from a card or list row. The detail page lets you edit its title, author, status, rating (0–10), reading year, publication year, total/current pages, start/finish dates, genre, origin, and edition key. There is no personal-note field or individual-book delete action.
+- **Start a book:** Use **Start a book** on the dashboard or visit `/books/new`. Enter its title, author, start date, and optionally total pages and genre. The start date determines the reading year, and the book is created with `READING` status.
 - **Track an active read:** Use **+10 Pages** on an in-progress book to record reading progress. Progress is clamped between zero and the known total page count. Completed books are displayed as finished and cannot be incremented.
 - **Import and update books:** Upload a `.xlsx` workbook from the dashboard. The importer reads `Leidos/Leídos` tabs, matches columns by header, ignores footer/summary rows, and imports valid rows in one transaction. Re-importing matching records updates them rather than creating duplicates; distinct reading years and editions remain separate. Invalid rows are reported and skipped.
 - **Explore reading statistics:** The `/stats` page includes all-time yearly completion and page trends; year-filtered KPIs (books completed, pages read, averages, rating, and active reads) and monthly finish pace; rating and genre distributions; author rankings; top genres; and up to three wishlist suggestions from the two most-read genres when matching wishlist records exist.
+- **Planned, not implemented:** Add author/title sorting and richer metadata in Cards/List modes, global autocomplete across books, and sourced, credited author portraits. The portrait provider and licensing model must be reviewed before integration. See [Phase 6 in PLAN.md](PLAN.md#phase-6-library-discovery--author-profiles--planned-not-implemented).
 - **Validate a workbook locally:** Run the ingestion parser against a workbook without connecting to the database (see [Ingestion Sandbox](#ingestion-sandbox-step-12)).
 - **Clean imported data:** A CLI cleanup tool can identify known summary rows and certain duplicate reading entries. It defaults to a dry run; deletion requires the explicit `--execute` flag (see [Remove imported summary rows](#remove-imported-summary-rows)).
 
-**Book management limits:** There is no dashboard action to manually edit a book's metadata or delete an individual book. Matching workbook imports update imported fields; title, author, reading year, and edition identify a record, so changing those values does not edit the original record. The UI's direct edit action is limited to active reading progress. Wishlist suggestions are displayed when matching wishlist records exist, but the dashboard does not provide a way to manage them. The cleanup command is for the specific summary/duplicate cases described below, not general-purpose deletion.
+**Book management limits:** Individual books can be edited but not deleted in the UI. Wishlist suggestions are displayed when matching wishlist records exist, but the dashboard does not provide a dedicated wishlist-management view. The cleanup command is for the specific summary/duplicate cases described below, not general-purpose deletion.
 
 ## Getting Started
 
 First, run the development server:
 
 ```bash
+npm install
+npx prisma generate
+npx prisma db push
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Configure `DATABASE_URL` in `.env` for a MariaDB database before running Prisma
+or the app. `db push` synchronizes the Prisma schema with the configured
+development database; do not point it at production.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open [http://localhost:3000](http://localhost:3000) after `npm run dev`.
+Dashboard source is in `src/app/page.tsx`; book creation, details, and statistics
+are in `src/app/books/` and `src/app/stats/`.
 
 ## Ingestion Sandbox (Step 1.2)
 
@@ -101,8 +93,7 @@ edition matches. Nothing is deleted unless explicitly requested:
 npm run cleanup:books -- --execute
 ```
 
-## Deploy on Vercel
+## Deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Production database and hosting are not configured yet. The deployment plan is
+to use managed MariaDB and Render; see [Phase 4 in PLAN.md](PLAN.md#phase-4-cloud-engine-provisioning--production-pipelines).

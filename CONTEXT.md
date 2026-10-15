@@ -1,13 +1,12 @@
 # Technical Architecture & Context Continuity Blueprint: project "books"
 
-**Author / Role:** Senior Software Engineer & Team Lead  
-**Document Purpose:** Contextual Safe-Guard / Session Resumption Telemetry  
-**System Target:** Full-Stack Reading Analytics Application (Next.js 15 + TypeScript)
+**Document Purpose:** Current project architecture and implementation status
+**System:** Full-Stack Reading Analytics Application (Next.js 16 + TypeScript)
 
 ---
 
 ## 1. Executive Summary & Goals
-The objective of this project, named **`books`**, is to engineer a lightweight, high-performance web platform and Progressive Web App (PWA) to completely replace a multi-year legacy Excel spreadsheet used for personal reading tracking. 
+The objective of this project, named **`books`**, is to engineer a lightweight web platform to replace a multi-year legacy Excel spreadsheet used for personal reading tracking.
 
 The primary business goal is to **preserve and migrate a historical ledger containing multiple years of reading data with 100% data integrity**, while unlocking advanced server-side statistical matrix calculations and real-time interactive analytical dashboards.
 
@@ -15,11 +14,11 @@ The primary business goal is to **preserve and migrate a historical ledger conta
 
 ## 2. Technical Stack Specifications
 If this session breaks, the incoming AI engine must strictly maintain this architectural baseline:
-*   **Framework:** Next.js 15+ (App Router, React Server Components, Server Actions for mutations).
+*   **Framework:** Next.js 16.4 (App Router, React Server Components, Server Actions for mutations).
 *   **Language Ecosystem:** TypeScript 5.x running under strict compiler flags (`strictNullChecks`, `noImplicitAny`).
-*   **Database & ORM:** Prisma ORM communicating with a managed MariaDB engine (SkySQL in production, local Docker container for development). Prisma drives MariaDB through its `mysql` provider.
+*   **Database & ORM:** Prisma ORM 6 communicating with MariaDB through its `mysql` provider. Local development uses the workstation's MariaDB service; production SkySQL provisioning is not complete.
 *   **File Parsing Core:** ExcelJS (Streamed, non-blocking asynchronous workbook interpreter).
-*   **Visualizations:** Recharts Framework (Reactive client wrappers optimized for Tailwind CSS canvas environments).
+*   **Visualizations:** Recharts 3 client components for statistics, styled with Tailwind CSS.
 
 ---
 
@@ -107,12 +106,15 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * **`exceljs@4.4.0` has an incorrect `.d.ts`** (`declare interface Buffer extends ArrayBuffer`). `parseWorkbookBuffer` normalises `Buffer | Uint8Array | ArrayBuffer` into a Node `Buffer` and applies one documented cast.
 * Added the missing `tsx` devDependency + `validate:ingestion` npm script (Step 1.2 referenced a command that `package.json` never declared).
 
-**Phase 3 executed (2026-10-14):**
-* **Step 3.1** — `src/app/page.tsx` dashboard reads via the `prisma` singleton; the uncached query sits behind `<Suspense>` (required by `cacheComponents: true`, otherwise the prerender reports a blocking route), so `/` builds as **◐ Partial Prerender** (static header shell + streamed grid). Header links to `/stats` (currently **404** — the route arrives with Phase 5).
-* **Step 3.2** — `src/components/BookCard.tsx`: typed props (`Prisma.BookGetPayload`, no `any`). Verified DB fact: **0 of 812 rows carry `currentPages`** (the import never fills it), so COMPLETED books report progress via `totalPages` (consistent with §4 metrics) and the `+10 Pages` control is rendered only for non-completed books. `src/components/IngestionWidget.tsx`: file picker → `POST /api/v1/import` (multipart, `file` field) → status line → `router.refresh()`. `src/app/actions/bookActions.ts`: `updateBookProgress` Server Action — validates args (actions are POST-reachable), clamps to `[0, totalPages]` (`null` ceiling = lower bound only), `revalidatePath("/")`.
-* **Verified:** `tsc --noEmit` exit 0 · `eslint src/app src/components` clean · `next build` clean (`/` = ◐, `/api/v1/import` = ƒ) · dev smoke test `GET / 200` rendered all **812** book cards, progress `416 / 416 — 100%` style, **673** rated (★), **0** `+10` buttons (all rows COMPLETED), no errors/warnings in the dev log.
+**Phase 3 implemented (2026-10-15):**
+* **Dashboard (`src/app/page.tsx`)** — server-rendered dashboard with year navigation, newest recorded reading year as the default (2007 sentinel if there are no books), compact per-year metrics, and Cards/List display modes. View selection is URL-backed (`?view=list`); year navigation preserves it. The list sorts by start date ascending and places books without a start date last. Database reads and `searchParams` are inside `<Suspense>` for `cacheComponents`.
+* **Book tracking (`src/components/BookCard.tsx`, `src/app/actions/bookActions.ts`)** — typed book cards with progress bars and a `+10 Pages` action for unfinished books. Progress is validated and clamped to `[0, totalPages]` when a total is known.
+* **Create book (`src/app/books/new/page.tsx`, `src/components/NewReadingBookForm.tsx`)** — dashboard link opens a form for title, author, start date, and optional page count and genre. Server Action upserts author/genre, assigns the reading year from the UTC start date, creates the book with `READING` status, validates input, and reports duplicate reading events.
+* **Edit book details (`src/app/books/[id]/page.tsx`, `src/components/BookDetailsForm.tsx`)** — detail page exposes editable title, author, status, rating (decimal 0–10), reading and publication years, total/current pages, start/finish dates, genre, origin, and edition key. Author and genre relations are upserted within the update transaction. There is no personal-note field and no individual-book delete UI. The rating uses the existing `rating`/`nota_personal` column; no schema migration was added.
+* **Import and analytics** — the dashboard's workbook import remains available. `/stats` provides yearly and all-time analytics, charts, rankings, and wishlist suggestions.
+* **Verification:** `npx tsc --noEmit`, targeted ESLint, `git diff --check`, and `npm run build` passed for the book-management changes. Smoke checks returned HTTP 200 for the dashboard, new-book route, and an existing book detail page; the detail response included the editable form.
 
-**Dashboard upgrade (commit `a0e1db1`):** the dashboard gained a `?year=` filter (prev/next links + year pills) reading `searchParams` inside the Suspense hole. ⚠️ **Known issue:** `src/app/page.tsx` falls back to `new Date().getFullYear()` when no `?year=` is given — Next 16 dev reports `unstable value 'new Date()' while prerendering` for route `/` (build passes; requests still render). Deterministic fix: fall back to the newest `readingYear` from the DB (the same rule `/stats` uses).
+**Dashboard render correction (2026-10-15):** a previous default-year implementation used `new Date()` during prerendering and caused a Next.js 16 blocking-prerender error. It was replaced with a lookup of the latest recorded `readingYear`, falling back to `PRE_TAB_READING_YEAR_SENTINEL` (2007) for an empty ledger. Dashboard and new-book smoke checks returned HTTP 200 after the fix.
 
 **Phase 5 executed (2026-10-14):**
 * **Step 5.1** — `recharts@^3.10.1` installed (React 19 peer satisfied); `src/lib/analytics-types.ts` = zero-runtime-import DTO contract shared via `import type`.
@@ -121,4 +123,7 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * **Step 5.4** — `src/app/stats/{page.tsx,_components.tsx,loading.tsx}`: static header shell + `<Suspense>`-gated `StatsContent` (awaits the `searchParams` Promise); KPI cards, deep-linkable year pills (`/stats?year=…`, invalid falls back to newest year, 2007 renders "pre-2008"), server-rendered Top-5 authors/genres + WISH_LIST suggestions.
 * **Verified live:** `tsc --noEmit`/`eslint src`/`next build` clean; `/stats` builds as **◐ Partial Prerender** (the checklist expected ƒ — ◐ is the cacheComponents-correct outcome). Smoke vs independent DB baseline: default `/stats` → active pill 2026, Books **51**, Pages **20.342** (es-ES), avg/book **399**, avg/day **55.73**, avg rating **7.8**, **139** unrated (all years), **19** finished without Fecha Fin, 20 year pills, TopList Bujold **18** / Novela **445**, suggestions empty-state, 5/5 chart captions. `?year=2019` → 26 / 12.734 / 490 / 34.89 / 8.0 / 3 without-dates. `?year=banana` → falls back to 2026. `?year=2007` → "pre-2008" pill, 1 book / 0 pages / 6.0. Not live-tested (code-guarded only): empty-database states and the 375 px layout (no browser available).
 
-**Next up:** Phase 4 — SkySQL (MariaDB) + Render production provisioning, whenever convenient. Phase 5 stretch goals remain open: origin donut, publication-era histogram, CSV export route, `'use cache'` + `revalidatePath('/stats')` from the import route.
+**Remaining / planned:**
+* **Phase 4:** Production provisioning (managed MariaDB and deployment) is not implemented.
+* **Phase 5 stretch goals:** Origin donut, publication-era histogram, CSV export route, and analytics caching with invalidation after imports remain open.
+* **Phase 6 proposal (not implemented; awaiting approval):** Add author/title sorting and richer existing metadata to both dashboard modes; global autocomplete over books across all reading years; and author portraits with verified image sources and required attribution. Portrait-source research must precede provider selection or schema changes. Goodreads must not be scraped; use it only if an official API and its terms explicitly permit the intended use. See Phase 6 in `PLAN.md` for scope and acceptance criteria.

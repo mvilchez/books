@@ -8,7 +8,7 @@
 ---
 
 ## 🏗️ Technical Stack & Architectural Foundations
-*   **Application Framework:** Next.js 15+ (App Router Architecture, React Server Components, Server Actions).
+*   **Application Framework:** Next.js 16.4 (App Router Architecture, React Server Components, Server Actions).
 *   **Language Ecosystem:** TypeScript 5.x (Strict Mode enabled).
 *   **Styling Engine:** Tailwind CSS 4.x / Component Isolation.
 *   **Data Access Layer:** Prisma ORM (stable **v6**, type-safe query builder; `PrismaClient`). MariaDB is driven by Prisma's `mysql` provider.
@@ -16,7 +16,7 @@
 *   **Data Ingestion Engine:** ExcelJS (Streamed workbook parsing).
 *   **Visualization Engine:** Recharts v3 (React 19 compatible) — client-side charting used exclusively by the statistics view (Phase 5).
 *   **Deployment Infrastructure:** Render Web Services (Free Tier PaaS instance).
-*   **Client Distribution:** Progressive Web App (PWA) with Service Workers for home-screen standalone execution.
+*   **Client Distribution:** PWA with Service Workers is a future target; no service worker or installable-PWA setup is currently implemented.
 
 ---
 
@@ -359,7 +359,7 @@ export async function POST(request: Request) {
 
 ---
 
-### PHASE 3: Reactive Dashboard UI & Core Data Operations (CRUD)
+### PHASE 3: Reactive Dashboard UI & Core Data Operations (CRUD) — ✅ IMPLEMENTED
 **Objective:** Architect a fully responsive dashboard using Server Components for rapid initial rendering, paired with Server Actions to manage real-time updates smoothly.
 
 #### Step 3.1: Building the Server-Side Data View
@@ -403,11 +403,11 @@ export async function POST(request: Request) {
      );
    }
    ```
-   **Year browsing:** the dashboard now defaults to the current calendar year, accepts `/?year=<year>`, and displays previous/next links plus direct links for years present in the ledger. The book query is scoped to the selected `readingYear`; the query-parameter and Prisma reads remain inside a `<Suspense>` boundary.
+   **Year browsing and display modes (implemented):** the dashboard accepts `/?year=<year>` and defaults to the newest `readingYear` in the database (2007 when the ledger is empty). Previous/next links and recorded-year links navigate the ledger. The Cards/List switch is URL-backed (`?view=list`); year navigation preserves the selected mode. List rows sort by `startDate` ascending, with undated books last. The selected year also shows a compact summary: completed books, pages read, active reads, average rating, and average pages per completed book. The query-parameter and Prisma reads remain inside a `<Suspense>` boundary.
 
 #### Step 3.2: Creating the High-Performance Interactive Components
 1. Inside `src/components/BookCard.tsx`, assemble the layout logic using Tailwind utility classes.
-2. Build an efficient, reactive page tracking layout. It dynamically calculates structural percentages and provides real-time increment controls powered by Next.js Server Actions:
+2. The initial sketch below illustrates the card and progress interaction. The implemented component uses a typed Prisma payload (not `any`), handles null page counts, and shows the increment action only for books not marked completed:
    ```typescript
    'use client';
 
@@ -459,6 +459,9 @@ export async function POST(request: Request) {
      );
    }
    ```
+3. **Book creation (implemented):** `/books/new` is linked from the dashboard. Its form collects title, author, start date, and optional total pages and genre. The Server Action validates submitted values, upserts author/genre, derives `readingYear` from the UTC start date, and creates a `READING` record. It returns a user-facing duplicate error when the unique reading-event key already exists.
+4. **Book detail and editing (implemented):** `/books/[id]` displays the book and exposes an edit form for title, author, status, rating, reading year, publication year, total pages, pages read, start/finish dates, genre, origin, and edition key. Rating uses the existing nullable decimal `rating` field mapped to `nota_personal`; there is no personal-note field or schema migration. Author/genre records are upserted as part of the update transaction. Submitted dates, numeric ranges, status, and duplicate-key conflicts are validated.
+5. **Mutation behavior:** `updateBookProgress`, `createReadingBook`, and `updateBookDetails` are Server Actions in `src/app/actions/bookActions.ts`. They validate untrusted form/action input and revalidate affected dashboard, detail, and statistics routes after successful writes. There is no individual-book delete UI.
 
 ---
 
@@ -1184,12 +1187,13 @@ export default function Loading() {
 ```
 
 #### Step 5.5: Dashboard wiring & cross-cutting fixes
-1.  **Navigation both ways.** Step 3.1's dashboard header now links to `/stats` (see the updated snippet in Phase 3); the stats header links back to `/`. If Phase 3 is not implemented yet, the stats view still works standalone — revisit Step 3.1 when you build the dashboard.
+1.  **Navigation both ways.** The dashboard header links to `/stats`; the stats header links back to `/`.
 2.  **Rating scale fix (Step 3.2).** `BookCard` displayed `Rating: {book.rating}/5`; the ledger scale is decimal **0–10** (CONTEXT.md §2.1). The snippet now shows `/10`.
 3.  **Post-import freshness.** The import route needs no `revalidatePath` today: `/stats` reads are uncached, so a plain reload after `POST /api/v1/import` shows fresh numbers. Revisit only if you adopt the `'use cache'` stretch goal below.
 4.  **Prisma singleton everywhere.** The Phase 3 snippet previously instantiated `new PrismaClient()` inline; it now imports the Step 2.3 singleton, exactly like `analytics.ts`.
 5.  **Completion-date source of truth.** The import route sets `COMPLETED` only when `finishDate` is present; rows without an ending date are saved as `READING` and are excluded from completed-book analytics. Re-import the workbook to correct previously imported statuses.
-6.  **Dashboard year navigation.** `/` defaults to the current calendar year and filters the shelf by `readingYear`; `/?year=YYYY`, previous/next links, and links for recorded years provide navigation while retaining server rendering.
+6.  **Dashboard year navigation and views.** `/` defaults to the latest recorded `readingYear` (or 2007 for an empty database) and filters the shelf by year. `/?year=YYYY`, previous/next links, and recorded-year links provide navigation. Cards/List mode is encoded by `?view=list`; the list is sorted by start date ascending, undated books last. Year navigation preserves the selected mode.
+7.  **Book creation and editing.** The dashboard links to `/books/new`; each book detail route allows editing all persisted book fields, including the existing 0–10 rating. Save operations validate data, update author/genre relations, and refresh affected views.
 
 #### Step 5.6: Verification & Acceptance Checklist
 
@@ -1198,12 +1202,15 @@ export default function Loading() {
 | `npm install recharts` | recharts 3.x in `package.json`; React 19 peer satisfied |
 | `npx tsc --noEmit` | clean — no `any` reaches a chart prop; DTOs shared via `import type` |
 | `npx eslint .` | clean — every chart file starts with `"use client"` |
-| `npm run build` | `/stats` emitted as dynamic (ƒ); **no blocking-prerender / missing-Suspense errors** from `cacheComponents` |
+| `npm run build` | `/stats` is a partial-prerender route (◐) with its uncached data streamed behind Suspense; **no blocking-prerender / missing-Suspense errors** from `cacheComponents` |
 | `npm run dev` → `/stats` | Completed-book KPIs exclude records without `finishDate`; verify against the re-imported workbook rather than the historical pre-correction count |
 | `/stats?year=2019` | 2019 pill active; KPIs, pace chart and suggestions scoped to 2019 |
 | `/stats?year=banana` | falls back to the newest reading year; no crash |
 | `/stats?year=2007` | pill reads "pre-2008"; shows the "Leidos antes" back-catalogue |
-| `/` | defaults to the current calendar year; changing year updates the shelf and URL |
+| `/` | defaults to the latest recorded year (2007 for an empty ledger); year navigation updates the shelf and URL |
+| `/?view=list` | renders a book table sorted by start date ascending, with undated books last |
+| `/books/new` | creates a `READING` book with reading year derived from start date |
+| `/books/<id>` | shows editable book fields, including the existing 0–10 rating; valid changes persist without schema changes |
 | Import row without `Fecha Fin` | saved as `READING`, not `COMPLETED` |
 | Trend chart | one bar per ingested reading year (≤2007 sentinel + 2008–2026) |
 | Empty database | skeleton → "No books imported yet" empty states; no zero-axis lies |
@@ -1214,6 +1221,52 @@ export default function Loading() {
 *   **Publication-era histogram** — bucket `publicationYear` (watch the NULLs from pre-2014 tabs).
 *   **CSV export per year** — `GET /api/v1/stats/export?year=…` route handler reusing `analytics.ts`.
 *   **Cache the heavy day** — `'use cache'` + `cacheLife('hours')` on the analytics functions plus `revalidatePath('/stats')` in the import route.
+
+---
+
+### PHASE 6: Library Discovery & Author Profiles — PLANNED, NOT IMPLEMENTED
+
+**Objective:** Make the ledger easier to browse and search, and add reliable, properly attributed author portraits where a permitted image source can be identified.
+
+#### Feature 6.1: Richer cards, fields, and sorting
+
+1. Keep the existing card layout and current start-date-ascending list order as the defaults.
+2. Add explicit sort options usable in both Cards and List modes: reading start date, author, and title, with ascending/descending direction where meaningful. Add a stable title/ID tie-breaker so equal or missing values do not jump between requests.
+3. Keep the selected year, view, and sort in URL query parameters so results can be bookmarked and navigation preserves the selection. Validate query values and fall back to the current default for invalid options.
+4. Expand the card presentation with useful existing fields: genre, rating, start/finish dates, and page progress, while retaining title, author, status, and its existing progress action. Expand the list with publication year, origin, and the same reading/rating fields where appropriate. Avoid duplicating information or making cards unwieldy on narrow screens.
+5. Derive a shared, typed display/sort contract from the current `Book`, `Author`, and `Genre` fields; do not add schema fields for metadata already in the database.
+
+**Acceptance:** date sorting remains the default; author/title sorts work in both views; null dates/genres/ratings have consistent placement; direction and sort survive year/view navigation; book links and progress actions continue to work; layouts remain usable at mobile widths.
+
+#### Feature 6.2: Global book autocomplete
+
+1. Add a search control in the dashboard header that searches the whole ledger, not just the selected year.
+2. Search book titles and author names first; include genre only if it improves discovery without obscuring relevant title/author matches. Normalize and bound the query, debounce keystrokes, cap result count, and query MariaDB on the server.
+3. Return a small typed result projection (book ID, title, author, reading year, status, and optionally genre/rating) and link each result to `/books/[id]`. Keep the selected dashboard year/view unchanged when search is closed or cleared.
+4. Provide accessible keyboard interaction (arrow keys, Enter, Escape), clear no-match/loading states, and an explicit full-results state or search page if the bounded suggestions do not suffice.
+5. Review query performance against the actual MariaDB collation and ledger size before adding indexes or changing schema. Never expose database errors as successful empty results.
+
+**Acceptance:** searching from any selected year finds matching books across all years; title and author matches are useful; keyboard and screen-reader navigation work; empty, slow, and invalid-query states are clear; result links open the correct book; query size and result count are bounded.
+
+#### Feature 6.3: Author portraits from a permitted source
+
+1. Investigate image-source terms, licensing, attribution, API availability, rate limits, and stable image URLs before selecting a provider. Goodreads is a candidate to investigate only if an official, currently available API explicitly permits this use; do not scrape Goodreads pages or bypass access controls.
+2. Prefer a source with an explicit reuse license and attribution model, such as a suitable Wikidata/Wikimedia Commons workflow, subject to confirming the specific image's license and attribution requirements. Store the portrait URL plus source/credit information only after the provider decision is approved.
+3. If persistent author portrait metadata is required, add optional image/source/attribution fields to `Author` and provide a reviewed, additive MariaDB migration. Keep this separate from `Book`; a portrait belongs to an author and is shared across that author's books.
+4. Resolve portraits on the server or through a bounded, cached provider integration; allow-list remote image hosts and avoid fetching arbitrary URLs from user-supplied database values. Do not make page rendering depend on a third-party provider being available.
+5. Display a consistent, accessible portrait and author name on Cards, List, book details, global-search results, and author-ranking views. Use a local initials/placeholder fallback when no portrait exists, it fails to load, or its license/source cannot be verified.
+6. Include attribution adjacent to or linked from the portrait as required by the image license. Do not download/re-host images unless the selected license and provider terms permit it.
+
+**Acceptance:** no unlicensed scraping; every displayed portrait has a verifiable source and required credit; missing/failed images use the fallback without breaking the page; only allow-listed image hosts are loaded; portrait data is shared across the author's books and works in all relevant views; external-source failure does not block the dashboard.
+
+#### Phase 6 delivery order and review gates
+
+1. Implement Feature 6.1 first, preserving existing default behavior.
+2. Implement Feature 6.2 using the finalized view/data contract; decide whether a dropdown is sufficient or a dedicated full-results route is needed from real usage.
+3. Research and propose the Feature 6.3 provider and licensing model before changing the schema or integrating external requests. Obtain approval of the provider and attribution approach before implementation.
+4. For each feature, run targeted type-check, lint, build, and route/component tests. Add database migration tests only if the approved author-image model changes the schema.
+
+**Status:** this is a proposal only. No Phase 6 feature, external image provider, or author schema change has been implemented or approved.
 
 ---
 
