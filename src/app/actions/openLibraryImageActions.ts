@@ -7,9 +7,9 @@ import {
   getOpenLibraryAuthorPhotoUrl,
   getOpenLibraryAuthorUrl,
   getOpenLibraryWorkUrl,
-  searchOpenLibraryAuthors,
+  searchOpenLibraryAuthorPhotos,
   searchOpenLibraryBooks,
-  type OpenLibraryAuthorCandidate,
+  type OpenLibraryAuthorPhotoCandidate,
   type OpenLibraryBookCandidate,
 } from "@/lib/open-library-images";
 
@@ -52,7 +52,7 @@ export async function searchBookCoverCandidates(
 
 export async function searchAuthorCandidates(
   bookId: string,
-): Promise<ActionResult<OpenLibraryAuthorCandidate[]>> {
+): Promise<ActionResult<OpenLibraryAuthorPhotoCandidate[]>> {
   if (!bookId) return { status: "error", message: "Invalid book." };
   let book: { author: { name: string } } | null;
   try {
@@ -66,71 +66,13 @@ export async function searchAuthorCandidates(
   if (!book) return { status: "error", message: "Book not found." };
 
   try {
-    const candidates = await searchOpenLibraryAuthors(book.author.name);
+    const candidates = await searchOpenLibraryAuthorPhotos(book.author.name);
     return {
       status: "success",
       data: candidates,
       message: candidates.length
-        ? "Choose the matching author to preview their photo."
-        : "Open Library found no matching author records.",
-    };
-  } catch (error) {
-    return { status: "error", message: actionError(error) };
-  }
-}
-
-export async function previewAuthorPhoto(
-  bookId: string,
-  authorId: string,
-): Promise<
-  ActionResult<{
-    authorId: string;
-    authorName: string;
-    openLibraryName: string | null;
-    photoId: number;
-    photoUrl: string;
-    sourceUrl: string;
-  }>
-> {
-  if (!bookId) return { status: "error", message: "Invalid book." };
-  const sourceUrl = getOpenLibraryAuthorUrl(authorId);
-  if (!sourceUrl) {
-    return { status: "error", message: "Invalid Open Library author identifier." };
-  }
-  let book: { author: { name: string } } | null;
-  try {
-    book = await prisma.book.findUnique({
-      where: { id: bookId },
-      select: { author: { select: { name: true } } },
-    });
-  } catch (error) {
-    return { status: "error", message: actionError(error) };
-  }
-  if (!book) return { status: "error", message: "Book not found." };
-
-  try {
-    const profile = await getOpenLibraryAuthorProfile(authorId);
-    const photoId = profile.photoId;
-    if (photoId === null) {
-      return {
-        status: "error",
-        message: "This Open Library author record has no usable photo.",
-      };
-    }
-    const photoUrl = getOpenLibraryAuthorPhotoUrl(photoId, "M");
-    if (!photoUrl) {
-      return { status: "error", message: "Open Library returned an invalid photo identifier." };
-    }
-    return {
-      status: "success",
-      data: {
-        authorId,
-        authorName: book.author.name,
-        openLibraryName: profile.name,
-        photoId,
-        photoUrl,
-        sourceUrl,
-      },
+        ? "Photos are shown only for matching Open Library author records that have an image."
+        : "No Open Library author photo was found among the best matching records.",
     };
   } catch (error) {
     return { status: "error", message: actionError(error) };

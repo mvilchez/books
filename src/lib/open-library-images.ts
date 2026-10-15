@@ -15,6 +15,11 @@ export type OpenLibraryAuthorCandidate = {
   name: string;
 };
 
+export type OpenLibraryAuthorPhotoCandidate = OpenLibraryAuthorCandidate & {
+  photoId: number;
+  photoUrl: string;
+};
+
 export type OpenLibraryAuthorProfile = {
   name: string | null;
   photoId: number | null;
@@ -48,7 +53,12 @@ async function fetchJson(url: URL): Promise<unknown> {
 }
 
 export function normalizeOpenLibraryName(value: string): string {
-  return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleLowerCase("en");
+  return value
+    .normalize("NFKC")
+    .toLocaleLowerCase("en")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .replace(/\s+/g, " ");
 }
 
 export function parseOpenLibraryBookCandidates(
@@ -100,18 +110,22 @@ export function parseOpenLibraryAuthorCandidates(
 
   const candidates: OpenLibraryAuthorCandidate[] = [];
   for (const rawDoc of root.docs) {
-    if (candidates.length === 5) break;
+    if (candidates.length === 10) break;
     const doc = record(rawDoc);
     const key = doc?.key;
     const name = doc?.name;
+    const authorId =
+      typeof key === "string" && key.startsWith("/authors/")
+        ? key.slice("/authors/".length)
+        : key;
     if (
-      typeof key === "string" &&
-      /^\/authors\/OL\d+A$/.test(key) &&
+      typeof authorId === "string" &&
+      /^OL\d+A$/.test(authorId) &&
       typeof name === "string" &&
       name.trim()
     ) {
       candidates.push({
-        authorId: key.slice("/authors/".length),
+        authorId,
         name: name.trim(),
       });
     }
@@ -152,8 +166,39 @@ export async function searchOpenLibraryAuthors(
   name: string,
 ): Promise<OpenLibraryAuthorCandidate[]> {
   const url = new URL("/search/authors.json", OPEN_LIBRARY_ORIGIN);
-  url.search = new URLSearchParams({ q: name, limit: "5" }).toString();
+  url.search = new URLSearchParams({ q: name, limit: "20" }).toString();
   return parseOpenLibraryAuthorCandidates(await fetchJson(url));
+}
+
+export function prioritizeOpenLibraryAuthorCandidates(
+  candidates: readonly OpenLibraryAuthorCandidate[],
+  requestedName: string,
+): OpenLibraryAuthorCandidate[] {
+  const normalizedName = normalizeOpenLibraryName(requestedName);
+  return [...candidates].sort((left, right) => {
+    const leftIsExact = normalizeOpenLibraryName(left.name) === normalizedName;
+    const rightIsExact = normalizeOpenLibraryName(right.name) === normalizedName;
+    return Number(rightIsExact) - Number(leftIsExact);
+  });
+}
+
+export async function searchOpenLibraryAuthorPhotos(
+  name: string,
+): Promise<OpenLibraryAuthorPhotoCandidate[]> {
+  const candidates = prioritizeOpenLibraryAuthorCandidates(
+    await searchOpenLibraryAuthors(name),
+    name,
+  );
+  const withPhotos: OpenLibraryAuthorPhotoCandidate[] = [];
+  for (const candidate of candidates.slice(0, 10)) {
+    const { photoId } = await getOpenLibraryAuthorProfile(candidate.authorId);
+    if (photoId === null) continue;
+    const photoUrl = getOpenLibraryAuthorPhotoUrl(photoId, "M");
+    if (!photoUrl) continue;
+    withPhotos.push({ ...candidate, photoId, photoUrl });
+    if (withPhotos.length === 5) break;
+  }
+  return withPhotos;
 }
 
 export async function getOpenLibraryAuthorProfile(

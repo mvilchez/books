@@ -10,6 +10,8 @@ import {
   parseOpenLibraryAuthorCandidates,
   parseOpenLibraryAuthorProfile,
   parseOpenLibraryBookCandidates,
+  prioritizeOpenLibraryAuthorCandidates,
+  searchOpenLibraryAuthorPhotos,
 } from "./open-library-images";
 
 test("book search only returns usable Open Library works with covers", () => {
@@ -56,13 +58,17 @@ test("author lookup validates ids and image URLs before using them", () => {
   assert.deepEqual(
     parseOpenLibraryAuthorCandidates({
       docs: [
-        { key: "/authors/OL23919A", name: "J. K. Rowling" },
+        { key: "OL23919A", name: "J. K. Rowling" },
         { key: "/authors/not-an-id", name: "Bad result" },
+        { key: "/authors/OL123A", name: "Alternative documented path" },
       ],
     }),
-    [{ authorId: "OL23919A", name: "J. K. Rowling" }],
+    [
+      { authorId: "OL23919A", name: "J. K. Rowling" },
+      { authorId: "OL123A", name: "Alternative documented path" },
+    ],
   );
-  assert.equal(normalizeOpenLibraryName("  J.  K. Rowling "), "j. k. rowling");
+  assert.equal(normalizeOpenLibraryName("  J.  K. Rowling "), "j k rowling");
   assert.equal(getOpenLibraryCoverUrl(7261207, "M"),
     "https://covers.openlibrary.org/b/id/7261207-M.jpg?default=false");
   assert.equal(getOpenLibraryAuthorPhotoUrl(5543033, "M"),
@@ -93,4 +99,71 @@ test("author lookup validates ids and image URLs before using them", () => {
     "https://covers.openlibrary.org/b/isbn/9780316206853-M.jpg?default=false",
   );
   assert.equal(getBookCoverUrl("no-isbn"), null);
+});
+
+test("author search prioritizes exact names before duplicate or fuzzy matches", () => {
+  const candidates = [
+    { authorId: "OL1A", name: "J.k. Rowling" },
+    { authorId: "OL2A", name: "J. K. Rowling" },
+    { authorId: "OL3A", name: "K. J. Rowling" },
+  ];
+  assert.deepEqual(
+    prioritizeOpenLibraryAuthorCandidates(candidates, "J. K. Rowling"),
+    [candidates[0], candidates[1], candidates[2]],
+  );
+
+  const reordered = prioritizeOpenLibraryAuthorCandidates(
+    [
+      { authorId: "OL4A", name: "J. K. Rowling related record" },
+      candidates[2],
+      candidates[1],
+    ],
+    "J. K. Rowling",
+  );
+  assert.equal(reordered[0].authorId, "OL2A");
+});
+
+test("author photo search skips duplicate records without photos", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: string[] = [];
+  const mockFetch: typeof fetch = async (input) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    requests.push(url.pathname);
+    if (url.pathname === "/search/authors.json") {
+      return Response.json({
+        docs: [
+          { key: "OL1A", name: "Ada Lovelace" },
+          { key: "OL2A", name: "Ada Lovelace" },
+          { key: "OL3A", name: "Ada Lovelace" },
+        ],
+      });
+    }
+    if (url.pathname === "/authors/OL1A.json" || url.pathname === "/authors/OL2A.json") {
+      return Response.json({ name: "Ada Lovelace", photos: [-1] });
+    }
+    if (url.pathname === "/authors/OL3A.json") {
+      return Response.json({ name: "Ada Lovelace", photos: [4321] });
+    }
+    return new Response("Not found", { status: 404 });
+  };
+
+  globalThis.fetch = mockFetch;
+  try {
+    assert.deepEqual(await searchOpenLibraryAuthorPhotos("Ada Lovelace"), [
+      {
+        authorId: "OL3A",
+        name: "Ada Lovelace",
+        photoId: 4321,
+        photoUrl: "https://covers.openlibrary.org/a/id/4321-M.jpg?default=false",
+      },
+    ]);
+    assert.deepEqual(requests, [
+      "/search/authors.json",
+      "/authors/OL1A.json",
+      "/authors/OL2A.json",
+      "/authors/OL3A.json",
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
