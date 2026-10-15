@@ -4,9 +4,12 @@ import { prisma } from "@/lib/prisma"; // Step 2.3 singleton — never `new Pris
 import BookCard from "@/components/BookCard";
 import IngestionWidget from "@/components/IngestionWidget";
 import { getYearKpis } from "@/lib/analytics";
+import { PRE_TAB_READING_YEAR_SENTINEL } from "@/lib/ingestion/workbook-parser";
 import type { Prisma } from "@prisma/client";
 
 type DashboardSearchParams = PageProps<"/">["searchParams"];
+
+type DashboardView = "cards" | "list";
 
 export default function DashboardPage(props: PageProps<"/">) {
   return (
@@ -21,6 +24,12 @@ export default function DashboardPage(props: PageProps<"/">) {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            href="/books/new"
+            className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-emerald-400"
+          >
+            Start a book
+          </Link>
           <Link
             href="/stats"
             className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
@@ -48,20 +57,22 @@ async function DashboardContent({
 }: {
   searchParams: DashboardSearchParams;
 }) {
-  const { year: rawYear } = await searchParams;
-  const currentYear = new Date().getFullYear();
+  const { year: rawYear, view: rawView } = await searchParams;
   const requestedYear = typeof rawYear === "string" ? Number(rawYear) : NaN;
-  const year =
-    Number.isInteger(requestedYear) && requestedYear >= 1 && requestedYear <= 9999
-      ? requestedYear
-      : currentYear;
+  const requestedYearIsValid =
+    Number.isInteger(requestedYear) && requestedYear >= 1 && requestedYear <= 9999;
+  const view: DashboardView = rawView === "list" ? "list" : "cards";
 
-  const [availableYears, books, kpis] = await Promise.all([
-    prisma.book.findMany({
-      select: { readingYear: true },
-      distinct: ["readingYear"],
-      orderBy: { readingYear: "asc" },
-    }),
+  const availableYears = await prisma.book.findMany({
+    select: { readingYear: true },
+    distinct: ["readingYear"],
+    orderBy: { readingYear: "asc" },
+  });
+  const latestYear = availableYears.at(-1)?.readingYear;
+  const year = requestedYearIsValid
+    ? requestedYear
+    : (latestYear ?? PRE_TAB_READING_YEAR_SENTINEL);
+  const [books, kpis] = await Promise.all([
     prisma.book.findMany({
       where: { readingYear: year },
       include: { author: true },
@@ -70,15 +81,17 @@ async function DashboardContent({
     getYearKpis(year),
   ]);
   const years = Array.from(
-    new Set([...availableYears.map(({ readingYear }) => readingYear), currentYear]),
+    new Set([...availableYears.map(({ readingYear }) => readingYear), year]),
   ).sort((a, b) => a - b);
+  const yearHref = (selectedYear: number) =>
+    `/?year=${selectedYear}${view === "list" ? "&view=list" : ""}`;
 
   return (
     <div className="space-y-6">
       <nav aria-label="Reading year" className="space-y-3">
         <div className="flex items-center justify-between gap-4">
           <Link
-            href={`/?year=${year - 1}`}
+            href={yearHref(year - 1)}
             aria-label={`Previous year: ${year - 1}`}
             className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
           >
@@ -88,7 +101,7 @@ async function DashboardContent({
             {year === 2007 ? "Pre-2008" : year}
           </h2>
           <Link
-            href={`/?year=${year + 1}`}
+            href={yearHref(year + 1)}
             aria-label={`Next year: ${year + 1}`}
             className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
           >
@@ -99,7 +112,7 @@ async function DashboardContent({
           {years.map((availableYear) => (
             <Link
               key={availableYear}
-              href={`/?year=${availableYear}`}
+              href={yearHref(availableYear)}
               aria-current={availableYear === year ? "page" : undefined}
               className={`rounded-full border px-3 py-1 text-sm font-semibold transition ${
                 availableYear === year
@@ -113,31 +126,121 @@ async function DashboardContent({
         </div>
       </nav>
       <section
-        aria-label={`${year} reading summary`}
-        className="grid grid-cols-1 sm:grid-cols-3 gap-3"
+        aria-label={`${year} reading statistics`}
+        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"
       >
-        <YearStat label="Books completed" value={kpis.booksCompleted} />
-        <YearStat label="Pages read" value={kpis.pagesRead} />
-        <YearStat label="Currently reading" value={kpis.activeReads} />
+        <YearStat label="Finished" value={kpis.booksCompleted.toLocaleString("es-ES")} />
+        <YearStat label="Pages read" value={kpis.pagesRead.toLocaleString("es-ES")} />
+        <YearStat label="Reading now" value={kpis.activeReads.toLocaleString("es-ES")} />
+        <YearStat
+          label="Average rating"
+          value={kpis.avgRating === null ? "—" : `${kpis.avgRating.toFixed(1)} / 10`}
+        />
+        <YearStat label="Pages per book" value={kpis.avgPagesPerBook.toLocaleString("es-ES")} />
       </section>
-      <BookGrid books={books} year={year} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-lg font-bold text-white">Books</h3>
+        <nav
+          aria-label="Book display"
+          className="inline-flex rounded-lg border border-slate-700 bg-slate-800 p-1"
+        >
+          {(["cards", "list"] as const).map((option) => (
+            <Link
+              key={option}
+              href={`/?year=${year}${option === "list" ? "&view=list" : ""}`}
+              aria-current={view === option ? "page" : undefined}
+              className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+                view === option
+                  ? "bg-emerald-500/15 text-emerald-300"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              {option === "cards" ? "Cards" : "List"}
+            </Link>
+          ))}
+        </nav>
+      </div>
+      {view === "list" ? (
+        <BookList books={books} year={year} />
+      ) : (
+        <BookGrid books={books} year={year} />
+      )}
     </div>
   );
 }
 
 type DashboardBook = Prisma.BookGetPayload<{ include: { author: true } }>[];
 
+function BookList({ books, year }: { books: DashboardBook; year: number }) {
+  if (books.length === 0) {
+    return <EmptyBooks year={year} />;
+  }
+
+  const sortedBooks = [...books].sort((a, b) => {
+    if (a.startDate === null && b.startDate !== null) return 1;
+    if (a.startDate !== null && b.startDate === null) return -1;
+    if (a.startDate && b.startDate) {
+      const dateDifference = a.startDate.getTime() - b.startDate.getTime();
+      if (dateDifference !== 0) return dateDifference;
+    }
+    return a.title.localeCompare(b.title);
+  });
+  const formatDate = (date: Date | null) =>
+    date
+      ? new Intl.DateTimeFormat("es-ES", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          timeZone: "UTC",
+        }).format(date)
+      : "—";
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-700/60">
+      <table className="min-w-full divide-y divide-slate-700 text-left text-sm">
+        <thead className="bg-slate-800 text-xs uppercase tracking-wide text-slate-400">
+          <tr>
+            <th scope="col" className="px-4 py-3">Book</th>
+            <th scope="col" className="px-4 py-3">Author</th>
+            <th scope="col" className="px-4 py-3">Started</th>
+            <th scope="col" className="px-4 py-3">Finished</th>
+            <th scope="col" className="px-4 py-3">Status</th>
+            <th scope="col" className="px-4 py-3 text-right">Pages</th>
+            <th scope="col" className="px-4 py-3 text-right">Rating</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-800 bg-slate-900/60">
+          {sortedBooks.map((book) => (
+            <tr key={book.id} className="text-slate-300 transition hover:bg-slate-800/70">
+              <th scope="row" className="px-4 py-3 font-semibold text-white">
+                <Link
+                  href={`/books/${book.id}`}
+                  className="hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-400"
+                >
+                  {book.title}
+                </Link>
+              </th>
+              <td className="px-4 py-3">{book.author.name}</td>
+              <td className="whitespace-nowrap px-4 py-3">{formatDate(book.startDate)}</td>
+              <td className="whitespace-nowrap px-4 py-3">{formatDate(book.finishDate)}</td>
+              <td className="whitespace-nowrap px-4 py-3">{book.status.replace("_", " ")}</td>
+              <td className="px-4 py-3 text-right">
+                {book.totalPages?.toLocaleString("es-ES") ?? "—"}
+              </td>
+              <td className="px-4 py-3 text-right">
+                {book.rating === null ? "—" : `${book.rating}/10`}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function BookGrid({ books, year }: { books: DashboardBook; year: number }) {
   if (books.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-slate-700 p-10 text-center">
-        <p className="text-slate-300 font-semibold">No books for this year yet</p>
-        <p className="text-slate-500 text-sm mt-1">
-          There are no books recorded for {year}. Select another year or upload the
-          legacy workbook with “Import workbook”.
-        </p>
-      </div>
-    );
+    return <EmptyBooks year={year} />;
   }
 
   return (
@@ -149,7 +252,19 @@ function BookGrid({ books, year }: { books: DashboardBook; year: number }) {
   );
 }
 
-function YearStat({ label, value }: { label: string; value: number }) {
+function EmptyBooks({ year }: { year: number }) {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-700 p-10 text-center">
+      <p className="font-semibold text-slate-300">No books for this year yet</p>
+      <p className="mt-1 text-sm text-slate-500">
+        There are no books recorded for {year}. Select another year or upload the
+        legacy workbook with “Import workbook”.
+      </p>
+    </div>
+  );
+}
+
+function YearStat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-800/60 px-4 py-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -166,10 +281,10 @@ function BookGridSkeleton() {
   return (
     <div className="space-y-6 animate-pulse" aria-busy="true">
       <section
-        aria-label="Loading yearly reading summary"
-        className="grid grid-cols-1 sm:grid-cols-3 gap-3"
+        aria-label="Loading yearly reading statistics"
+        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"
       >
-        {Array.from({ length: 3 }).map((_, i) => (
+        {Array.from({ length: 5 }).map((_, i) => (
           <div key={i} className="h-16 rounded-xl bg-slate-800" />
         ))}
       </section>

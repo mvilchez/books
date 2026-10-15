@@ -1,7 +1,256 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+
+export type BookFormState = {
+  status: "idle" | "error" | "success";
+  message: string;
+  year?: number;
+};
+
+function formString(formData: FormData, name: string): string | null {
+  const value = formData.get(name);
+  return typeof value === "string" ? value.trim() : null;
+}
+
+function parseDate(value: string | null): Date | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value
+    ? null
+    : date;
+}
+
+const readingStatuses = ["PENDING", "READING", "COMPLETED", "WISH_LIST"] as const;
+type ReadingStatus = (typeof readingStatuses)[number];
+
+function isReadingStatus(value: string | null): value is ReadingStatus {
+  return readingStatuses.some((status) => status === value);
+}
+
+function optionalNumber(value: string | null): number | null {
+  return value === null || value === "" ? null : Number(value);
+}
+
+export async function updateBookDetails(
+  _previousState: BookFormState,
+  formData: FormData,
+): Promise<BookFormState> {
+  const bookId = formString(formData, "bookId");
+  const title = formString(formData, "title");
+  const authorName = formString(formData, "author");
+  const genreName = formString(formData, "genre");
+  const origin = formString(formData, "origin");
+  const editionKey = formString(formData, "editionKey");
+  const statusValue = formString(formData, "status");
+  const readingYear = Number(formString(formData, "readingYear"));
+  const publicationYear = optionalNumber(formString(formData, "publicationYear"));
+  const totalPages = optionalNumber(formString(formData, "totalPages"));
+  const currentPages = Number(formString(formData, "currentPages"));
+  const rating = optionalNumber(formString(formData, "rating"));
+  const startDateValue = formString(formData, "startDate");
+  const finishDateValue = formString(formData, "finishDate");
+  const startDate = startDateValue ? parseDate(startDateValue) : null;
+  const finishDate = finishDateValue ? parseDate(finishDateValue) : null;
+
+  if (!bookId) return { status: "error", message: "Invalid book." };
+  if (!title || title.length > 191) {
+    return { status: "error", message: "Enter a title (up to 191 characters)." };
+  }
+  if (!authorName || authorName.length > 191) {
+    return { status: "error", message: "Enter an author (up to 191 characters)." };
+  }
+  if (!isReadingStatus(statusValue)) {
+    return { status: "error", message: "Choose a valid book status." };
+  }
+  if (!Number.isInteger(readingYear) || readingYear < 1 || readingYear > 9999) {
+    return { status: "error", message: "Enter a valid reading year." };
+  }
+  if (
+    publicationYear !== null &&
+    (!Number.isInteger(publicationYear) || publicationYear < 1 || publicationYear > 9999)
+  ) {
+    return { status: "error", message: "Publication year must be a whole year." };
+  }
+  if (
+    totalPages !== null &&
+    (!Number.isInteger(totalPages) || totalPages < 0 || totalPages > 2_147_483_647)
+  ) {
+    return { status: "error", message: "Total pages must be a non-negative whole number." };
+  }
+  if (
+    !Number.isInteger(currentPages) ||
+    currentPages < 0 ||
+    currentPages > 2_147_483_647 ||
+    (totalPages !== null && currentPages > totalPages)
+  ) {
+    return {
+      status: "error",
+      message: "Current pages must be a non-negative whole number no greater than total pages.",
+    };
+  }
+  if (rating !== null && (!Number.isFinite(rating) || rating < 0 || rating > 10)) {
+    return { status: "error", message: "Rating must be between 0 and 10." };
+  }
+  if (startDateValue && !startDate) {
+    return { status: "error", message: "Enter a valid start date." };
+  }
+  if (finishDateValue && !finishDate) {
+    return { status: "error", message: "Enter a valid finish date." };
+  }
+  if (
+    startDate &&
+    finishDate &&
+    finishDate.getTime() < startDate.getTime()
+  ) {
+    return { status: "error", message: "The finish date cannot be before the start date." };
+  }
+  if (genreName && genreName.length > 191) {
+    return { status: "error", message: "Genre must be 191 characters or fewer." };
+  }
+  if (origin && origin.length > 191) {
+    return { status: "error", message: "Origin must be 191 characters or fewer." };
+  }
+  if (editionKey !== null && editionKey.length > 191) {
+    return { status: "error", message: "Edition key must be 191 characters or fewer." };
+  }
+
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const author = await transaction.author.upsert({
+        where: { name: authorName },
+        create: { name: authorName },
+        update: {},
+      });
+      const genre = genreName
+        ? await transaction.genre.upsert({
+            where: { name: genreName },
+            create: { name: genreName },
+            update: {},
+          })
+        : null;
+
+      await transaction.book.update({
+        where: { id: bookId },
+        data: {
+          title,
+          status: statusValue,
+          rating,
+          readingYear,
+          publicationYear,
+          totalPages,
+          currentPages,
+          editionKey: editionKey ?? "",
+          origin: origin || null,
+          startDate,
+          finishDate,
+          authorId: author.id,
+          genreId: genre?.id ?? null,
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return { status: "error", message: "Book not found." };
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return {
+        status: "error",
+        message: "A book with this title, author, reading year, and edition already exists.",
+      };
+    }
+    throw error;
+  }
+
+  revalidatePath("/");
+  revalidatePath("/stats");
+  revalidatePath(`/books/${bookId}`);
+  return { status: "success", message: "Book details saved." };
+}
+
+export async function createReadingBook(
+  _previousState: BookFormState,
+  formData: FormData,
+): Promise<BookFormState> {
+  const title = formString(formData, "title");
+  const authorName = formString(formData, "author");
+  const genreName = formString(formData, "genre");
+  const startDate = parseDate(formString(formData, "startDate"));
+  const totalPagesValue = formString(formData, "totalPages");
+  const totalPages =
+    totalPagesValue === null || totalPagesValue === ""
+      ? null
+      : Number(totalPagesValue);
+
+  if (!title || title.length > 191) {
+    return { status: "error", message: "Enter a title (up to 191 characters)." };
+  }
+  if (!authorName || authorName.length > 191) {
+    return { status: "error", message: "Enter an author (up to 191 characters)." };
+  }
+  if (genreName && genreName.length > 191) {
+    return { status: "error", message: "Genre must be 191 characters or fewer." };
+  }
+  if (!startDate || startDate.getUTCFullYear() < 1) {
+    return { status: "error", message: "Enter a valid start date." };
+  }
+  if (
+    totalPages !== null &&
+    (!Number.isSafeInteger(totalPages) ||
+      totalPages < 1 ||
+      totalPages > 2_147_483_647)
+  ) {
+    return { status: "error", message: "Pages must be a positive whole number within the supported range." };
+  }
+
+  const readingYear = startDate.getUTCFullYear();
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const author = await transaction.author.upsert({
+        where: { name: authorName },
+        create: { name: authorName },
+        update: {},
+      });
+      const genre = genreName
+        ? await transaction.genre.upsert({
+            where: { name: genreName },
+            create: { name: genreName },
+            update: {},
+          })
+        : null;
+
+      await transaction.book.create({
+        data: {
+          title,
+          readingYear,
+          startDate,
+          totalPages,
+          status: "READING",
+          authorId: author.id,
+          genreId: genre?.id ?? null,
+        },
+      });
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return {
+        status: "error",
+        message: "This author already has a book with that title in the selected year.",
+      };
+    }
+    throw error;
+  }
+
+  revalidatePath("/");
+  revalidatePath("/stats");
+  return {
+    status: "success",
+    message: "Book added to your reading list.",
+    year: readingYear,
+  };
+}
 
 /**
  * Server Action — advance a book's reading progress (PLAN.md Step 3.2).

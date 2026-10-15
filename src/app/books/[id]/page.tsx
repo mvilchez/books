@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import BookCover from "@/components/BookCover";
+import BookDetailsForm from "@/components/BookDetailsForm";
 
 export default async function BookDetailPage({
   params,
@@ -26,20 +27,6 @@ export default async function BookDetailPage({
       : isCompleted
         ? 100
         : 0;
-
-  const details = [
-    { label: "Genre", value: book.genre?.name },
-    { label: "Reading year", value: book.readingYear },
-    { label: "Publication year", value: book.publicationYear },
-    { label: "Started", value: formatDate(book.startDate) },
-    { label: "Finished", value: formatDate(book.finishDate) },
-    { label: "Origin", value: book.origin },
-  ].filter(
-    (detail) =>
-      detail.value !== null &&
-      detail.value !== undefined &&
-      detail.value !== "",
-  );
 
   return (
     <main className="min-h-screen bg-slate-900 p-6 text-slate-100 md:p-12">
@@ -101,35 +88,30 @@ export default async function BookDetailPage({
             </div>
           </div>
 
-          {details.length > 0 && (
-            <section
-              aria-labelledby="book-information"
-              className="mt-10 border-t border-slate-700 pt-8"
-            >
-              <h2
-                id="book-information"
-                className="text-lg font-bold text-white"
-              >
-                Book information
-              </h2>
-              <dl className="mt-5 grid gap-x-8 gap-y-5 sm:grid-cols-2">
-                {details.map(({ label, value }) => (
-                  <div key={label}>
-                    <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      {label}
-                    </dt>
-                    <dd className="mt-1 text-sm text-slate-200">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          )}
+          <BookDetailsForm
+            book={{
+              id: book.id,
+              title: book.title,
+              author: book.author.name,
+              genre: book.genre?.name ?? "",
+              status: book.status,
+              rating: book.rating,
+              readingYear: book.readingYear,
+              publicationYear: book.publicationYear,
+              totalPages: book.totalPages,
+              currentPages: book.currentPages,
+              startDate: formatDate(book.startDate),
+              finishDate: formatDate(book.finishDate),
+              origin: book.origin ?? "",
+              editionKey: book.editionKey,
+            }}
+          />
         </article>
       </div>
     </main>
   );
 }
 
-function formatDate(date: Date | null): string | null {
-  return date ? date.toISOString().slice(0, 10) : null;
+function formatDate(date: Date | null): string {
+  return date ? date.toISOString().slice(0, 10) : "";
 }
