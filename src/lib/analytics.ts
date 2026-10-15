@@ -120,7 +120,16 @@ export async function getTopAuthors(limit = 10): Promise<AuthorRank[]> {
     orderBy: { books: { _count: 'desc' } },
     take: limit,
   });
-  return authors.map((a) => ({ id: a.id, name: a.name, books: a._count.books }));
+  return authors.map((a) => ({
+    id: a.id,
+    name: a.name,
+    books: a._count.books,
+    portraitUrl: a.portraitUrl,
+    portraitSourceUrl: a.portraitSourceUrl,
+    portraitArtist: a.portraitArtist,
+    portraitLicense: a.portraitLicense,
+    portraitLicenseUrl: a.portraitLicenseUrl,
+  }));
 }
 
 /**

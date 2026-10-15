@@ -12,6 +12,12 @@ const nextConfig: NextConfig = {
         pathname: "/b/isbn/**",
         search: "?default=false",
       },
+      {
+        protocol: "https",
+        hostname: "thumb.wikimedia.org",
+        pathname: "/wikipedia/commons/thumb/**",
+        search: "",
+      },
     ],
   },
   turbopack: {

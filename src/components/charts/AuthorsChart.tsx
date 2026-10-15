@@ -2,6 +2,7 @@
 
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { AuthorRank } from '@/lib/analytics-types';
+import AuthorPortrait from '@/components/AuthorPortrait';
 
 export default function AuthorsChart({ data }: { data: AuthorRank[] }) {
   return (
@@ -23,6 +24,22 @@ export default function AuthorsChart({ data }: { data: AuthorRank[] }) {
           </BarChart>
         </ResponsiveContainer>
       </div>
+      <ul
+        aria-label="Author portraits and image credits"
+        className="mt-4 grid gap-3 sm:grid-cols-2"
+      >
+        {data.map((author) => (
+          <li
+            key={author.id}
+            className="flex items-center justify-between gap-3 rounded-lg bg-slate-900/50 p-3"
+          >
+            <AuthorPortrait author={author} />
+            <span className="shrink-0 text-xs font-semibold text-slate-300">
+              {author.books} books
+            </span>
+          </li>
+        ))}
+      </ul>
     </figure>
   );
 }

@@ -2,9 +2,18 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { prisma } from "@/lib/prisma"; // Step 2.3 singleton — never `new PrismaClient()` in app code
 import BookCard from "@/components/BookCard";
+import BookSearch from "@/components/BookSearch";
+import AuthorPortrait from "@/components/AuthorPortrait";
 import IngestionWidget from "@/components/IngestionWidget";
 import { getYearKpis } from "@/lib/analytics";
 import { PRE_TAB_READING_YEAR_SENTINEL } from "@/lib/ingestion/workbook-parser";
+import {
+  parseDashboardSort,
+  parseSortDirection,
+  sortDashboardBooks,
+  type DashboardSort,
+  type SortDirection,
+} from "@/lib/dashboard";
 import type { Prisma } from "@prisma/client";
 
 type DashboardSearchParams = PageProps<"/">["searchParams"];
@@ -14,7 +23,7 @@ type DashboardView = "cards" | "list";
 export default function DashboardPage(props: PageProps<"/">) {
   return (
     <main className="min-h-screen bg-slate-900 text-slate-100 p-6 md:p-12">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4 border-b border-slate-800 pb-6">
+      <header className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-10 gap-4 border-b border-slate-800 pb-6">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-white">
             Books Tracker Workspace
@@ -23,7 +32,8 @@ export default function DashboardPage(props: PageProps<"/">) {
             Replacing legacy spreadsheets with clean engineering metrics.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <BookSearch />
+        <div className="flex flex-wrap items-center gap-3">
           <Link
             href="/books/new"
             className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-emerald-400"
@@ -57,11 +67,22 @@ async function DashboardContent({
 }: {
   searchParams: DashboardSearchParams;
 }) {
-  const { year: rawYear, view: rawView } = await searchParams;
+  const {
+    year: rawYear,
+    view: rawView,
+    sort: rawSort,
+    direction: rawDirection,
+  } = await searchParams;
   const requestedYear = typeof rawYear === "string" ? Number(rawYear) : NaN;
   const requestedYearIsValid =
     Number.isInteger(requestedYear) && requestedYear >= 1 && requestedYear <= 9999;
   const view: DashboardView = rawView === "list" ? "list" : "cards";
+  const sort = parseDashboardSort(rawSort);
+  const hasExplicitDirection = rawDirection === "asc" || rawDirection === "desc";
+  const direction = parseSortDirection(
+    rawDirection,
+    view === "list" ? "asc" : "desc",
+  );
 
   const availableYears = await prisma.book.findMany({
     select: { readingYear: true },
@@ -72,26 +93,43 @@ async function DashboardContent({
   const year = requestedYearIsValid
     ? requestedYear
     : (latestYear ?? PRE_TAB_READING_YEAR_SENTINEL);
-  const [books, kpis] = await Promise.all([
+  const [unsortedBooks, kpis] = await Promise.all([
     prisma.book.findMany({
       where: { readingYear: year },
-      include: { author: true },
-      orderBy: [{ startDate: "desc" }, { updatedAt: "desc" }],
+      include: { author: true, genre: true },
     }),
     getYearKpis(year),
   ]);
+  const books = sortDashboardBooks(unsortedBooks, sort, direction);
   const years = Array.from(
     new Set([...availableYears.map(({ readingYear }) => readingYear), year]),
   ).sort((a, b) => a - b);
-  const yearHref = (selectedYear: number) =>
-    `/?year=${selectedYear}${view === "list" ? "&view=list" : ""}`;
+  const dashboardHref = ({
+    selectedYear = year,
+    selectedView = view,
+    selectedSort = sort,
+    selectedDirection = direction,
+  }: {
+    selectedYear?: number;
+    selectedView?: DashboardView;
+    selectedSort?: DashboardSort;
+    selectedDirection?: SortDirection;
+  } = {}) => {
+    const params = new URLSearchParams({
+      year: String(selectedYear),
+      sort: selectedSort,
+      direction: selectedDirection,
+    });
+    if (selectedView === "list") params.set("view", "list");
+    return `/?${params.toString()}`;
+  };
 
   return (
     <div className="space-y-6">
       <nav aria-label="Reading year" className="space-y-3">
         <div className="flex items-center justify-between gap-4">
           <Link
-            href={yearHref(year - 1)}
+            href={dashboardHref({ selectedYear: year - 1 })}
             aria-label={`Previous year: ${year - 1}`}
             className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
           >
@@ -101,7 +139,7 @@ async function DashboardContent({
             {year === 2007 ? "Pre-2008" : year}
           </h2>
           <Link
-            href={yearHref(year + 1)}
+            href={dashboardHref({ selectedYear: year + 1 })}
             aria-label={`Next year: ${year + 1}`}
             className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
           >
@@ -112,7 +150,7 @@ async function DashboardContent({
           {years.map((availableYear) => (
             <Link
               key={availableYear}
-              href={yearHref(availableYear)}
+              href={dashboardHref({ selectedYear: availableYear })}
               aria-current={availableYear === year ? "page" : undefined}
               className={`rounded-full border px-3 py-1 text-sm font-semibold transition ${
                 availableYear === year
@@ -147,7 +185,14 @@ async function DashboardContent({
           {(["cards", "list"] as const).map((option) => (
             <Link
               key={option}
-              href={`/?year=${year}${option === "list" ? "&view=list" : ""}`}
+              href={dashboardHref({
+                selectedView: option,
+                selectedDirection: hasExplicitDirection
+                  ? direction
+                  : option === "list"
+                    ? "asc"
+                    : "desc",
+              })}
               aria-current={view === option ? "page" : undefined}
               className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
                 view === option
@@ -160,6 +205,44 @@ async function DashboardContent({
           ))}
         </nav>
       </div>
+      <form
+        action="/"
+        className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-800 bg-slate-800/40 p-4"
+      >
+        <input type="hidden" name="year" value={year} />
+        {view === "list" ? (
+          <input type="hidden" name="view" value="list" />
+        ) : null}
+        <label className="grid gap-1 text-xs font-semibold text-slate-400">
+          Sort by
+          <select
+            name="sort"
+            defaultValue={sort}
+            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+          >
+            <option value="startDate">Start date</option>
+            <option value="author">Author</option>
+            <option value="title">Title</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-xs font-semibold text-slate-400">
+          Direction
+          <select
+            name="direction"
+            defaultValue={direction}
+            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+          >
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+          </select>
+        </label>
+        <button
+          type="submit"
+          className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
+        >
+          Apply sorting
+        </button>
+      </form>
       {view === "list" ? (
         <BookList books={books} year={year} />
       ) : (
@@ -169,22 +252,15 @@ async function DashboardContent({
   );
 }
 
-type DashboardBook = Prisma.BookGetPayload<{ include: { author: true } }>[];
+type DashboardBook = Prisma.BookGetPayload<{
+  include: { author: true; genre: true };
+}>[];
 
 function BookList({ books, year }: { books: DashboardBook; year: number }) {
   if (books.length === 0) {
     return <EmptyBooks year={year} />;
   }
 
-  const sortedBooks = [...books].sort((a, b) => {
-    if (a.startDate === null && b.startDate !== null) return 1;
-    if (a.startDate !== null && b.startDate === null) return -1;
-    if (a.startDate && b.startDate) {
-      const dateDifference = a.startDate.getTime() - b.startDate.getTime();
-      if (dateDifference !== 0) return dateDifference;
-    }
-    return a.title.localeCompare(b.title);
-  });
   const formatDate = (date: Date | null) =>
     date
       ? new Intl.DateTimeFormat("es-ES", {
@@ -204,13 +280,16 @@ function BookList({ books, year }: { books: DashboardBook; year: number }) {
             <th scope="col" className="px-4 py-3">Author</th>
             <th scope="col" className="px-4 py-3">Started</th>
             <th scope="col" className="px-4 py-3">Finished</th>
+            <th scope="col" className="px-4 py-3">Genre</th>
             <th scope="col" className="px-4 py-3">Status</th>
             <th scope="col" className="px-4 py-3 text-right">Pages</th>
+            <th scope="col" className="px-4 py-3 text-right">Published</th>
+            <th scope="col" className="px-4 py-3">Origin</th>
             <th scope="col" className="px-4 py-3 text-right">Rating</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-800 bg-slate-900/60">
-          {sortedBooks.map((book) => (
+          {books.map((book) => (
             <tr key={book.id} className="text-slate-300 transition hover:bg-slate-800/70">
               <th scope="row" className="px-4 py-3 font-semibold text-white">
                 <Link
@@ -220,13 +299,18 @@ function BookList({ books, year }: { books: DashboardBook; year: number }) {
                   {book.title}
                 </Link>
               </th>
-              <td className="px-4 py-3">{book.author.name}</td>
+              <td className="px-4 py-3">
+                <AuthorPortrait author={book.author} />
+              </td>
               <td className="whitespace-nowrap px-4 py-3">{formatDate(book.startDate)}</td>
               <td className="whitespace-nowrap px-4 py-3">{formatDate(book.finishDate)}</td>
+              <td className="px-4 py-3">{book.genre?.name ?? "—"}</td>
               <td className="whitespace-nowrap px-4 py-3">{book.status.replace("_", " ")}</td>
               <td className="px-4 py-3 text-right">
                 {book.totalPages?.toLocaleString("es-ES") ?? "—"}
               </td>
+              <td className="px-4 py-3 text-right">{book.publicationYear ?? "—"}</td>
+              <td className="px-4 py-3">{book.origin ?? "—"}</td>
               <td className="px-4 py-3 text-right">
                 {book.rating === null ? "—" : `${book.rating}/10`}
               </td>

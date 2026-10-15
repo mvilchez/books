@@ -1224,49 +1224,56 @@ export default function Loading() {
 
 ---
 
-### PHASE 6: Library Discovery & Author Profiles — PLANNED, NOT IMPLEMENTED
+### PHASE 6: Library Discovery & Author Profiles — IN PROGRESS
 
 **Objective:** Make the ledger easier to browse and search, and add reliable, properly attributed author portraits where a permitted image source can be identified.
 
-#### Feature 6.1: Richer cards, fields, and sorting
+#### Feature 6.1: Richer cards, fields, and sorting — COMPLETE
 
-1. Keep the existing card layout and current start-date-ascending list order as the defaults.
-2. Add explicit sort options usable in both Cards and List modes: reading start date, author, and title, with ascending/descending direction where meaningful. Add a stable title/ID tie-breaker so equal or missing values do not jump between requests.
+1. Keep the existing card layout and preserve its start-date-descending default; keep the List view's start-date-ascending default.
+2. Add explicit sort options usable in both Cards and List modes: reading start date, author, and title, with ascending/descending direction. Use stable title/author/ID tie-breakers; undated books stay last in either date direction.
 3. Keep the selected year, view, and sort in URL query parameters so results can be bookmarked and navigation preserves the selection. Validate query values and fall back to the current default for invalid options.
-4. Expand the card presentation with useful existing fields: genre, rating, start/finish dates, and page progress, while retaining title, author, status, and its existing progress action. Expand the list with publication year, origin, and the same reading/rating fields where appropriate. Avoid duplicating information or making cards unwieldy on narrow screens.
+4. Expand the card presentation with existing fields: genre, rating, start/finish dates, publication year, origin, and page progress, while retaining title, author, status, and its existing progress action. Expand the list with genre, publication year, origin, reading dates, pages, status, and rating.
 5. Derive a shared, typed display/sort contract from the current `Book`, `Author`, and `Genre` fields; do not add schema fields for metadata already in the database.
 
-**Acceptance:** date sorting remains the default; author/title sorts work in both views; null dates/genres/ratings have consistent placement; direction and sort survive year/view navigation; book links and progress actions continue to work; layouts remain usable at mobile widths.
+**Acceptance:** date sorting remains the default for each view; author/title sorts work in both views; missing dates remain last and unavailable fields display as placeholders; direction and sort survive year/view navigation; book links and progress actions continue to work.
 
-#### Feature 6.2: Global book autocomplete
+**Implementation:** `src/lib/dashboard.ts` contains validated URL sort parsing and stable sorting; `src/app/page.tsx` includes author and genre data and preserves sorting state across year/view navigation. `BookCard` and the table display existing metadata. Unit tests cover invalid/repeated sort parameters, ascending/descending dates, null dates, tie-breaks, and input immutability.
 
-1. Add a search control in the dashboard header that searches the whole ledger, not just the selected year.
-2. Search book titles and author names first; include genre only if it improves discovery without obscuring relevant title/author matches. Normalize and bound the query, debounce keystrokes, cap result count, and query MariaDB on the server.
-3. Return a small typed result projection (book ID, title, author, reading year, status, and optionally genre/rating) and link each result to `/books/[id]`. Keep the selected dashboard year/view unchanged when search is closed or cleared.
-4. Provide accessible keyboard interaction (arrow keys, Enter, Escape), clear no-match/loading states, and an explicit full-results state or search page if the bounded suggestions do not suffice.
-5. Review query performance against the actual MariaDB collation and ledger size before adding indexes or changing schema. Never expose database errors as successful empty results.
+#### Feature 6.2: Global book autocomplete — COMPLETE
 
-**Acceptance:** searching from any selected year finds matching books across all years; title and author matches are useful; keyboard and screen-reader navigation work; empty, slow, and invalid-query states are clear; result links open the correct book; query size and result count are bounded.
+1. Add a dashboard-header search for book titles and author names across the whole ledger.
+2. Trim and validate queries to 2–100 characters, debounce requests by 250ms, cap results at eight, and escape SQL `LIKE` wildcards as literals.
+3. Return a small result projection (book ID, title, author, reading year) from the read-only `GET /api/books/search` route; each result opens `/books/[id]`.
+4. Provide accessible combobox/listbox keyboard interaction (arrow keys, Enter, Escape), live status announcements, and visible loading, no-match, malformed-response, and network-error states.
+5. Keep MariaDB queries parameterized through Prisma; search failures return errors instead of a successful empty result. No index or schema changes were required for the current ledger.
 
-#### Feature 6.3: Author portraits from a permitted source
+**Acceptance:** searches work across reading years; result count and query size are bounded; title and author matches are useful; invalid and repeated query parameters return `400`; no-match and wildcard input do not return unrelated books.
 
-1. Investigate image-source terms, licensing, attribution, API availability, rate limits, and stable image URLs before selecting a provider. Goodreads is a candidate to investigate only if an official, currently available API explicitly permits this use; do not scrape Goodreads pages or bypass access controls.
-2. Prefer a source with an explicit reuse license and attribution model, such as a suitable Wikidata/Wikimedia Commons workflow, subject to confirming the specific image's license and attribution requirements. Store the portrait URL plus source/credit information only after the provider decision is approved.
-3. If persistent author portrait metadata is required, add optional image/source/attribution fields to `Author` and provide a reviewed, additive MariaDB migration. Keep this separate from `Book`; a portrait belongs to an author and is shared across that author's books.
-4. Resolve portraits on the server or through a bounded, cached provider integration; allow-list remote image hosts and avoid fetching arbitrary URLs from user-supplied database values. Do not make page rendering depend on a third-party provider being available.
-5. Display a consistent, accessible portrait and author name on Cards, List, book details, global-search results, and author-ranking views. Use a local initials/placeholder fallback when no portrait exists, it fails to load, or its license/source cannot be verified.
-6. Include attribution adjacent to or linked from the portrait as required by the image license. Do not download/re-host images unless the selected license and provider terms permit it.
+**Implementation and verification:** `src/components/BookSearch.tsx`, `src/app/api/books/search/route.ts`, and `src/lib/book-search.ts`. Live read-only production checks found author matches across multiple years, returned no matches for literal wildcard searches, and rejected short/repeated queries. `npm test` passes all five unit tests; type-check, targeted ESLint, and production build pass.
+
+#### Feature 6.3: Author portraits from Wikidata and Wikimedia Commons — IMPLEMENTED, DATA SYNC PENDING
+
+1. **Research outcome:** Wikidata's data is CC0 and its data-access guidance recommends naming Wikidata as the data source, using a descriptive User-Agent, limiting request load, and respecting 429/`Retry-After` responses. Wikidata can help identify an author/item but does not license the associated portrait.
+2. Wikimedia Commons allows reuse subject to each file's own license and other applicable rights; creator attribution and license identification may be required. Its MediaWiki `imageinfo` API exposes file URLs and extmetadata for verifying per-file credits/license data. Requests should use a descriptive User-Agent, be rate-conscious, cached, and use `maxlag` where appropriate.
+3. The official Goodreads `/api` URL checked during this review redirects to the general site and did not expose current API documentation or terms confirming portrait use. Do not scrape Goodreads or rely on undocumented image URLs.
+4. **Approved provider and approach:** use Wikidata's official Action API for exact-label author identity lookup, then fetch entity claims and Commons image metadata. Only accept a unique exact author label for a human entity with exactly one portrait property; skip ambiguous identities or multiple-image entities.
+5. Persist the Wikidata ID, Commons thumbnail URL, file-description URL, creator, and license fields on `Author`, shared by all of that author's books. These columns were added to the local MariaDB without changing or dropping existing fields.
+6. `npm run portraits:sync` is a read-only dry run by default. It queries authors in sequence, batches entity and file-metadata requests, sends a descriptive User-Agent, observes `maxlag` and `Retry-After`, and only prints images with source, creator, and license metadata. `--apply` stores verified results transactionally without overwriting existing portrait data.
+7. The UI validates the stored image host/path and allows only Commons thumbnail images in `next/image`; Cards, List, book details, search suggestions, and the top-author section show portraits and credits. Missing, ambiguous, or failed images use an initials fallback. Third-party availability is not required to render the app.
+8. A dry-run check was attempted, but Wikidata responded with `maxlag` twice. The sync aborted before any author updates; rerun the dry run and apply only after it completes successfully. Do not download or re-host the images.
 
 **Acceptance:** no unlicensed scraping; every displayed portrait has a verifiable source and required credit; missing/failed images use the fallback without breaking the page; only allow-listed image hosts are loaded; portrait data is shared across the author's books and works in all relevant views; external-source failure does not block the dashboard.
 
+**Research references:** [Wikidata data access](https://www.wikidata.org/wiki/Wikidata:Data_access), [MediaWiki API etiquette](https://www.mediawiki.org/wiki/API:Etiquette), [MediaWiki imageinfo](https://www.mediawiki.org/wiki/API:Imageinfo), [Commons reuse guidance](https://commons.wikimedia.org/wiki/Commons:Reusing_content_outside_Wikimedia), and [Goodreads API URL checked](https://www.goodreads.com/api).
+
 #### Phase 6 delivery order and review gates
 
-1. Implement Feature 6.1 first, preserving existing default behavior.
-2. Implement Feature 6.2 using the finalized view/data contract; decide whether a dropdown is sufficient or a dedicated full-results route is needed from real usage.
-3. Research and propose the Feature 6.3 provider and licensing model before changing the schema or integrating external requests. Obtain approval of the provider and attribution approach before implementation.
-4. For each feature, run targeted type-check, lint, build, and route/component tests. Add database migration tests only if the approved author-image model changes the schema.
+1. Features 6.1 and 6.2 are implemented and tested.
+2. After Wikimedia is responsive, complete a dry-run review and run `npm run portraits:sync -- --apply` to populate eligible author rows.
+3. For the sync and remaining changes, run targeted type-check, lint, build, and route/component tests. The local additive schema update is already applied.
 
-**Status:** this is a proposal only. No Phase 6 feature, external image provider, or author schema change has been implemented or approved.
+**Status:** Features 6.1 and 6.2 are complete. Feature 6.3's provider integration, attribution UI, schema, and dry-run/apply tool are implemented; the actual author data backfill is pending because Wikimedia returned `maxlag`. No portrait rows were written by the failed dry run.
 
 ---
 

@@ -31,7 +31,16 @@ export interface RatingDistribution { buckets: RatingBucket[]; unrated: number }
 /** Genre share of completed books; `genre: null` = books without a "Tipo" value. */
 export interface GenreShare { genre: string | null; books: number }
 
-export interface AuthorRank { id: string; name: string; books: number }
+export interface AuthorRank {
+  id: string;
+  name: string;
+  books: number;
+  portraitUrl: string | null;
+  portraitSourceUrl: string | null;
+  portraitArtist: string | null;
+  portraitLicense: string | null;
+  portraitLicenseUrl: string | null;
+}
 
 /** Books finished per calendar month of the selected year (1..12). */
 export interface MonthPacePoint { month: number; books: number }

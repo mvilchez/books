@@ -62,10 +62,16 @@ model Book {
 }
 
 model Author {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  books     Book[]
-  createdAt DateTime @default(now())
+  id                  String   @id @default(uuid())
+  name                String   @unique
+  wikidataId          String?  @map("wikidata_id") @db.VarChar(32)
+  portraitUrl         String?  @map("portrait_url") @db.Text
+  portraitSourceUrl   String?  @map("portrait_source_url") @db.Text
+  portraitArtist      String?  @map("portrait_artist") @db.Text
+  portraitLicense     String?  @map("portrait_license") @db.VarChar(191)
+  portraitLicenseUrl  String?  @map("portrait_license_url") @db.Text
+  books               Book[]
+  createdAt           DateTime @default(now())
 }
 
 model Genre {

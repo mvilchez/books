@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import BookCover from "@/components/BookCover";
 import BookDetailsForm from "@/components/BookDetailsForm";
+import AuthorPortrait from "@/components/AuthorPortrait";
 
 export default async function BookDetailPage({
   params,
@@ -53,9 +54,9 @@ export default async function BookDetailPage({
               <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-white">
                 {book.title}
               </h1>
-              <p className="mt-2 text-lg italic text-slate-300">
-                by {book.author.name}
-              </p>
+              <div className="mt-2">
+                <AuthorPortrait author={book.author} size="large" />
+              </div>
               {book.rating !== null && (
                 <p className="mt-4 font-semibold text-amber-400">
                   Rating: {book.rating}/10 ★

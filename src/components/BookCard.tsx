@@ -4,11 +4,14 @@ import { updateBookProgress } from "@/app/actions/bookActions";
 import type { Prisma } from "@prisma/client";
 import Link from "next/link";
 import BookCover from "@/components/BookCover";
+import AuthorPortrait from "@/components/AuthorPortrait";
 
-/** The exact shape `BookGrid` passes down: a Book with its author included. */
-type BookWithAuthor = Prisma.BookGetPayload<{ include: { author: true } }>;
+/** The exact shape `BookGrid` passes down: a Book with author and genre included. */
+type BookWithAuthorAndGenre = Prisma.BookGetPayload<{
+  include: { author: true; genre: true };
+}>;
 
-export default function BookCard({ book }: { book: BookWithAuthor }) {
+export default function BookCard({ book }: { book: BookWithAuthorAndGenre }) {
   // The import never fills `currentPages` (verified: 0 rows carry it) — only
   // live tracking does. A COMPLETED book therefore reports its full run via
   // `totalPages`, matching CONTEXT.md §4 where completed pages are counted
@@ -24,6 +27,15 @@ export default function BookCard({ book }: { book: BookWithAuthor }) {
       : isCompleted
         ? 100 // finished, but the source had no page count (pre-2014 rows)
         : 0;
+  const formatDate = (date: Date | null) =>
+    date
+      ? new Intl.DateTimeFormat("es-ES", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          timeZone: "UTC",
+        }).format(date)
+      : "—";
 
   return (
     <article className="bg-slate-800 rounded-xl border border-slate-700/60 p-5 shadow-xl transition hover:border-emerald-500/40 flex flex-col justify-between">
@@ -53,11 +65,23 @@ export default function BookCard({ book }: { book: BookWithAuthor }) {
               {book.status}
             </span>
           </div>
-          <p className="text-slate-400 text-sm mt-1 mb-2 italic">
-            by {book.author.name}
-          </p>
-          {book.rating ? (
-            <div className="text-amber-400 text-xs font-semibold mb-4">
+          <div className="mb-2 mt-1">
+            <AuthorPortrait author={book.author} links={false} />
+          </div>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-slate-400">
+            <dt>Genre</dt>
+            <dd className="truncate text-slate-300">{book.genre?.name ?? "—"}</dd>
+            <dt>Started</dt>
+            <dd className="text-slate-300">{formatDate(book.startDate)}</dd>
+            <dt>Finished</dt>
+            <dd className="text-slate-300">{formatDate(book.finishDate)}</dd>
+            <dt>Published</dt>
+            <dd className="text-slate-300">{book.publicationYear ?? "—"}</dd>
+            <dt>Origin</dt>
+            <dd className="truncate text-slate-300">{book.origin ?? "—"}</dd>
+          </dl>
+          {book.rating !== null ? (
+            <div className="mt-2 text-amber-400 text-xs font-semibold">
               Rating: {book.rating}/10 ★
             </div>
           ) : null}
