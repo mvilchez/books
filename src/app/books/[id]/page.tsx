@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import BookCover from "@/components/BookCover";
 import BookDetailsForm from "@/components/BookDetailsForm";
+import BookRecommendations from "@/components/BookRecommendations";
 import AuthorPortrait from "@/components/AuthorPortrait";
 import OpenLibraryImagePicker from "@/components/OpenLibraryImagePicker";
 import { getOpenLibraryWorkUrl } from "@/lib/open-library-images";
@@ -15,7 +16,10 @@ export default async function BookDetailPage({
   const { id } = await params;
   const book = await prisma.book.findUnique({
     where: { id },
-    include: { author: true, genre: true },
+    include: {
+      author: true,
+      genre: true,
+    },
   });
 
   if (!book) notFound();
@@ -106,6 +110,11 @@ export default async function BookDetailPage({
           ) : null}
 
           <OpenLibraryImagePicker bookId={book.id} />
+
+          <BookRecommendations
+            bookId={book.id}
+            authorName={book.author.name}
+          />
 
           <BookDetailsForm
             book={{

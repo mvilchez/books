@@ -9,8 +9,10 @@ import {
   getOpenLibraryWorkUrl,
   searchOpenLibraryAuthorPhotos,
   searchOpenLibraryBooks,
+  searchOpenLibraryRecommendations,
   type OpenLibraryAuthorPhotoCandidate,
   type OpenLibraryBookCandidate,
+  type OpenLibraryRecommendationResult,
 } from "@/lib/open-library-images";
 
 type ActionResult<T> =
@@ -19,6 +21,60 @@ type ActionResult<T> =
 
 function actionError(error: unknown): string {
   return error instanceof Error ? error.message : "Open Library lookup failed.";
+}
+
+export async function findBookRecommendations(
+  bookId: string,
+): Promise<ActionResult<OpenLibraryRecommendationResult>> {
+  if (typeof bookId !== "string" || bookId.length === 0) {
+    return { status: "error", message: "Invalid book." };
+  }
+
+  let book: {
+    title: string;
+    openLibraryWorkId: string | null;
+    author: { name: string };
+  } | null;
+  let readBooks: { title: string; openLibraryWorkId: string | null }[];
+  try {
+    [book, readBooks] = await Promise.all([
+      prisma.book.findUnique({
+        where: { id: bookId },
+        select: {
+          title: true,
+          openLibraryWorkId: true,
+          author: { select: { name: true } },
+        },
+      }),
+      prisma.book.findMany({
+        where: { status: "COMPLETED" },
+        select: { title: true, openLibraryWorkId: true },
+      }),
+    ]);
+  } catch (error) {
+    return { status: "error", message: actionError(error) };
+  }
+  if (!book) return { status: "error", message: "Book not found." };
+
+  try {
+    const result = await searchOpenLibraryRecommendations(
+      book.author.name,
+      readBooks.map(({ title, openLibraryWorkId }) => ({
+        title,
+        workId: openLibraryWorkId,
+      })),
+      { title: book.title, workId: book.openLibraryWorkId },
+    );
+    return {
+      status: "success",
+      data: result,
+      message: result.books.length
+        ? `Showing unread ${result.language === "spa" ? "Spanish" : "English"} books by ${book.author.name}.`
+        : `No unread Spanish or English books by ${book.author.name} were found.`,
+    };
+  } catch (error) {
+    return { status: "error", message: actionError(error) };
+  }
 }
 
 export async function searchBookCoverCandidates(

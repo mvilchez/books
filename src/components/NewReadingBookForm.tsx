@@ -9,7 +9,13 @@ import {
 
 const initialState: BookFormState = { status: "idle", message: "" };
 
-export default function NewReadingBookForm() {
+export default function NewReadingBookForm({
+  initialTitle = "",
+  initialAuthor = "",
+}: {
+  initialTitle?: string;
+  initialAuthor?: string;
+}) {
   const [state, formAction, pending] = useActionState(
     createReadingBook,
     initialState,
@@ -42,6 +48,7 @@ export default function NewReadingBookForm() {
           required
           maxLength={191}
           autoComplete="off"
+          defaultValue={initialTitle}
           className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
         />
       </div>
@@ -56,6 +63,7 @@ export default function NewReadingBookForm() {
           required
           maxLength={191}
           autoComplete="off"
+          defaultValue={initialAuthor}
           className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
         />
       </div>

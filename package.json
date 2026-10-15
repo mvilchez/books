@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --import tsx --test src/lib/dashboard.test.ts src/lib/book-search.test.ts src/lib/ingestion/workbook-parser.test.ts src/lib/open-library-images.test.ts",
+    "test": "node --import tsx --test src/lib/dashboard.test.ts src/lib/book-search.test.ts src/lib/book-recommendations.test.ts src/lib/ingestion/workbook-parser.test.ts src/lib/open-library-images.test.ts",
     "validate:ingestion": "tsx --tsconfig tsconfig.json src/scripts/validate-ingestion.ts",
     "cleanup:books": "tsx --tsconfig tsconfig.json src/scripts/cleanup-invalid-books.ts",
     "postinstall": "prisma generate || exit 0"

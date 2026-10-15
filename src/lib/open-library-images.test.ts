@@ -10,7 +10,9 @@ import {
   parseOpenLibraryAuthorCandidates,
   parseOpenLibraryAuthorProfile,
   parseOpenLibraryBookCandidates,
+  parseOpenLibraryRecommendationCandidates,
   prioritizeOpenLibraryAuthorCandidates,
+  searchOpenLibraryRecommendations,
   searchOpenLibraryAuthorPhotos,
 } from "./open-library-images";
 
@@ -51,6 +53,86 @@ test("book search only returns usable Open Library works with covers", () => {
   assert.throws(
     () => parseOpenLibraryBookCandidates({ docs: {} }),
     /malformed book search/,
+  );
+});
+
+test("recommendation search prefers Spanish and falls back to English only when needed", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: string[] = [];
+  globalThis.fetch = (async (input) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    requests.push(url.searchParams.get("language") ?? "");
+    return Response.json({
+      docs:
+        url.searchParams.get("language") === "spa"
+          ? [
+              {
+                key: "/works/OL1W",
+                title: "Libro leído",
+                author_name: ["Ada Author"],
+              },
+            ]
+          : [
+              {
+                key: "/works/OL2W",
+                title: "Unread English book",
+                author_name: ["Ada Author"],
+                first_publish_year: 1950,
+              },
+            ],
+    });
+  }) as typeof fetch;
+
+  try {
+    const spanish = await searchOpenLibraryRecommendations(
+      "Ada Author",
+      [],
+      { title: "Source", workId: null },
+    );
+    assert.equal(spanish.language, "spa");
+    assert.equal(spanish.books[0]?.title, "Libro leído");
+    assert.deepEqual(requests, ["spa"]);
+
+    requests.length = 0;
+    const fallback = await searchOpenLibraryRecommendations(
+      "Ada Author",
+      [{ title: "Libro leído", workId: null }],
+      { title: "Source", workId: null },
+    );
+    assert.equal(fallback.language, "eng");
+    assert.equal(fallback.books[0]?.title, "Unread English book");
+    assert.deepEqual(requests, ["spa", "eng"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("recommendation parser accepts works without covers and validates work ids", () => {
+  assert.deepEqual(
+    parseOpenLibraryRecommendationCandidates({
+      docs: [
+        {
+          key: "/works/OL123W",
+          title: "A book without a cover",
+          author_name: ["Ada"],
+          first_publish_year: 1815,
+        },
+        { key: "/works/not-a-work", title: "Invalid" },
+        { key: "/works/OL124W", title: " " },
+      ],
+    }),
+    [
+      {
+        workId: "OL123W",
+        title: "A book without a cover",
+        authors: ["Ada"],
+        firstPublishYear: 1815,
+      },
+    ],
+  );
+  assert.throws(
+    () => parseOpenLibraryRecommendationCandidates({ docs: null }),
+    /malformed recommendation/,
   );
 });
 

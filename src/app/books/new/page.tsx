@@ -1,7 +1,15 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import NewReadingBookForm from "@/components/NewReadingBookForm";
 
-export default function NewBookPage() {
+export default function NewBookPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    title?: string | string[];
+    author?: string | string[];
+  }>;
+}) {
   return (
     <main className="min-h-screen bg-slate-900 p-6 text-slate-100 md:p-12">
       <div className="mx-auto max-w-2xl">
@@ -17,10 +25,38 @@ export default function NewBookPage() {
             Add a book to your currently reading list.
           </p>
           <div className="mt-8">
-            <NewReadingBookForm />
+            <Suspense
+              fallback={
+                <p role="status" className="text-sm text-slate-400">
+                  Loading book form…
+                </p>
+              }
+            >
+              <PrefilledBookForm searchParams={searchParams} />
+            </Suspense>
           </div>
         </section>
       </div>
     </main>
   );
+}
+
+async function PrefilledBookForm({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    title?: string | string[];
+    author?: string | string[];
+  }>;
+}) {
+  const params = await searchParams;
+  const title =
+    typeof params.title === "string" && params.title.length <= 191
+      ? params.title
+      : "";
+  const author =
+    typeof params.author === "string" && params.author.length <= 191
+      ? params.author
+      : "";
+  return <NewReadingBookForm initialTitle={title} initialAuthor={author} />;
 }

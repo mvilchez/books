@@ -1,3 +1,8 @@
+import {
+  filterUnreadOpenLibraryBooks,
+  type OpenLibraryRecommendation,
+} from "@/lib/book-recommendations";
+
 const OPEN_LIBRARY_ORIGIN = "https://openlibrary.org";
 const COVERS_ORIGIN = "https://covers.openlibrary.org";
 const USER_AGENT = "BooksTracker/1.0 (https://github.com/mvilchez/books)";
@@ -8,6 +13,11 @@ export type OpenLibraryBookCandidate = {
   authors: string[];
   coverId: number;
   isbn: string[];
+};
+
+export type OpenLibraryRecommendationResult = {
+  language: "spa" | "eng";
+  books: OpenLibraryRecommendation[];
 };
 
 export type OpenLibraryAuthorCandidate = {
@@ -100,6 +110,46 @@ export function parseOpenLibraryBookCandidates(
   return candidates;
 }
 
+export function parseOpenLibraryRecommendationCandidates(
+  value: unknown,
+): OpenLibraryRecommendation[] {
+  const root = record(value);
+  if (!Array.isArray(root?.docs)) {
+    throw new Error("Open Library returned malformed recommendation results.");
+  }
+
+  const candidates: OpenLibraryRecommendation[] = [];
+  for (const rawDoc of root.docs) {
+    if (candidates.length === 50) break;
+    const doc = record(rawDoc);
+    if (!doc) continue;
+    const workKey = doc.key;
+    const title = doc.title;
+    if (
+      typeof workKey !== "string" ||
+      !/^\/works\/OL\d+W$/.test(workKey) ||
+      typeof title !== "string" ||
+      !title.trim()
+    ) {
+      continue;
+    }
+
+    const firstPublishYear = doc.first_publish_year;
+    candidates.push({
+      workId: workKey.slice("/works/".length),
+      title: title.trim(),
+      authors: stringArray(doc.author_name).slice(0, 5),
+      firstPublishYear:
+        typeof firstPublishYear === "number" &&
+        Number.isInteger(firstPublishYear) &&
+        firstPublishYear > 0
+          ? firstPublishYear
+          : null,
+    });
+  }
+  return candidates;
+}
+
 export function parseOpenLibraryAuthorCandidates(
   value: unknown,
 ): OpenLibraryAuthorCandidate[] {
@@ -160,6 +210,32 @@ export async function searchOpenLibraryBooks(
     fields: "key,title,author_name,isbn,cover_i",
   }).toString();
   return parseOpenLibraryBookCandidates(await fetchJson(url));
+}
+
+export async function searchOpenLibraryRecommendations(
+  author: string,
+  readBooks: readonly { title: string; workId: string | null }[],
+  sourceBook: { title: string; workId: string | null },
+): Promise<OpenLibraryRecommendationResult> {
+  for (const language of ["spa", "eng"] as const) {
+    const url = new URL("/search.json", OPEN_LIBRARY_ORIGIN);
+    url.search = new URLSearchParams({
+      author,
+      language,
+      limit: "50",
+      fields: "key,title,author_name,first_publish_year",
+    }).toString();
+    const candidates = parseOpenLibraryRecommendationCandidates(
+      await fetchJson(url),
+    );
+    const books = filterUnreadOpenLibraryBooks(
+      candidates,
+      readBooks,
+      sourceBook,
+    );
+    if (books.length > 0) return { language, books };
+  }
+  return { language: "eng", books: [] };
 }
 
 export async function searchOpenLibraryAuthors(

@@ -287,6 +287,65 @@ export async function createReadingBook(
   };
 }
 
+export type PendingBookFormState = {
+  status: "idle" | "error" | "success";
+  message: string;
+  bookId?: string;
+};
+
+export async function addPendingBook(
+  _previousState: PendingBookFormState,
+  formData: FormData,
+): Promise<PendingBookFormState> {
+  const title = formString(formData, "title");
+  const authorName = formString(formData, "author");
+
+  if (!title || title.length > 191) {
+    return { status: "error", message: "Enter a title (up to 191 characters)." };
+  }
+  if (!authorName || authorName.length > 191) {
+    return { status: "error", message: "Enter an author (up to 191 characters)." };
+  }
+
+  const readingYear = new Date().getUTCFullYear();
+  let bookId: string;
+  try {
+    bookId = await prisma.$transaction(async (transaction) => {
+      const author = await transaction.author.upsert({
+        where: { name: authorName },
+        create: { name: authorName },
+        update: {},
+      });
+      const book = await transaction.book.create({
+        data: {
+          title,
+          readingYear,
+          status: "PENDING",
+          authorId: author.id,
+        },
+        select: { id: true },
+      });
+      return book.id;
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return {
+        status: "error",
+        message: "This book is already in your library for the current year.",
+      };
+    }
+    throw error;
+  }
+
+  revalidatePath("/");
+  revalidatePath("/stats");
+  return {
+    status: "success",
+    message: "Book added to your library without starting it.",
+    bookId,
+  };
+}
+
 /**
  * Server Action — advance a book's reading progress (PLAN.md Step 3.2).
  *
