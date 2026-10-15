@@ -42,6 +42,18 @@ export interface AuthorRank {
   portraitLicenseUrl: string | null;
 }
 
+export interface AuthorBook {
+  id: string;
+  title: string;
+  readingYear: number;
+  rating: number | null;
+}
+
+export interface AuthorBookList {
+  authorId: string;
+  books: AuthorBook[];
+}
+
 /** Books finished per calendar month of the selected year (1..12). */
 export interface MonthPacePoint { month: number; books: number }
 
@@ -55,6 +67,7 @@ export interface Suggestion {
 
 export interface DiscoveryMetrics {
   topAuthors: AuthorRank[];  // top 5
+  topAuthorBooks: AuthorBookList[];
   topGenres: GenreShare[];   // top 5, names resolved
   suggestions: Suggestion[]; // up to 3
 }

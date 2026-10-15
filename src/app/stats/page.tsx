@@ -6,7 +6,7 @@ import {
   getDiscoveryMetrics, getGenreShares, getMonthlyPace,
   getRatingDistribution, getTopAuthors, getYearKpis, getYearlyTrend,
 } from '@/lib/analytics';
-import { Kpi, nf, StatsSkeleton, SuggestionsList, TopList } from './_components';
+import { Kpi, nf, StatsSkeleton, SuggestionsList, TopAuthorsBooks, TopList } from './_components';
 import YearTrendChart from '@/components/charts/YearTrendChart';
 import RatingChart from '@/components/charts/RatingChart';
 import GenreChart from '@/components/charts/GenreChart';
@@ -100,10 +100,7 @@ async function StatsContent({ searchParams }: { searchParams: StatsSearchParams 
 
       {/* Rankings + recommender — server-rendered lists (CONTEXT.md §4). */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <TopList
-          title="Top 5 authors"
-          items={discovery.topAuthors.map((a) => ({ id: a.id, label: a.name, value: `${a.books} books` }))}
-        />
+        <TopAuthorsBooks authors={discovery.topAuthors} booksByAuthor={discovery.topAuthorBooks} />
         <TopList
           title="Top 5 genres"
           items={discovery.topGenres.map((g, i) => ({ id: String(i), label: g.genre ?? 'Sin género', value: `${g.books} books` }))}

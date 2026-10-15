@@ -1,5 +1,6 @@
 // src/app/stats/_components.tsx — server-only presentational helpers (no 'use client').
-import type { Suggestion } from '@/lib/analytics-types';
+import Link from 'next/link';
+import type { AuthorBookList, AuthorRank, Suggestion } from '@/lib/analytics-types';
 
 export const nf = new Intl.NumberFormat('es-ES');
 
@@ -38,6 +39,58 @@ export function TopList({ title, items }: { title: string; items: { id: string; 
         </div>
       )}
     </div>
+  );
+}
+
+export function TopAuthorsBooks({
+  authors,
+  booksByAuthor,
+}: {
+  authors: AuthorRank[];
+  booksByAuthor: AuthorBookList[];
+}) {
+  return (
+    <section className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+      <h3 className="text-lg font-bold text-white mb-4">Top 5 authors and their books</h3>
+      {authors.length === 0 ? (
+        <p className="text-slate-400 text-sm italic">No completed books yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {authors.map((author) => {
+            const books = booksByAuthor.find((entry) => entry.authorId === author.id)?.books ?? [];
+            return (
+              <details key={author.id} className="group rounded-lg bg-slate-900/60">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg p-4 text-sm marker:content-none hover:bg-slate-900">
+                  <span className="font-semibold text-slate-200">{author.name}</span>
+                  <span className="shrink-0 text-xs font-bold text-emerald-400">
+                    {author.books} books
+                  </span>
+                </summary>
+                <ul className="space-y-2 border-t border-slate-700/70 px-4 py-3">
+                  {books.map((book) => (
+                    <li
+                      key={book.id}
+                      className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm"
+                    >
+                      <Link
+                        href={`/books/${book.id}`}
+                        className="text-slate-300 transition hover:text-emerald-300"
+                      >
+                        {book.title}
+                      </Link>
+                      <span className="shrink-0 text-xs text-slate-500">
+                        {book.readingYear}
+                        {book.rating === null ? '' : ` · ${book.rating}/10`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 

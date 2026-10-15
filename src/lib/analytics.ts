@@ -117,19 +117,20 @@ export async function getGenreShares(): Promise<GenreShare[]> {
 export async function getTopAuthors(limit = 10): Promise<AuthorRank[]> {
   const authors = await prisma.author.findMany({
     include: { _count: { select: { books: { where: { status: 'COMPLETED' } } } } },
-    orderBy: { books: { _count: 'desc' } },
-    take: limit,
   });
-  return authors.map((a) => ({
-    id: a.id,
-    name: a.name,
-    books: a._count.books,
-    portraitUrl: a.portraitUrl,
-    portraitSourceUrl: a.portraitSourceUrl,
-    portraitArtist: a.portraitArtist,
-    portraitLicense: a.portraitLicense,
-    portraitLicenseUrl: a.portraitLicenseUrl,
-  }));
+  return authors
+    .map((a) => ({
+      id: a.id,
+      name: a.name,
+      books: a._count.books,
+      portraitUrl: a.portraitUrl,
+      portraitSourceUrl: a.portraitSourceUrl,
+      portraitArtist: a.portraitArtist,
+      portraitLicense: a.portraitLicense,
+      portraitLicenseUrl: a.portraitLicenseUrl,
+    }))
+    .sort((a, b) => b.books - a.books || a.name.localeCompare(b.name))
+    .slice(0, limit);
 }
 
 /**
@@ -164,6 +165,21 @@ export async function getMonthlyPace(year: number): Promise<{ points: MonthPaceP
 /** Top-5 authors / genres + WISH_LIST suggestions (CONTEXT.md §4 recommender rule). */
 export async function getDiscoveryMetrics(): Promise<DiscoveryMetrics> {
   const [topAuthors, topGenres] = await Promise.all([getTopAuthors(5), getGenreShares()]);
+  const authorBooks = topAuthors.length
+    ? await prisma.book.findMany({
+        where: {
+          status: 'COMPLETED',
+          authorId: { in: topAuthors.map((author) => author.id) },
+        },
+        select: { id: true, title: true, readingYear: true, rating: true, authorId: true },
+        orderBy: [{ readingYear: 'desc' }, { title: 'asc' }],
+      })
+    : [];
+  const booksByAuthor = new Map<string, DiscoveryMetrics['topAuthorBooks'][number]['books']>();
+  for (const book of authorBooks) {
+    const { authorId, ...details } = book;
+    booksByAuthor.set(authorId, [...(booksByAuthor.get(authorId) ?? []), details]);
+  }
 
   // The recommender matches WISH_LIST books against the two most consumed
   // genres — it needs genre IDs, so re-read the top-2 with ids included.
@@ -182,6 +198,10 @@ export async function getDiscoveryMetrics(): Promise<DiscoveryMetrics> {
 
   return {
     topAuthors,
+    topAuthorBooks: topAuthors.map((author) => ({
+      authorId: author.id,
+      books: booksByAuthor.get(author.id) ?? [],
+    })),
     topGenres: topGenres.slice(0, 5),
     suggestions: rows.map((b): Suggestion => ({
       id: b.id,

@@ -1,10 +1,17 @@
 "use client";
 
-import { updateBookProgress } from "@/app/actions/bookActions";
+import { useActionState } from "react";
+import {
+  completeReadingBook,
+  updateBookProgress,
+  type BookFormState,
+} from "@/app/actions/bookActions";
 import type { Prisma } from "@prisma/client";
 import Link from "next/link";
 import BookCover from "@/components/BookCover";
 import AuthorPortrait from "@/components/AuthorPortrait";
+
+const initialCompletionState: BookFormState = { status: "idle", message: "" };
 
 /** The exact shape `BookGrid` passes down: a Book with author and genre included. */
 type BookWithAuthorAndGenre = Prisma.BookGetPayload<{
@@ -12,6 +19,11 @@ type BookWithAuthorAndGenre = Prisma.BookGetPayload<{
 }>;
 
 export default function BookCard({ book }: { book: BookWithAuthorAndGenre }) {
+  const [completionState, completionAction, completionPending] = useActionState(
+    completeReadingBook,
+    initialCompletionState,
+  );
+
   // The import never fills `currentPages` (verified: 0 rows carry it) — only
   // live tracking does. A COMPLETED book therefore reports its full run via
   // `totalPages`, matching CONTEXT.md §4 where completed pages are counted
@@ -119,6 +131,42 @@ export default function BookCard({ book }: { book: BookWithAuthorAndGenre }) {
               +10 Pages
             </button>
           </div>
+        )}
+        {book.status === "READING" && (
+          <form action={completionAction} className="mt-4 space-y-2">
+            <input type="hidden" name="bookId" value={book.id} />
+            <label
+              htmlFor={`completion-rating-${book.id}`}
+              className="block text-xs font-semibold text-slate-300"
+            >
+              Rate this book to mark it completed
+            </label>
+            <div className="flex gap-2">
+              <input
+                id={`completion-rating-${book.id}`}
+                name="rating"
+                type="number"
+                min={0}
+                max={10}
+                step="0.1"
+                required
+                aria-label={`Rating for ${book.title}`}
+                className="w-24 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+              />
+              <button
+                type="submit"
+                disabled={completionPending}
+                className="flex-1 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-bold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-wait disabled:opacity-60"
+              >
+                {completionPending ? "Saving…" : "Mark completed"}
+              </button>
+            </div>
+            {completionState.status === "error" && (
+              <p role="alert" className="text-xs text-rose-400">
+                {completionState.message}
+              </p>
+            )}
+          </form>
         )}
       </div>
     </article>

@@ -295,3 +295,44 @@ export async function updateBookProgress(
   // incremented progress bar is visible on the very next render.
   revalidatePath("/");
 }
+
+export async function completeReadingBook(
+  _previousState: BookFormState,
+  formData: FormData,
+): Promise<BookFormState> {
+  const bookId = formString(formData, "bookId");
+  const ratingValue = formString(formData, "rating");
+  if (!bookId) return { status: "error", message: "Invalid book." };
+  if (!ratingValue || !/^(?:\d|10)(?:\.\d)?$/.test(ratingValue)) {
+    return {
+      status: "error",
+      message: "Enter a rating from 0 to 10 with no more than one decimal place.",
+    };
+  }
+
+  const rating = Number(ratingValue);
+  if (!Number.isFinite(rating) || rating < 0 || rating > 10) {
+    return { status: "error", message: "Rating must be between 0 and 10." };
+  }
+
+  const now = new Date();
+  const finishDate = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+  const result = await prisma.book.updateMany({
+    where: { id: bookId, status: "READING" },
+    data: { status: "COMPLETED", finishDate, rating },
+  });
+
+  if (result.count === 0) {
+    return {
+      status: "error",
+      message: "Book not found or it is no longer being read.",
+    };
+  }
+
+  revalidatePath("/");
+  revalidatePath("/stats");
+  revalidatePath(`/books/${bookId}`);
+  return { status: "success", message: "Book marked as completed." };
+}
