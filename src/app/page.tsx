@@ -2,10 +2,13 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { prisma } from "@/lib/prisma"; // Step 2.3 singleton — never `new PrismaClient()` in app code
 import BookCard from "@/components/BookCard";
+import BookCover from "@/components/BookCover";
+import CompleteBookForm from "@/components/CompleteBookForm";
 import BookSearch from "@/components/BookSearch";
 import AuthorPortrait from "@/components/AuthorPortrait";
 import IngestionWidget from "@/components/IngestionWidget";
 import { getYearKpis } from "@/lib/analytics";
+import { getBookStatusPresentation } from "@/lib/book-status-presentation";
 import { PRE_TAB_READING_YEAR_SENTINEL } from "@/lib/ingestion/workbook-parser";
 import {
   parseDashboardSort,
@@ -286,18 +289,29 @@ function BookList({ books, year }: { books: DashboardBook; year: number }) {
             <th scope="col" className="px-4 py-3 text-right">Published</th>
             <th scope="col" className="px-4 py-3">Origin</th>
             <th scope="col" className="px-4 py-3 text-right">Rating</th>
+            <th scope="col" className="px-4 py-3">Complete</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-800 bg-slate-900/60">
           {books.map((book) => (
-            <tr key={book.id} className="text-slate-300 transition hover:bg-slate-800/70">
+            <tr
+              key={book.id}
+              className={`text-slate-300 transition ${getBookStatusPresentation(book.status).row}`}
+            >
               <th scope="row" className="px-4 py-3 font-semibold text-white">
-                <Link
-                  href={`/books/${book.id}`}
-                  className="hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-400"
-                >
-                  {book.title}
-                </Link>
+                  <div className="flex items-center gap-3">
+                    <BookCover
+                      editionKey={book.editionKey}
+                      openLibraryCoverId={book.openLibraryCoverId}
+                      title={book.title}
+                    />
+                    <Link
+                      href={`/books/${book.id}`}
+                      className="hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-400"
+                    >
+                      {book.title}
+                    </Link>
+                  </div>
               </th>
               <td className="px-4 py-3">
                 <AuthorPortrait author={book.author} />
@@ -305,7 +319,13 @@ function BookList({ books, year }: { books: DashboardBook; year: number }) {
               <td className="whitespace-nowrap px-4 py-3">{formatDate(book.startDate)}</td>
               <td className="whitespace-nowrap px-4 py-3">{formatDate(book.finishDate)}</td>
               <td className="px-4 py-3">{book.genre?.name ?? "—"}</td>
-              <td className="whitespace-nowrap px-4 py-3">{book.status.replace("_", " ")}</td>
+              <td className="whitespace-nowrap px-4 py-3">
+                <span
+                  className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getBookStatusPresentation(book.status).badge}`}
+                >
+                  {getBookStatusPresentation(book.status).label}
+                </span>
+              </td>
               <td className="px-4 py-3 text-right">
                 {book.totalPages?.toLocaleString("es-ES") ?? "—"}
               </td>
@@ -313,6 +333,17 @@ function BookList({ books, year }: { books: DashboardBook; year: number }) {
               <td className="px-4 py-3">{book.origin ?? "—"}</td>
               <td className="px-4 py-3 text-right">
                 {book.rating === null ? "—" : `${book.rating}/10`}
+              </td>
+              <td className="px-4 py-3">
+                {book.status === "READING" ? (
+                  <CompleteBookForm
+                    bookId={book.id}
+                    title={book.title}
+                    compact
+                  />
+                ) : (
+                  "—"
+                )}
               </td>
             </tr>
           ))}

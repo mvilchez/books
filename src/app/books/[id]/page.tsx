@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import BookCover from "@/components/BookCover";
 import BookDetailsForm from "@/components/BookDetailsForm";
 import AuthorPortrait from "@/components/AuthorPortrait";
+import OpenLibraryImagePicker from "@/components/OpenLibraryImagePicker";
+import { getOpenLibraryWorkUrl } from "@/lib/open-library-images";
 
 export default async function BookDetailPage({
   params,
@@ -44,6 +46,7 @@ export default async function BookDetailPage({
             <BookCover
               key={book.id}
               editionKey={book.editionKey}
+              openLibraryCoverId={book.openLibraryCoverId}
               title={book.title}
               size="large"
             />
@@ -88,6 +91,21 @@ export default async function BookDetailPage({
               </section>
             </div>
           </div>
+
+          {book.openLibraryWorkId ? (
+            <p className="mt-3 text-right text-xs">
+              <a
+                href={getOpenLibraryWorkUrl(book.openLibraryWorkId) ?? undefined}
+                target="_blank"
+                rel="noreferrer"
+                className="text-slate-400 underline decoration-slate-600 underline-offset-2 hover:text-emerald-300"
+              >
+                Cover source: Open Library
+              </a>
+            </p>
+          ) : null}
+
+          <OpenLibraryImagePicker bookId={book.id} />
 
           <BookDetailsForm
             book={{

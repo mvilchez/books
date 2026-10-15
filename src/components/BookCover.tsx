@@ -6,15 +6,17 @@ import { getBookCoverUrl } from "@/lib/book-cover";
 
 export default function BookCover({
   editionKey,
+  openLibraryCoverId = null,
   title,
   size = "small",
 }: {
   editionKey: string;
+  openLibraryCoverId?: number | null;
   title: string;
   size?: "small" | "large";
 }) {
   const [imageFailed, setImageFailed] = useState(false);
-  const coverUrl = getBookCoverUrl(editionKey);
+  const coverUrl = getBookCoverUrl(editionKey, openLibraryCoverId);
   const isLarge = size === "large";
 
   return (
@@ -29,6 +31,8 @@ export default function BookCover({
           alt={`Cover of ${title}`}
           fill
           sizes={isLarge ? "192px" : "56px"}
+          unoptimized
+          loading="lazy"
           className="object-cover"
           onError={() => setImageFailed(true)}
         />

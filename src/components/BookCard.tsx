@@ -1,17 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
-import {
-  completeReadingBook,
-  updateBookProgress,
-  type BookFormState,
-} from "@/app/actions/bookActions";
+import { updateBookProgress } from "@/app/actions/bookActions";
 import type { Prisma } from "@prisma/client";
 import Link from "next/link";
 import BookCover from "@/components/BookCover";
 import AuthorPortrait from "@/components/AuthorPortrait";
-
-const initialCompletionState: BookFormState = { status: "idle", message: "" };
+import CompleteBookForm from "@/components/CompleteBookForm";
+import { getBookStatusPresentation } from "@/lib/book-status-presentation";
 
 /** The exact shape `BookGrid` passes down: a Book with author and genre included. */
 type BookWithAuthorAndGenre = Prisma.BookGetPayload<{
@@ -19,16 +14,12 @@ type BookWithAuthorAndGenre = Prisma.BookGetPayload<{
 }>;
 
 export default function BookCard({ book }: { book: BookWithAuthorAndGenre }) {
-  const [completionState, completionAction, completionPending] = useActionState(
-    completeReadingBook,
-    initialCompletionState,
-  );
-
   // The import never fills `currentPages` (verified: 0 rows carry it) — only
   // live tracking does. A COMPLETED book therefore reports its full run via
   // `totalPages`, matching CONTEXT.md §4 where completed pages are counted
   // from totalPages, not currentPages.
   const isCompleted = book.status === "COMPLETED";
+  const statusStyle = getBookStatusPresentation(book.status);
   const pagesRead = isCompleted
     ? (book.totalPages ?? book.currentPages)
     : book.currentPages;
@@ -50,7 +41,7 @@ export default function BookCard({ book }: { book: BookWithAuthorAndGenre }) {
       : "—";
 
   return (
-    <article className="bg-slate-800 rounded-xl border border-slate-700/60 p-5 shadow-xl transition hover:border-emerald-500/40 flex flex-col justify-between">
+    <article className={`rounded-xl border p-5 shadow-xl transition flex flex-col justify-between ${statusStyle.card}`}>
       <Link
         href={`/books/${book.id}`}
         className="group flex gap-4 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
@@ -58,6 +49,7 @@ export default function BookCard({ book }: { book: BookWithAuthorAndGenre }) {
       >
         <BookCover
           editionKey={book.editionKey}
+          openLibraryCoverId={book.openLibraryCoverId}
           title={book.title}
         />
         <div className="min-w-0 flex-1">
@@ -66,15 +58,9 @@ export default function BookCard({ book }: { book: BookWithAuthorAndGenre }) {
               {book.title}
             </h3>
             <span
-              className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
-                book.status === "COMPLETED"
-                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                  : book.status === "READING"
-                    ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
-                    : "bg-slate-700 text-slate-400"
-              }`}
+              className={`text-xs px-2.5 py-1 rounded-full border font-semibold ${statusStyle.badge}`}
             >
-              {book.status}
+              {statusStyle.label}
             </span>
           </div>
           <div className="mb-2 mt-1">
@@ -112,14 +98,14 @@ export default function BookCard({ book }: { book: BookWithAuthorAndGenre }) {
         </div>
         <div className="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-950">
           <div
-            className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full transition-all duration-300"
+            className={`bg-gradient-to-r ${statusStyle.progress} h-full transition-all duration-300`}
             style={{ width: `${percentage}%` }}
           />
         </div>
 
         {/* Increment control only tracks live reading — a finished book is
             already at 100% and its pages live in currentPages = 0. */}
-        {!isCompleted && (
+        {book.status === "READING" && (
           <div className="mt-4 flex gap-2">
             <button
               type="button"
@@ -133,40 +119,7 @@ export default function BookCard({ book }: { book: BookWithAuthorAndGenre }) {
           </div>
         )}
         {book.status === "READING" && (
-          <form action={completionAction} className="mt-4 space-y-2">
-            <input type="hidden" name="bookId" value={book.id} />
-            <label
-              htmlFor={`completion-rating-${book.id}`}
-              className="block text-xs font-semibold text-slate-300"
-            >
-              Rate this book to mark it completed
-            </label>
-            <div className="flex gap-2">
-              <input
-                id={`completion-rating-${book.id}`}
-                name="rating"
-                type="number"
-                min={0}
-                max={10}
-                step="0.1"
-                required
-                aria-label={`Rating for ${book.title}`}
-                className="w-24 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
-              />
-              <button
-                type="submit"
-                disabled={completionPending}
-                className="flex-1 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-bold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-wait disabled:opacity-60"
-              >
-                {completionPending ? "Saving…" : "Mark completed"}
-              </button>
-            </div>
-            {completionState.status === "error" && (
-              <p role="alert" className="text-xs text-rose-400">
-                {completionState.message}
-              </p>
-            )}
-          </form>
+          <CompleteBookForm bookId={book.id} title={book.title} />
         )}
       </div>
     </article>

@@ -18,9 +18,27 @@ function trustedPortraitUrl(value: string | null): string | null {
   if (!value) return null;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" &&
+    const isCommonsImage =
       url.hostname === "thumb.wikimedia.org" &&
-      url.pathname.startsWith("/wikipedia/commons/thumb/")
+      url.pathname.startsWith("/wikipedia/commons/thumb/");
+    const isOpenLibraryImage =
+      url.hostname === "covers.openlibrary.org" &&
+      /^\/a\/id\/\d+-[SML]\.jpg$/.test(url.pathname);
+    return url.protocol === "https:" && (isCommonsImage || isOpenLibraryImage)
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function trustedOpenLibrarySourceUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" &&
+      url.hostname === "openlibrary.org" &&
+      /^\/authors\/OL\d+A$/.test(url.pathname)
       ? url.toString()
       : null;
   } catch {
@@ -63,11 +81,10 @@ export default function AuthorPortrait({
 }) {
   const [imageFailed, setImageFailed] = useState(false);
   const sourceUrl = trustedCommonsSourceUrl(author.portraitSourceUrl);
+  const openLibrarySourceUrl = trustedOpenLibrarySourceUrl(author.portraitSourceUrl);
   const licenseUrl = trustedHttpsLink(author.portraitLicenseUrl);
-  const hasAttribution =
-    !!sourceUrl &&
-    !!author.portraitArtist?.trim() &&
-    !!author.portraitLicense?.trim();
+  const hasAttribution = openLibrarySourceUrl !== null ||
+    (!!sourceUrl && !!author.portraitArtist?.trim() && !!author.portraitLicense?.trim());
   const portraitUrl =
     imageFailed || !hasAttribution
       ? null
@@ -108,7 +125,22 @@ export default function AuthorPortrait({
         <span className="block truncate text-sm font-semibold text-slate-200">
           {author.name}
         </span>
-        {portraitUrl && sourceUrl && author.portraitArtist && author.portraitLicense ? (
+        {portraitUrl && openLibrarySourceUrl ? (
+          links ? (
+            <a
+              href={openLibrarySourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="block truncate text-[10px] text-slate-400 underline decoration-slate-500 underline-offset-2 hover:text-emerald-300"
+            >
+              Photo via Open Library
+            </a>
+          ) : (
+            <span className="block truncate text-[10px] text-slate-400">
+              Photo via Open Library
+            </span>
+          )
+        ) : portraitUrl && sourceUrl && author.portraitArtist && author.portraitLicense ? (
           <span className="block truncate text-[10px] text-slate-400">
             Photo:{" "}
             {links ? (

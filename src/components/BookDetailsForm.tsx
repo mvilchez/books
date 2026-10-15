@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import type { ReadingStatus } from "@prisma/client";
 import {
+  setBookStillReading,
   updateBookDetails,
   type BookFormState,
 } from "@/app/actions/bookActions";
@@ -44,16 +45,18 @@ export default function BookDetailsForm({
     updateBookDetails,
     initialState,
   );
+  const [readingState, stillReadingAction, readingPending] = useActionState(
+    setBookStillReading,
+    initialState,
+  );
 
   return (
-    <form
-      action={formAction}
-      className="mt-8 space-y-5 border-t border-slate-700 pt-6"
-    >
-      <input type="hidden" name="bookId" value={book.id} />
-      <h2 className="text-lg font-bold text-white">Edit book details</h2>
+    <div className="mt-8 space-y-5 border-t border-slate-700 pt-6">
+      <form action={formAction} className="space-y-5">
+        <input type="hidden" name="bookId" value={book.id} />
+        <h2 className="text-lg font-bold text-white">Edit book details</h2>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2">
         <div>
           <label htmlFor="title" className={labelClass}>Title</label>
           <input id="title" name="title" required maxLength={191} defaultValue={book.title} className={inputClass} />
@@ -110,21 +113,45 @@ export default function BookDetailsForm({
           <label htmlFor="editionKey" className={labelClass}>Edition key</label>
           <input id="editionKey" name="editionKey" maxLength={191} defaultValue={book.editionKey} className={inputClass} />
         </div>
-      </div>
+        </div>
 
-      {state.status === "error" && (
-        <p role="alert" className="text-sm text-rose-400">{state.message}</p>
+        {state.status === "error" && (
+          <p role="alert" className="text-sm text-rose-400">{state.message}</p>
+        )}
+        {state.status === "success" && (
+          <p role="status" className="text-sm font-semibold text-emerald-400">{state.message}</p>
+        )}
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-wait disabled:opacity-60"
+        >
+          {pending ? "Saving…" : "Save changes"}
+        </button>
+      </form>
+
+      {book.status !== "READING" && (
+        <form action={stillReadingAction}>
+          <input type="hidden" name="bookId" value={book.id} />
+          <button
+            type="submit"
+            disabled={readingPending}
+            className="rounded-lg border border-blue-500/40 px-4 py-2 text-sm font-bold text-blue-300 transition hover:bg-blue-500/10 disabled:cursor-wait disabled:opacity-60"
+          >
+            {readingPending ? "Updating…" : "Still reading"}
+          </button>
+        </form>
       )}
-      {state.status === "success" && (
-        <p role="status" className="text-sm font-semibold text-emerald-400">{state.message}</p>
+      {readingState.status === "error" && (
+        <p role="alert" className="text-sm text-rose-400">
+          {readingState.message}
+        </p>
       )}
-      <button
-        type="submit"
-        disabled={pending}
-        className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-wait disabled:opacity-60"
-      >
-        {pending ? "Saving…" : "Save changes"}
-      </button>
-    </form>
+      {readingState.status === "success" && (
+        <p role="status" className="text-sm font-semibold text-emerald-400">
+          {readingState.message}
+        </p>
+      )}
+    </div>
   );
 }

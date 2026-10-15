@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { refresh, revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -168,6 +168,41 @@ export async function updateBookDetails(
   revalidatePath("/stats");
   revalidatePath(`/books/${bookId}`);
   return { status: "success", message: "Book details saved." };
+}
+
+export async function setBookStillReading(
+  _previousState: BookFormState,
+  formData: FormData,
+): Promise<BookFormState> {
+  const bookId = formString(formData, "bookId");
+  if (!bookId) return { status: "error", message: "Invalid book." };
+
+  let updatedBook: { status: string; finishDate: Date | null; rating: number | null };
+  try {
+    updatedBook = await prisma.book.update({
+      where: { id: bookId },
+      data: { status: "READING", finishDate: null, rating: null },
+      select: { status: true, finishDate: true, rating: true },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return { status: "error", message: "Book not found." };
+    }
+    throw error;
+  }
+
+  if (updatedBook.status !== "READING" || updatedBook.finishDate !== null || updatedBook.rating !== null) {
+    throw new Error(`Book ${bookId} could not be marked as still reading.`);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/stats");
+  revalidatePath(`/books/${bookId}`);
+  refresh();
+  return {
+    status: "success",
+    message: "Book set to still reading; finish date and rating were cleared.",
+  };
 }
 
 export async function createReadingBook(

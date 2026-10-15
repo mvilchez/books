@@ -1,6 +1,7 @@
 // src/app/stats/_components.tsx — server-only presentational helpers (no 'use client').
 import Link from 'next/link';
 import type { AuthorBookList, AuthorRank, Suggestion } from '@/lib/analytics-types';
+import { getBookStatusPresentation } from '@/lib/book-status-presentation';
 
 export const nf = new Intl.NumberFormat('es-ES');
 
@@ -58,6 +59,7 @@ export function TopAuthorsBooks({
         <div className="space-y-3">
           {authors.map((author) => {
             const books = booksByAuthor.find((entry) => entry.authorId === author.id)?.books ?? [];
+            const completedStyle = getBookStatusPresentation('COMPLETED');
             return (
               <details key={author.id} className="group rounded-lg bg-slate-900/60">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg p-4 text-sm marker:content-none hover:bg-slate-900">
@@ -70,15 +72,20 @@ export function TopAuthorsBooks({
                   {books.map((book) => (
                     <li
                       key={book.id}
-                      className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm"
+                      className={`flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-md border-l-2 px-3 py-2 text-sm ${completedStyle.row}`}
                     >
-                      <Link
-                        href={`/books/${book.id}`}
-                        className="text-slate-300 transition hover:text-emerald-300"
-                      >
-                        {book.title}
-                      </Link>
-                      <span className="shrink-0 text-xs text-slate-500">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <Link
+                          href={`/books/${book.id}`}
+                          className="truncate text-slate-200 transition hover:text-emerald-300"
+                        >
+                          {book.title}
+                        </Link>
+                        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${completedStyle.badge}`}>
+                          {completedStyle.label}
+                        </span>
+                      </div>
+                      <span className="shrink-0 text-xs text-emerald-200/70">
                         {book.readingYear}
                         {book.rating === null ? '' : ` · ${book.rating}/10`}
                       </span>
