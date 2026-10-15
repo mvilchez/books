@@ -95,6 +95,8 @@ export default function AuthorPortrait({
             width={isLarge ? 64 : 40}
             height={isLarge ? 64 : 40}
             sizes={isLarge ? "64px" : "40px"}
+            loading="lazy"
+            unoptimized
             className="h-full w-full object-cover"
             onError={() => setImageFailed(true)}
           />

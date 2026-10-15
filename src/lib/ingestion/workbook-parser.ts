@@ -261,6 +261,11 @@ export function isNumericAggregatePair(title: string, author: string): boolean {
   return numericValue.test(title.trim()) && numericValue.test(author.trim());
 }
 
+/** True when an author cell contains only a numeric value, not a name. */
+export function isNumericAuthorName(author: string): boolean {
+  return /^[+-]?\d+(?:[.,]\d+)?$/.test(author.trim());
+}
+
 /** Edition key fallback for database rows without an explicit ISBN/edition value. */
 export function editionKeyFromMetadata(
   publicationYear: number | null,
@@ -373,6 +378,9 @@ export function parseSheet(worksheet: ExcelJS.Worksheet): ParsedSheet {
 
     const rowErrors: string[] = [];
     if (autor === "") rowErrors.push("missing 'autor'");
+    else if (isNumericAuthorName(autor)) {
+      rowErrors.push(`'autor' must be a name, not a number (got "${autor}")`);
+    }
     // paginas may be legitimately null in historical tabs (data gap) — allow it,
     // but reject non-numeric text or negative values.
     if (paginas !== null && (!Number.isInteger(paginas) || paginas < 0)) {

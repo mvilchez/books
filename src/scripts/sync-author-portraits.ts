@@ -15,8 +15,10 @@ const USER_AGENT =
   "BooksTrackerPortraitSync/1.0 (https://github.com/mvilchez/books; contact via repository issues)";
 const WIKIDATA_BATCH_SIZE = 50;
 const COMMONS_BATCH_SIZE = 10;
-const REQUEST_DELAY_MS = 350;
-const MAX_RETRIES = 2;
+const REQUEST_DELAY_MS = 1000;
+const MAX_RETRIES = 1;
+const DEFAULT_AUTHOR_LIMIT = 1;
+const MAX_AUTHOR_LIMIT = 5;
 
 function chunks<T>(items: readonly T[], size: number): T[][] {
   const groups: T[][] = [];
@@ -115,21 +117,21 @@ async function findWikidataCandidates(
   for (const author of authors) {
     let wikidataId: string | null = null;
     for (const language of ["en", "es"]) {
-    const url = new URL(WIKIDATA_API_ENDPOINT);
-    url.search = new URLSearchParams({
-      action: "wbsearchentities",
-      format: "json",
-      language,
-      limit: "10",
-      maxlag: "5",
-      search: author.name,
-      type: "item",
-      uselang: language,
-    }).toString();
-    const data = await fetchJson(url, "application/json");
-    wikidataId = parseWikidataSearchMatch(data, author);
-    await delay(REQUEST_DELAY_MS);
-    if (wikidataId) break;
+      const url = new URL(WIKIDATA_API_ENDPOINT);
+      url.search = new URLSearchParams({
+        action: "wbsearchentities",
+        format: "json",
+        language,
+        limit: "10",
+        maxlag: "5",
+        search: author.name,
+        type: "item",
+        uselang: language,
+      }).toString();
+      const data = await fetchJson(url, "application/json");
+      wikidataId = parseWikidataSearchMatch(data, author);
+      await delay(REQUEST_DELAY_MS);
+      if (wikidataId) break;
     }
     if (wikidataId) matches.push({ author, wikidataId });
   }
@@ -137,8 +139,8 @@ async function findWikidataCandidates(
   const authorCountById = new Map<string, number>();
   for (const match of matches) {
     authorCountById.set(
-    match.wikidataId,
-    (authorCountById.get(match.wikidataId) ?? 0) + 1,
+      match.wikidataId,
+      (authorCountById.get(match.wikidataId) ?? 0) + 1,
     );
   }
   const uniqueMatches = matches.filter(
@@ -149,20 +151,20 @@ async function findWikidataCandidates(
     if (matchBatch.length === 0) continue;
     const url = new URL(WIKIDATA_API_ENDPOINT);
     url.search = new URLSearchParams({
-    action: "wbgetentities",
-    format: "json",
-    ids: matchBatch.map(({ wikidataId }) => wikidataId).join("|"),
-    maxlag: "5",
-    props: "claims",
+      action: "wbgetentities",
+      format: "json",
+      ids: matchBatch.map(({ wikidataId }) => wikidataId).join("|"),
+      maxlag: "5",
+      props: "claims",
     }).toString();
     const data = await fetchJson(url, "application/json");
     for (const match of matchBatch) {
-    const candidate = parseWikidataPortraitEntity(
-      data,
-      match.author,
-      match.wikidataId,
-    );
-    if (candidate) candidates.push(candidate);
+      const candidate = parseWikidataPortraitEntity(
+        data,
+        match.author,
+        match.wikidataId,
+      );
+      if (candidate) candidates.push(candidate);
     }
     await delay(REQUEST_DELAY_MS);
   }
@@ -195,38 +197,97 @@ async function fetchCommonsPortraits(
   return verified;
 }
 
-function readLimit(): number | null {
-  const argument = process.argv.find((value) => value.startsWith("--limit="));
-  if (!argument) return null;
-  const value = Number(argument.slice("--limit=".length));
-  if (!Number.isInteger(value) || value < 1) {
-    throw new Error("Use --limit=<positive integer>.");
+function readOption(name: string): string | undefined {
+  const prefix = `--${name}=`;
+  const argument = process.argv.find((value) => value.startsWith(prefix));
+  return argument?.slice(prefix.length);
+}
+
+function readPositiveInteger(name: string, fallback: number): number {
+  const value = readOption(name);
+  if (value === undefined) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0 || (name === "limit" && parsed < 1)) {
+    throw new Error(`Use --${name}=${name === "offset" ? "0 or a positive integer" : "a positive integer"}.`);
   }
-  return value;
+  return parsed;
+}
+
+function readLimit(): number {
+  const argument = process.argv.find((value) => value.startsWith("--limit="));
+  const limit = argument ? Number(argument.slice("--limit=".length)) : DEFAULT_AUTHOR_LIMIT;
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_AUTHOR_LIMIT) {
+    throw new Error(`Use --limit=1..${MAX_AUTHOR_LIMIT}; portrait sync is deliberately capped per run.`);
+  }
+  return limit;
+}
+
+function hasAuthorNameLetters(name: string): boolean {
+  return /\p{L}/u.test(name);
 }
 
 async function main(): Promise<void> {
   const applyChanges = process.argv.includes("--apply");
   const limit = readLimit();
+  const offset = readPositiveInteger("offset", 0);
+  const authorName = readOption("author-name")?.trim();
+  const authorId = readOption("author-id")?.trim();
+  if (authorName === "" || authorId === "") {
+    throw new Error("Use non-empty values for --author-name and --author-id.");
+  }
+  if (authorName && authorId) {
+    throw new Error("Use only one of --author-name or --author-id.");
+  }
+  if ((authorName || authorId) && process.argv.some((value) => value.startsWith("--offset="))) {
+    throw new Error("--author-name/--author-id and --offset cannot be used together.");
+  }
   try {
-    const authors = await prisma.author.findMany({
-      where: { portraitUrl: null },
+    const storedAuthors = await prisma.author.findMany({
+      where: {
+        portraitUrl: null,
+        ...(authorName ? { name: authorName } : {}),
+        ...(authorId ? { id: authorId } : {}),
+      },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
-      ...(limit ? { take: limit } : {}),
     });
+    const eligibleAuthors = storedAuthors.filter(({ name }) =>
+      hasAuthorNameLetters(name),
+    );
+    const skippedInvalidNames = storedAuthors.length - eligibleAuthors.length;
+    const authors =
+      authorName || authorId
+        ? eligibleAuthors.slice(0, 2)
+        : eligibleAuthors.slice(offset, offset + limit);
+    if ((authorName || authorId) && authors.length > 1) {
+      throw new Error(`More than one author matched "${authorName ?? authorId}".`);
+    }
+    if (skippedInvalidNames > 0) {
+      console.log(
+        `Skipping ${skippedInvalidNames} record(s) whose author name has no letters; no provider requests were made for them.`,
+      );
+    }
     if (authors.length === 0) {
-      console.log("All authors already have a verified portrait or no author records exist.");
+      console.log("No eligible authors matched this batch. Existing portraits are left unchanged.");
       return;
     }
 
     console.log(
-      `Looking up ${authors.length} author(s) in Wikidata and Commons (${applyChanges ? "apply mode" : "dry run"}).`,
+      `Checking ${authors.length} author(s)` +
+        (authorName
+          ? ` matching "${authorName}"`
+          : authorId
+            ? ` with ID ${authorId}`
+            : ` starting at offset ${offset}`) +
+        ` (${applyChanges ? "apply mode" : "dry run"}). Image files are not downloaded.`,
     );
+    console.log(`Stage 1/3: exact-name identity lookup for ${authors.map(({ name }) => name).join(", ")}.`);
     const candidates = await findWikidataCandidates(authors);
+    console.log(`Stage 2/3: verifying Commons image license and attribution for ${candidates.length} candidate(s).`);
     const portraits = await fetchCommonsPortraits(candidates);
     const verifiedIds = new Set(portraits.map(({ authorId }) => authorId));
 
+    console.log("Stage 3/3: review-only output; no changes are made unless --apply is set.");
     for (const portrait of portraits) {
       console.log(
         `  verified · ${portrait.authorName} · ${portrait.wikidataId} · ` +
@@ -239,7 +300,9 @@ async function main(): Promise<void> {
     );
 
     if (!applyChanges) {
-      console.log("Dry run only. Re-run with --apply to store these verified records.");
+      console.log(
+        "Dry run only. Review the identity, source, and credit above, then rerun this exact batch with --apply.",
+      );
       return;
     }
     if (portraits.length === 0) {

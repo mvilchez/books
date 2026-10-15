@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
@@ -187,13 +188,13 @@ export default function BookSearch() {
           <ul id={resultsId} role="listbox" aria-label="Book search results">
             {results.map((result, index) => (
               <li key={result.id} role="presentation">
-                <button
+                <Link
                   id={`${resultsId}-option-${index}`}
-                  type="button"
                   role="option"
                   aria-selected={activeIndex === index}
+                  href={`/books/${encodeURIComponent(result.id)}`}
                   onMouseEnter={() => setActiveIndex(index)}
-                  onClick={() => chooseResult(result)}
+                  onClick={() => setIsOpen(false)}
                   className={`w-full px-4 py-3 text-left transition ${
                     activeIndex === index
                       ? "bg-slate-700"
@@ -211,7 +212,7 @@ export default function BookSearch() {
                         : result.readingYear}
                     </span>
                   </div>
-                </button>
+                </Link>
               </li>
             ))}
           </ul>
