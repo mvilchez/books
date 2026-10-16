@@ -5,6 +5,8 @@ import BookCard from "@/components/BookCard";
 import BookCover from "@/components/BookCover";
 import CompleteBookForm from "@/components/CompleteBookForm";
 import BookSearch from "@/components/BookSearch";
+import DashboardSortControls from "@/components/DashboardSortControls";
+import DeleteBookButton from "@/components/DeleteBookButton";
 import AuthorPortrait from "@/components/AuthorPortrait";
 import IngestionWidget from "@/components/IngestionWidget";
 import { getYearKpis } from "@/lib/analytics";
@@ -208,44 +210,12 @@ async function DashboardContent({
           ))}
         </nav>
       </div>
-      <form
-        action="/"
-        className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-800 bg-slate-800/40 p-4"
-      >
-        <input type="hidden" name="year" value={year} />
-        {view === "list" ? (
-          <input type="hidden" name="view" value="list" />
-        ) : null}
-        <label className="grid gap-1 text-xs font-semibold text-slate-400">
-          Sort by
-          <select
-            name="sort"
-            defaultValue={sort}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
-          >
-            <option value="startDate">Start date</option>
-            <option value="author">Author</option>
-            <option value="title">Title</option>
-          </select>
-        </label>
-        <label className="grid gap-1 text-xs font-semibold text-slate-400">
-          Direction
-          <select
-            name="direction"
-            defaultValue={direction}
-            className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
-          >
-            <option value="asc">Ascending</option>
-            <option value="desc">Descending</option>
-          </select>
-        </label>
-        <button
-          type="submit"
-          className="rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-600"
-        >
-          Apply sorting
-        </button>
-      </form>
+      <DashboardSortControls
+        year={year}
+        view={view}
+        sort={sort}
+        direction={direction}
+      />
       {view === "list" ? (
         <BookList books={books} year={year} />
       ) : (
@@ -259,7 +229,13 @@ type DashboardBook = Prisma.BookGetPayload<{
   include: { author: true; genre: true };
 }>[];
 
-function BookList({ books, year }: { books: DashboardBook; year: number }) {
+function BookList({
+  books,
+  year,
+}: {
+  books: DashboardBook;
+  year: number;
+}) {
   if (books.length === 0) {
     return <EmptyBooks year={year} />;
   }
@@ -290,6 +266,7 @@ function BookList({ books, year }: { books: DashboardBook; year: number }) {
             <th scope="col" className="px-4 py-3">Origin</th>
             <th scope="col" className="px-4 py-3 text-right">Rating</th>
             <th scope="col" className="px-4 py-3">Complete</th>
+            <th scope="col" className="px-4 py-3">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-800 bg-slate-900/60">
@@ -345,6 +322,14 @@ function BookList({ books, year }: { books: DashboardBook; year: number }) {
                   "—"
                 )}
               </td>
+              <td className="px-4 py-3">
+                <DeleteBookButton
+                  bookId={book.id}
+                  title={book.title}
+                  returnTo="refresh"
+                  compact
+                />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -353,7 +338,13 @@ function BookList({ books, year }: { books: DashboardBook; year: number }) {
   );
 }
 
-function BookGrid({ books, year }: { books: DashboardBook; year: number }) {
+function BookGrid({
+  books,
+  year,
+}: {
+  books: DashboardBook;
+  year: number;
+}) {
   if (books.length === 0) {
     return <EmptyBooks year={year} />;
   }
@@ -361,7 +352,7 @@ function BookGrid({ books, year }: { books: DashboardBook; year: number }) {
   return (
     <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       {books.map((book) => (
-        <BookCard key={book.id} book={book} />
+        <BookCard key={book.id} book={book} returnTo="refresh" />
       ))}
     </section>
   );

@@ -170,6 +170,29 @@ export async function updateBookDetails(
   return { status: "success", message: "Book details saved." };
 }
 
+export type DeleteBookFormState = {
+  status: "idle" | "error" | "success";
+  message: string;
+};
+
+export async function deleteBook(
+  _previousState: DeleteBookFormState,
+  formData: FormData,
+): Promise<DeleteBookFormState> {
+  const bookId = formString(formData, "bookId");
+  if (!bookId) return { status: "error", message: "Invalid book." };
+
+  const result = await prisma.book.deleteMany({ where: { id: bookId } });
+  if (result.count === 0) {
+    return { status: "error", message: "Book not found; it may already be deleted." };
+  }
+
+  revalidatePath("/");
+  revalidatePath("/stats");
+  revalidatePath(`/books/${bookId}`);
+  return { status: "success", message: "Book deleted." };
+}
+
 export async function setBookStillReading(
   _previousState: BookFormState,
   formData: FormData,

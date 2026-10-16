@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import BookCover from "@/components/BookCover";
 import BookDetailsForm from "@/components/BookDetailsForm";
 import BookRecommendations from "@/components/BookRecommendations";
+import DeleteBookButton from "@/components/DeleteBookButton";
 import AuthorPortrait from "@/components/AuthorPortrait";
 import OpenLibraryImagePicker from "@/components/OpenLibraryImagePicker";
 import { getOpenLibraryWorkUrl } from "@/lib/open-library-images";
@@ -44,8 +45,15 @@ export default async function BookDetailPage({
         >
           ← Back to {book.readingYear === 2007 ? "pre-2008" : book.readingYear}
         </Link>
+        <div className="mt-4 flex justify-end">
+          <DeleteBookButton
+            bookId={book.id}
+            title={book.title}
+            returnTo={`/?year=${book.readingYear}`}
+          />
+        </div>
 
-        <article className="mt-6 rounded-2xl border border-slate-700/60 bg-slate-800 p-6 shadow-xl md:p-10">
+        <article className="mt-2 rounded-2xl border border-slate-700/60 bg-slate-800 p-6 shadow-xl md:p-10">
           <div className="flex flex-col gap-8 sm:flex-row">
             <BookCover
               key={book.id}

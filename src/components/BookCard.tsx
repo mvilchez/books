@@ -6,6 +6,7 @@ import Link from "next/link";
 import BookCover from "@/components/BookCover";
 import AuthorPortrait from "@/components/AuthorPortrait";
 import CompleteBookForm from "@/components/CompleteBookForm";
+import DeleteBookButton from "@/components/DeleteBookButton";
 import { getBookStatusPresentation } from "@/lib/book-status-presentation";
 
 /** The exact shape `BookGrid` passes down: a Book with author and genre included. */
@@ -13,7 +14,13 @@ type BookWithAuthorAndGenre = Prisma.BookGetPayload<{
   include: { author: true; genre: true };
 }>;
 
-export default function BookCard({ book }: { book: BookWithAuthorAndGenre }) {
+export default function BookCard({
+  book,
+  returnTo,
+}: {
+  book: BookWithAuthorAndGenre;
+  returnTo: string;
+}) {
   // The import never fills `currentPages` (verified: 0 rows carry it) — only
   // live tracking does. A COMPLETED book therefore reports its full run via
   // `totalPages`, matching CONTEXT.md §4 where completed pages are counted
@@ -121,6 +128,14 @@ export default function BookCard({ book }: { book: BookWithAuthorAndGenre }) {
         {book.status === "READING" && (
           <CompleteBookForm bookId={book.id} title={book.title} />
         )}
+        <div className="mt-3 flex justify-end">
+          <DeleteBookButton
+            bookId={book.id}
+            title={book.title}
+            returnTo={returnTo}
+            compact
+          />
+        </div>
       </div>
     </article>
   );
