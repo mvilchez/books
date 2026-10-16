@@ -39,6 +39,8 @@ export default function BookDetailsForm({
     finishDate: string;
     origin: string;
     editionKey: string;
+    seriesName: string;
+    seriesPosition: number | null;
   };
 }) {
   const [state, formAction, pending] = useActionState(
@@ -112,6 +114,14 @@ export default function BookDetailsForm({
         <div className="sm:col-span-2">
           <label htmlFor="editionKey" className={labelClass}>Edition key</label>
           <input id="editionKey" name="editionKey" maxLength={191} defaultValue={book.editionKey} className={inputClass} />
+        </div>
+        <div>
+          <label htmlFor="seriesName" className={labelClass}>Series / saga</label>
+          <input id="seriesName" name="seriesName" maxLength={191} defaultValue={book.seriesName} className={inputClass} />
+        </div>
+        <div>
+          <label htmlFor="seriesPosition" className={labelClass}>Position in series</label>
+          <input id="seriesPosition" name="seriesPosition" type="number" min={0.01} step="any" defaultValue={book.seriesPosition ?? ""} className={inputClass} />
         </div>
         </div>
 

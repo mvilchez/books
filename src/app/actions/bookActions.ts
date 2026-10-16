@@ -3,6 +3,7 @@
 import { refresh, revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { buildLibraryBookTags, replaceBookTags } from "@/lib/book-tags";
 
 export type BookFormState = {
   status: "idle" | "error" | "success";
@@ -44,6 +45,8 @@ export async function updateBookDetails(
   const genreName = formString(formData, "genre");
   const origin = formString(formData, "origin");
   const editionKey = formString(formData, "editionKey");
+  const seriesName = formString(formData, "seriesName");
+  const seriesPosition = optionalNumber(formString(formData, "seriesPosition"));
   const statusValue = formString(formData, "status");
   const readingYear = Number(formString(formData, "readingYear"));
   const publicationYear = optionalNumber(formString(formData, "publicationYear"));
@@ -116,14 +119,30 @@ export async function updateBookDetails(
   if (editionKey !== null && editionKey.length > 191) {
     return { status: "error", message: "Edition key must be 191 characters or fewer." };
   }
+  if (seriesName !== null && seriesName.length > 191) {
+    return { status: "error", message: "Series name must be 191 characters or fewer." };
+  }
+  if (
+    seriesPosition !== null &&
+    (!Number.isFinite(seriesPosition) || seriesPosition <= 0)
+  ) {
+    return { status: "error", message: "Series position must be a positive number." };
+  }
 
   try {
     await prisma.$transaction(async (transaction) => {
+      const existingBook = await transaction.book.findUnique({
+        where: { id: bookId },
+        select: { title: true, authorId: true },
+      });
       const author = await transaction.author.upsert({
         where: { name: authorName },
         create: { name: authorName },
         update: {},
       });
+      const identityChanged =
+        existingBook !== null &&
+        (existingBook.title !== title || existingBook.authorId !== author.id);
       const genre = genreName
         ? await transaction.genre.upsert({
             where: { name: genreName },
@@ -146,10 +165,26 @@ export async function updateBookDetails(
           origin: origin || null,
           startDate,
           finishDate,
+          seriesName: seriesName || null,
+          seriesPosition,
+          openLibraryWorkId: identityChanged ? null : undefined,
+          openLibraryCoverId: identityChanged ? null : undefined,
+          isbn13: identityChanged ? null : undefined,
+          bookFormat: identityChanged ? null : undefined,
+          metadataCheckedAt: identityChanged ? null : undefined,
           authorId: author.id,
           genreId: genre?.id ?? null,
         },
       });
+      if (identityChanged) {
+        await replaceBookTags(transaction, bookId, "OPEN_LIBRARY", []);
+      }
+      await replaceBookTags(
+        transaction,
+        bookId,
+        "LIBRARY",
+        buildLibraryBookTags(genreName, origin),
+      );
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
@@ -279,7 +314,7 @@ export async function createReadingBook(
           })
         : null;
 
-      await transaction.book.create({
+      const book = await transaction.book.create({
         data: {
           title,
           readingYear,
@@ -289,7 +324,14 @@ export async function createReadingBook(
           authorId: author.id,
           genreId: genre?.id ?? null,
         },
+        select: { id: true },
       });
+      await replaceBookTags(
+        transaction,
+        book.id,
+        "LIBRARY",
+        buildLibraryBookTags(genreName, null),
+      );
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -348,6 +390,7 @@ export async function addPendingBook(
         },
         select: { id: true },
       });
+      await replaceBookTags(transaction, book.id, "LIBRARY", []);
       return book.id;
     });
   } catch (error) {

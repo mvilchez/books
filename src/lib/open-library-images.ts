@@ -20,6 +20,20 @@ export type OpenLibraryRecommendationResult = {
   books: OpenLibraryRecommendation[];
 };
 
+export type OpenLibraryBookMetadata = {
+  workId: string;
+  title: string;
+  coverId: number | null;
+  firstPublishYear: number | null;
+  pageCount: number | null;
+  format: string | null;
+  isbn13: string | null;
+  subjects: string[];
+  languages: string[];
+  seriesName: string | null;
+  seriesPosition: number | null;
+};
+
 export type OpenLibraryAuthorCandidate = {
   authorId: string;
   name: string;
@@ -66,9 +80,175 @@ export function normalizeOpenLibraryName(value: string): string {
   return value
     .normalize("NFKC")
     .toLocaleLowerCase("en")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim()
     .replace(/\s+/g, " ");
+}
+
+function positiveInteger(value: unknown): number | null {
+  return typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value > 0
+    ? value
+    : null;
+}
+
+function publicationYear(value: unknown): number | null {
+  if (typeof value === "number") {
+    return positiveInteger(value);
+  }
+  if (typeof value !== "string") return null;
+  const match = value.match(/\b(?:1[0-9]{3}|20[0-9]{2}|21[0-9]{2})\b/);
+  return match ? Number(match[0]) : null;
+}
+
+function values(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  return stringArray(value);
+}
+
+function languageName(value: string): string {
+  const code = value.split("/").at(-1)?.toLowerCase() ?? value.toLowerCase();
+  const known: Record<string, string> = {
+    eng: "English",
+    spa: "Spanish",
+    fre: "French",
+    fra: "French",
+    ger: "German",
+    deu: "German",
+    ita: "Italian",
+    por: "Portuguese",
+    cat: "Catalan",
+    rus: "Russian",
+    jpn: "Japanese",
+    chi: "Chinese",
+    zho: "Chinese",
+  };
+  return known[code] ?? code.toUpperCase();
+}
+
+function metadataEdition(
+  value: unknown,
+  knownPageCount: number | null,
+  knownPublicationYear: number | null,
+): {
+  pageCount: number | null;
+  format: string | null;
+  isbn13: string | null;
+} {
+  const root = record(value);
+  const rawEditions = root?.docs ?? value;
+  if (!Array.isArray(rawEditions)) {
+    return { pageCount: null, format: null, isbn13: null };
+  }
+
+  const editions = rawEditions
+    .map(record)
+    .filter((edition): edition is Record<string, unknown> => edition !== null)
+    .map((edition) => {
+      const pageCount = positiveInteger(edition.number_of_pages);
+      const rawFormat = values(edition.physical_format).find((item) => item.trim());
+      const isbn13 =
+        stringArray(edition.isbn_13).find((item) => /^\d{13}$/.test(item)) ?? null;
+      return {
+        pageCount,
+        format: rawFormat?.trim().slice(0, 191) ?? null,
+        isbn13,
+        publicationYear: publicationYear(values(edition.publish_date)[0]),
+      };
+    });
+  editions.sort((left, right) => {
+    const leftScore =
+      Number(knownPageCount !== null && left.pageCount === knownPageCount) * 2 +
+      Number(
+        knownPublicationYear !== null &&
+          left.publicationYear === knownPublicationYear,
+      );
+    const rightScore =
+      Number(knownPageCount !== null && right.pageCount === knownPageCount) * 2 +
+      Number(
+        knownPublicationYear !== null &&
+          right.publicationYear === knownPublicationYear,
+      );
+    return rightScore - leftScore;
+  });
+  const edition = editions[0];
+  return {
+    pageCount: edition?.pageCount ?? null,
+    format: edition?.format ?? null,
+    isbn13: edition?.isbn13 ?? null,
+  };
+}
+
+export function parseOpenLibraryBookMetadata(
+  value: unknown,
+  requestedTitle: string,
+  requestedAuthor: string,
+  knownPageCount: number | null = null,
+  knownPublicationYear: number | null = null,
+): OpenLibraryBookMetadata | null {
+  const root = record(value);
+  if (!Array.isArray(root?.docs)) {
+    throw new Error("Open Library returned malformed metadata search results.");
+  }
+
+  const titleKey = normalizeOpenLibraryName(requestedTitle);
+  const authorKey = normalizeOpenLibraryName(requestedAuthor);
+  if (!titleKey || !authorKey) return null;
+
+  const matchedDoc = root.docs
+    .slice(0, 50)
+    .map(record)
+    .find((doc) => {
+      if (!doc || typeof doc.key !== "string" || !/^\/works\/OL\d+W$/.test(doc.key)) {
+        return false;
+      }
+      return (
+        typeof doc.title === "string" &&
+        normalizeOpenLibraryName(doc.title) === titleKey &&
+        stringArray(doc.author_name).some(
+          (name) => normalizeOpenLibraryName(name) === authorKey,
+        )
+      );
+    });
+  if (!matchedDoc || typeof matchedDoc.key !== "string") return null;
+
+  const title =
+    typeof matchedDoc.title === "string" ? matchedDoc.title.trim() : "";
+  if (!title) return null;
+  const edition = metadataEdition(
+    matchedDoc.editions,
+    knownPageCount,
+    knownPublicationYear,
+  );
+  const rawSeries = values(matchedDoc.series).find((item) => item.trim());
+  const seriesPosition =
+    typeof matchedDoc.series_position === "number" &&
+    Number.isFinite(matchedDoc.series_position) &&
+    matchedDoc.series_position > 0
+      ? matchedDoc.series_position
+      : null;
+  const coverId = positiveInteger(matchedDoc.cover_i);
+  return {
+    workId: matchedDoc.key.slice("/works/".length),
+    title,
+    coverId,
+    firstPublishYear: publicationYear(matchedDoc.first_publish_year),
+    pageCount: edition.pageCount,
+    format: edition.format,
+    isbn13: edition.isbn13,
+    subjects: stringArray(matchedDoc.subject)
+      .map((subject) => subject.trim().slice(0, 191))
+      .filter(Boolean)
+      .slice(0, 20),
+    languages: [
+      ...new Set(stringArray(matchedDoc.language).map(languageName)),
+    ].slice(0, 10),
+    seriesName: rawSeries?.trim().slice(0, 191) ?? null,
+    seriesPosition,
+  };
 }
 
 export function parseOpenLibraryBookCandidates(
@@ -210,6 +390,29 @@ export async function searchOpenLibraryBooks(
     fields: "key,title,author_name,isbn,cover_i",
   }).toString();
   return parseOpenLibraryBookCandidates(await fetchJson(url));
+}
+
+export async function searchOpenLibraryMetadata(
+  title: string,
+  author: string,
+  knownPageCount: number | null,
+  knownPublicationYear: number | null,
+): Promise<OpenLibraryBookMetadata | null> {
+  const url = new URL("/search.json", OPEN_LIBRARY_ORIGIN);
+  url.search = new URLSearchParams({
+    title,
+    author,
+    limit: "50",
+    fields:
+      "key,title,author_name,cover_i,first_publish_year,subject,language,editions,editions.key,editions.title,editions.number_of_pages,editions.physical_format,editions.isbn_13,editions.publish_date",
+  }).toString();
+  return parseOpenLibraryBookMetadata(
+    await fetchJson(url),
+    title,
+    author,
+    knownPageCount,
+    knownPublicationYear,
+  );
 }
 
 export async function searchOpenLibraryRecommendations(

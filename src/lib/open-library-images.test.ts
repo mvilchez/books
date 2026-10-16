@@ -10,10 +10,12 @@ import {
   parseOpenLibraryAuthorCandidates,
   parseOpenLibraryAuthorProfile,
   parseOpenLibraryBookCandidates,
+  parseOpenLibraryBookMetadata,
   parseOpenLibraryRecommendationCandidates,
   prioritizeOpenLibraryAuthorCandidates,
   searchOpenLibraryRecommendations,
   searchOpenLibraryAuthorPhotos,
+  searchOpenLibraryMetadata,
 } from "./open-library-images";
 
 test("book search only returns usable Open Library works with covers", () => {
@@ -54,6 +56,112 @@ test("book search only returns usable Open Library works with covers", () => {
     () => parseOpenLibraryBookCandidates({ docs: {} }),
     /malformed book search/,
   );
+});
+
+test("metadata parser requires an exact normalized title and author", () => {
+  const response = {
+    docs: [
+      {
+        key: "/works/OL1W",
+        title: "Cien años de soledad",
+        author_name: ["Gabriel García Márquez"],
+        cover_i: 123,
+        first_publish_year: 1967,
+        subject: ["Magic realism", "Colombian literature"],
+        language: ["spa", "eng"],
+        editions: {
+          docs: [
+            {
+              number_of_pages: 500,
+              physical_format: "Hardcover",
+              publish_date: "2007",
+              isbn_13: ["9780000000001"],
+            },
+            {
+              number_of_pages: 471,
+              physical_format: "Paperback",
+              publish_date: ["1967"],
+              isbn_13: ["9780000000002"],
+            },
+          ],
+        },
+      },
+    ],
+  };
+  assert.deepEqual(
+    parseOpenLibraryBookMetadata(
+      response,
+      "Cien años de soledad",
+      "Gabriel Garcia Marquez",
+      471,
+      1967,
+    ),
+    {
+      workId: "OL1W",
+      title: "Cien años de soledad",
+      coverId: 123,
+      firstPublishYear: 1967,
+      pageCount: 471,
+      format: "Paperback",
+      isbn13: "9780000000002",
+      subjects: ["Magic realism", "Colombian literature"],
+      languages: ["Spanish", "English"],
+      seriesName: null,
+      seriesPosition: null,
+    },
+  );
+  assert.equal(
+    parseOpenLibraryBookMetadata(
+      response,
+      "Cien años de soledad",
+      "A different author",
+    ),
+    null,
+  );
+  assert.equal(
+    parseOpenLibraryBookMetadata(
+      { docs: [{ ...response.docs[0], title: "Cien años de soledad (novel)" }] },
+      "Cien años de soledad",
+      "Gabriel García Márquez",
+    ),
+    null,
+  );
+  assert.throws(
+    () => parseOpenLibraryBookMetadata({ docs: null }, "Title", "Author"),
+    /malformed metadata search/,
+  );
+});
+
+test("metadata search requests fields once and returns the exact match", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: URL[] = [];
+  globalThis.fetch = (async (input) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    requests.push(url);
+    return Response.json({
+      docs: [
+        {
+          key: "/works/OL123W",
+          title: "The book",
+          author_name: ["An Author"],
+          first_publish_year: 1980,
+          subject: ["Fiction"],
+          language: ["eng"],
+        },
+      ],
+    });
+  }) as typeof fetch;
+  try {
+    const metadata = await searchOpenLibraryMetadata("The book", "An Author", null, null);
+    assert.equal(metadata?.workId, "OL123W");
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].searchParams.get("title"), "The book");
+    assert.equal(requests[0].searchParams.get("author"), "An Author");
+    assert.match(requests[0].searchParams.get("fields") ?? "", /subject/);
+    assert.match(requests[0].searchParams.get("fields") ?? "", /editions/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("recommendation search prefers Spanish and falls back to English only when needed", async () => {

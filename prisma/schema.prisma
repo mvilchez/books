@@ -36,6 +36,19 @@ enum ReadingStatus {
   WISH_LIST
 }
 
+enum BookTagCategory {
+  GENRE
+  FORMAT
+  LANGUAGE
+  SUBJECT
+  MOOD
+}
+
+enum BookTagSource {
+  LIBRARY
+  OPEN_LIBRARY
+}
+
 model Book {
   id                 String        @id @default(uuid())
   title              String
@@ -48,6 +61,11 @@ model Book {
   editionKey         String        @default("") @map("edition_key")
   openLibraryCoverId Int?          @map("open_library_cover_id")
   openLibraryWorkId  String?       @map("open_library_work_id") @db.VarChar(32)
+  isbn13             String?       @map("isbn_13") @db.VarChar(13)
+  bookFormat         String?       @map("book_format") @db.VarChar(191)
+  metadataCheckedAt  DateTime?     @map("metadata_checked_at")
+  seriesName         String?       @map("series_name") @db.VarChar(191)
+  seriesPosition     Float?        @map("series_position")
   origin             String?       @map("origen")
   startDate          DateTime?     @map("fecha_inicio")
   finishDate         DateTime?     @map("fecha_fin")
@@ -55,12 +73,38 @@ model Book {
   author             Author        @relation(fields: [authorId], references: [id], onDelete: Cascade)
   genreId            String?
   genre              Genre?        @relation(fields: [genreId], references: [id], onDelete: SetNull)
+  tags               BookTag[]
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
 
   // Each row is a reading event: rereads in different years remain distinct,
   // while the same edition read in one year upserts idempotently.
   @@unique([title, authorId, readingYear, editionKey])
+}
+
+model Tag {
+  id             String          @id @default(uuid())
+  category       BookTagCategory
+  name           String          @db.VarChar(191)
+  normalizedName String          @map("normalized_name") @db.VarChar(191)
+  books          BookTag[]
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  @@unique([category, normalizedName])
+  @@index([category])
+}
+
+model BookTag {
+  bookId    String        @map("book_id")
+  tagId     String        @map("tag_id")
+  source    BookTagSource @default(LIBRARY)
+  book      Book          @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  tag       Tag           @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@id([bookId, tagId, source])
+  @@index([tagId, source])
+  @@map("book_tags")
 }
 
 model Author {

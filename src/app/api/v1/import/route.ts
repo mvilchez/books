@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
+  buildLibraryBookTags,
+  replaceManyBookTags,
+} from "@/lib/book-tags";
+import {
   editionKeyFromMetadata,
   normalize,
   PRE_TAB_READING_YEAR_SENTINEL,
@@ -183,10 +187,19 @@ export async function POST(request: Request): Promise<NextResponse> {
         }
 
         // 3c. Books — upsert on title, author, reading year, and edition.
+        const importedBookTags: {
+          bookId: string;
+          tags: ReturnType<typeof buildLibraryBookTags>;
+        }[] = [];
         for (const book of workbook.books) {
-          await persistBook(tx, book, authorIds, genreIds, legacyBooks);
+          const bookId = await persistBook(tx, book, authorIds, genreIds, legacyBooks);
+          importedBookTags.push({
+            bookId,
+            tags: buildLibraryBookTags(book.genreName, book.origin),
+          });
           if (book.readingYear === null) backfilledReadingYear++;
         }
+        await replaceManyBookTags(tx, importedBookTags, "LIBRARY");
       },
       { timeout: PRISMA_TRANSACTION_TIMEOUT_MS, maxWait: PRISMA_TRANSACTION_MAX_WAIT_MS },
     );
@@ -254,7 +267,7 @@ async function persistBook(
   authorIds: Map<string, string>,
   genreIds: Map<string, string>,
   legacyBooks: Map<string, LegacyBook[]>,
-): Promise<void> {
+): Promise<string> {
   const authorId = authorIds.get(book.authorName);
   if (!authorId) {
     throw new Error(`Author "${book.authorName}" was not resolved before persisting its books.`);
@@ -286,11 +299,15 @@ async function persistBook(
   } as const;
 
   if (legacyMatch) {
-    await tx.book.update({ where: { id: legacyMatch.id }, data: fields });
-    return;
+    const updatedBook = await tx.book.update({
+      where: { id: legacyMatch.id },
+      data: fields,
+      select: { id: true },
+    });
+    return updatedBook.id;
   }
 
-  await tx.book.upsert({
+  const savedBook = await tx.book.upsert({
     where: {
       title_authorId_readingYear_editionKey: {
         title: book.title,
@@ -301,7 +318,9 @@ async function persistBook(
     },
     update: fields,
     create: { ...fields, title: book.title, readingYear, authorId },
+    select: { id: true },
   });
+  return savedBook.id;
 }
 
 /** Coerce an unknown `FormData` entry into a `File`, or `null`. */

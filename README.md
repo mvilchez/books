@@ -14,6 +14,7 @@ statistics and interactive dashboards.
 - **Find book covers and author photos:** On a book's detail page, use **Find book cover** or **Find author photo** to search Open Library on demand. Author lookup checks up to ten matching author records for actual photo IDs, prioritizes exact name matches, and displays image previews before saving. Explicitly choose **Use this cover/photo** to save a selection. Search responses are cached for one day; images load directly and lazily from Open Library. Saved cover IDs and source records are shared across cards, list rows, and details. Missing or failed images keep the existing title/initials fallback. Open Library image availability does not establish a blanket reuse license; verify selections and link back to the source record.
 - **See yearly reading stats:** The dashboard shows books completed, pages read, active reads, average rating, and average pages per book for the selected year.
 - **Inspect, edit, and delete a book:** Open a book from a card or list row. The detail page lets you edit its title, author, status, rating (0–10), reading year, publication year, total/current pages, start/finish dates, genre, origin, and edition key. Delete books from the detail page or dashboard cards/list after confirming.
+- **Explore book metadata and tags:** The dashboard tag cloud aggregates genres and metadata across the library. Book details show each book's tags, publication year, page count, format, ISBN-13, and optional series name/position. Existing genre data is stored as library tags; only unambiguous e-book origins are tagged as e-books (other origin values are not assumed to mean physical format). On the first detail-page visit, the app makes one cached Open Library search and saves metadata only when both normalized title and author match exactly. Lookup errors remain retryable on a later visit, while an unsuccessful exact match is recorded to avoid repeating the same lookup on every visit. Series details can be maintained in the book editor when online metadata does not provide them.
 - **Discover books online:** Click **Find recommendations** on a book's detail page to search Open Library for more books by the same author. The on-demand search tries Spanish first and falls back to English when it finds no unread suggestions. Up to five results are shown, excluding completed titles and matching Open Library work IDs already in your library. Use **Start reading** on a suggestion to open the new-book form with its title and author prefilled, or **Add to library** to save it as pending without a start date.
 - **Start a book:** Use **Start a book** on the dashboard or visit `/books/new`. Enter its title, author, start date, and optionally total pages and genre. The start date determines the reading year, and the book is created with `READING` status.
 - **Track an active read:** Use **+10 Pages** on an in-progress book to record reading progress. Progress is clamped between zero and the known total page count. Completed books are displayed as finished and cannot be incremented.
@@ -28,7 +29,7 @@ statistics and interactive dashboards.
 - **Validate a workbook locally:** Run the ingestion parser against a workbook without connecting to the database (see [Ingestion Sandbox](#ingestion-sandbox-step-12)).
 - **Clean imported data:** A CLI cleanup tool can identify known summary rows and certain duplicate reading entries. It defaults to a dry run; deletion requires the explicit `--execute` flag (see [Remove imported summary rows](#remove-imported-summary-rows)).
 
-**Book management limits:** Wishlist suggestions are displayed when matching wishlist records exist, but the dashboard does not provide a dedicated wishlist-management view. The cleanup command is for the specific summary/duplicate cases described below, not general-purpose deletion.
+**Book management limits:** Wishlist suggestions are displayed when matching wishlist records exist, but the dashboard does not provide a dedicated wishlist-management view. Open Library metadata is incomplete and edition-dependent; missing fields stay blank rather than being inferred. The cleanup command is for the specific summary/duplicate cases described below, not general-purpose deletion.
 
 ## Getting Started
 
@@ -38,12 +39,15 @@ First, run the development server:
 npm install
 npx prisma generate
 npx prisma db push
+npm run backfill:book-tags
 npm run dev
 ```
 
 Configure `DATABASE_URL` in `.env` for a MariaDB database before running Prisma
 or the app. `db push` synchronizes the Prisma schema with the configured
-development database; do not point it at production.
+development database; do not point it at production. Run the tag backfill once
+after applying the schema to turn existing genres and known e-book origins into
+database-backed tags. New books, edits, and workbook imports maintain these tags.
 
 Open [http://localhost:3000](http://localhost:3000) after `npm run dev`.
 Dashboard source is in `src/app/page.tsx`; book creation, details, and statistics

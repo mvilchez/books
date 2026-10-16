@@ -9,6 +9,7 @@ import DashboardSortControls from "@/components/DashboardSortControls";
 import DeleteBookButton from "@/components/DeleteBookButton";
 import AuthorPortrait from "@/components/AuthorPortrait";
 import IngestionWidget from "@/components/IngestionWidget";
+import TagCloud from "@/components/TagCloud";
 import { getYearKpis } from "@/lib/analytics";
 import { getBookStatusPresentation } from "@/lib/book-status-presentation";
 import { PRE_TAB_READING_YEAR_SENTINEL } from "@/lib/ingestion/workbook-parser";
@@ -98,13 +99,25 @@ async function DashboardContent({
   const year = requestedYearIsValid
     ? requestedYear
     : (latestYear ?? PRE_TAB_READING_YEAR_SENTINEL);
-  const [unsortedBooks, kpis] = await Promise.all([
+  const [unsortedBooks, kpis, storedTags] = await Promise.all([
     prisma.book.findMany({
       where: { readingYear: year },
       include: { author: true, genre: true },
     }),
     getYearKpis(year),
+    prisma.tag.findMany({
+      where: { books: { some: {} } },
+      select: {
+        id: true,
+        name: true,
+        category: true,
+        _count: { select: { books: true } },
+      },
+    }),
   ]);
+  const tags = storedTags
+    .map(({ _count, ...tag }) => ({ ...tag, count: _count.books }))
+    .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name));
   const books = sortDashboardBooks(unsortedBooks, sort, direction);
   const years = Array.from(
     new Set([...availableYears.map(({ readingYear }) => readingYear), year]),
@@ -168,6 +181,7 @@ async function DashboardContent({
           ))}
         </div>
       </nav>
+      <TagCloud tags={tags} />
       <section
         aria-label={`${year} reading statistics`}
         className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"

@@ -7,6 +7,7 @@ import BookRecommendations from "@/components/BookRecommendations";
 import DeleteBookButton from "@/components/DeleteBookButton";
 import AuthorPortrait from "@/components/AuthorPortrait";
 import OpenLibraryImagePicker from "@/components/OpenLibraryImagePicker";
+import BookMetadataPanel from "@/components/BookMetadataPanel";
 import { getOpenLibraryWorkUrl } from "@/lib/open-library-images";
 
 export default async function BookDetailPage({
@@ -20,6 +21,7 @@ export default async function BookDetailPage({
     include: {
       author: true,
       genre: true,
+      tags: { include: { tag: true } },
     },
   });
 
@@ -124,7 +126,26 @@ export default async function BookDetailPage({
             authorName={book.author.name}
           />
 
+          <BookMetadataPanel
+            bookId={book.id}
+            title={book.title}
+            author={book.author.name}
+            metadataCheckedAt={book.metadataCheckedAt?.toISOString() ?? null}
+            publicationYear={book.publicationYear}
+            totalPages={book.totalPages}
+            bookFormat={book.bookFormat}
+            isbn13={book.isbn13}
+            seriesName={book.seriesName}
+            seriesPosition={book.seriesPosition}
+            tags={book.tags.map(({ tag, source }) => ({
+              category: tag.category,
+              name: tag.name,
+              source,
+            }))}
+          />
+
           <BookDetailsForm
+            key={book.updatedAt.toISOString()}
             book={{
               id: book.id,
               title: book.title,
@@ -140,6 +161,8 @@ export default async function BookDetailPage({
               finishDate: formatDate(book.finishDate),
               origin: book.origin ?? "",
               editionKey: book.editionKey,
+              seriesName: book.seriesName ?? "",
+              seriesPosition: book.seriesPosition,
             }}
           />
         </article>

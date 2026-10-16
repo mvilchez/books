@@ -1,0 +1,106 @@
+import { BookTagCategory, BookTagSource, Prisma } from "@prisma/client";
+
+export type BookTagInput = {
+  category: BookTagCategory;
+  name: string;
+};
+
+export function buildLibraryBookTags(
+  genre: string | null,
+  origin: string | null,
+): BookTagInput[] {
+  const tags: BookTagInput[] = [];
+  if (genre?.trim()) {
+    tags.push({ category: BookTagCategory.GENRE, name: genre.trim() });
+  }
+  if (origin && ["ebook", "e-book", "digital"].includes(normalizeTag(origin))) {
+    tags.push({ category: BookTagCategory.FORMAT, name: "E-book" });
+  }
+  return tags;
+}
+
+export function normalizeTag(value: string): string {
+  return value
+    .normalize("NFKC")
+    .toLocaleLowerCase("en")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+export async function replaceBookTags(
+  transaction: Prisma.TransactionClient,
+  bookId: string,
+  source: BookTagSource,
+  inputs: readonly BookTagInput[],
+): Promise<void> {
+  await replaceManyBookTags(transaction, [{ bookId, tags: inputs }], source);
+}
+
+export async function replaceManyBookTags(
+  transaction: Prisma.TransactionClient,
+  books: readonly { bookId: string; tags: readonly BookTagInput[] }[],
+  source: BookTagSource,
+): Promise<void> {
+  const tagsByBook = new Map(books.map(({ bookId, tags }) => [bookId, tags]));
+  if (tagsByBook.size === 0) return;
+  const bookIds = [...tagsByBook.keys()];
+  await transaction.bookTag.deleteMany({
+    where: { bookId: { in: bookIds }, source },
+  });
+
+  const uniqueTags = new Map<string, BookTagInput>();
+  for (const inputs of tagsByBook.values()) {
+    for (const input of inputs) {
+      const name = input.name.trim().slice(0, 191);
+      const normalizedName = normalizeTag(name);
+      if (!normalizedName) continue;
+      uniqueTags.set(`${input.category}:${normalizedName}`, {
+        category: input.category,
+        name,
+      });
+    }
+  }
+
+  const tagIds = new Map<string, string>();
+  for (const [key, input] of uniqueTags) {
+    const normalizedName = normalizeTag(input.name);
+    const tag = await transaction.tag.upsert({
+      where: {
+        category_normalizedName: {
+          category: input.category,
+          normalizedName,
+        },
+      },
+      create: {
+        category: input.category,
+        name: input.name,
+        normalizedName,
+      },
+      update: {},
+      select: { id: true },
+    });
+    tagIds.set(key, tag.id);
+  }
+
+  const links: { bookId: string; tagId: string; source: BookTagSource }[] = [];
+  for (const [bookId, inputs] of tagsByBook) {
+    const bookTagIds = new Set(
+      inputs
+        .map((input) => {
+          const name = input.name.trim().slice(0, 191);
+          return tagIds.get(`${input.category}:${normalizeTag(name)}`);
+        })
+        .filter((tagId): tagId is string => tagId !== undefined),
+    );
+    for (const tagId of bookTagIds) links.push({ bookId, tagId, source });
+  }
+  if (links.length > 0) {
+    await transaction.bookTag.createMany({
+      data: links,
+      skipDuplicates: true,
+    });
+  }
+}
