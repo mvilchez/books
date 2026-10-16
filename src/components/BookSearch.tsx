@@ -11,7 +11,9 @@ import {
 import {
   BOOK_SEARCH_MIN_LENGTH,
   isBookSearchResults,
+  isBookTagSearchResults,
   type BookSearchResult,
+  type BookTagSearchResult,
 } from "@/lib/book-search";
 import AuthorPortrait from "@/components/AuthorPortrait";
 
@@ -19,8 +21,13 @@ const SEARCH_DEBOUNCE_MS = 250;
 type SearchResponse = {
   query: string;
   results: BookSearchResult[];
+  tags: BookTagSearchResult[];
   error: string | null;
 };
+
+type SearchOption =
+  | { type: "book"; value: BookSearchResult }
+  | { type: "tag"; value: BookTagSearchResult };
 
 export default function BookSearch() {
   const router = useRouter();
@@ -36,6 +43,11 @@ export default function BookSearch() {
   const currentResponse =
     searchResponse?.query === normalizedQuery ? searchResponse : null;
   const results = currentResponse?.results ?? [];
+  const tagResults = currentResponse?.tags ?? [];
+  const options: SearchOption[] = [
+    ...results.map((value) => ({ type: "book" as const, value })),
+    ...tagResults.map((value) => ({ type: "tag" as const, value })),
+  ];
   const error = currentResponse?.error ?? null;
   const isLoading =
     normalizedQuery.length >= BOOK_SEARCH_MIN_LENGTH &&
@@ -55,6 +67,7 @@ export default function BookSearch() {
           setSearchResponse({
             query: normalizedQuery,
             results: [],
+            tags: [],
             error: "Search is temporarily unavailable. Please try again.",
           });
           return;
@@ -65,11 +78,14 @@ export default function BookSearch() {
           typeof body !== "object" ||
           body === null ||
           !("results" in body) ||
-          !isBookSearchResults(body.results)
+          !isBookSearchResults(body.results) ||
+          !("tags" in body) ||
+          !isBookTagSearchResults(body.tags)
         ) {
           setSearchResponse({
             query: normalizedQuery,
             results: [],
+            tags: [],
             error: "Search returned an invalid response. Please try again.",
           });
           return;
@@ -77,6 +93,7 @@ export default function BookSearch() {
         setSearchResponse({
           query: normalizedQuery,
           results: body.results,
+          tags: body.tags,
           error: null,
         });
       } catch (cause) {
@@ -84,6 +101,7 @@ export default function BookSearch() {
         setSearchResponse({
           query: normalizedQuery,
           results: [],
+          tags: [],
           error: "Search is temporarily unavailable. Please try again.",
         });
       }
@@ -95,9 +113,13 @@ export default function BookSearch() {
     };
   }, [normalizedQuery]);
 
-  function chooseResult(result: BookSearchResult) {
+  function chooseOption(option: SearchOption) {
     setIsOpen(false);
-    router.push(`/books/${encodeURIComponent(result.id)}`);
+    router.push(
+      option.type === "book"
+        ? `/books/${encodeURIComponent(option.value.id)}`
+        : `/tags/${encodeURIComponent(option.value.id)}`,
+    );
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -105,22 +127,22 @@ export default function BookSearch() {
       event.preventDefault();
       setIsOpen(true);
       setActiveIndex((current) =>
-        results.length === 0 ? -1 : (current + 1) % results.length,
+        options.length === 0 ? -1 : (current + 1) % options.length,
       );
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       setIsOpen(true);
       setActiveIndex((current) =>
-        results.length === 0
+        options.length === 0
           ? -1
           : current <= 0
-            ? results.length - 1
+            ? options.length - 1
             : current - 1,
       );
     } else if (event.key === "Enter" && activeIndex >= 0) {
       event.preventDefault();
-      const selected = results[activeIndex];
-      if (selected) chooseResult(selected);
+      const selected = options[activeIndex];
+      if (selected) chooseOption(selected);
     } else if (event.key === "Escape") {
       setIsOpen(false);
       setActiveIndex(-1);
@@ -128,14 +150,14 @@ export default function BookSearch() {
   }
 
   const statusMessage = isLoading
-    ? "Searching books"
+    ? "Searching books and tags"
     : error
       ? error
       : normalizedQuery.length < BOOK_SEARCH_MIN_LENGTH
         ? "Enter at least 2 characters to search all years"
-        : results.length === 0
-          ? "No matching books found"
-          : `${results.length} matching books`;
+        : options.length === 0
+          ? "No matching books or tags found"
+          : `${results.length} books and ${tagResults.length} tags found`;
 
   return (
     <div
@@ -151,7 +173,7 @@ export default function BookSearch() {
         htmlFor={inputId}
         className="mb-1 block text-xs font-semibold text-slate-400"
       >
-        Search all books and authors
+        Search books, authors, and tags
       </label>
       <input
         id={inputId}
@@ -172,7 +194,7 @@ export default function BookSearch() {
           activeIndex >= 0 ? `${resultsId}-option-${activeIndex}` : undefined
         }
         aria-describedby={`${resultsId}-status`}
-        placeholder="Title or author"
+        placeholder="Title, author, or tag"
         className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
       />
       <p
@@ -185,14 +207,19 @@ export default function BookSearch() {
       </p>
       {isOpen && normalizedQuery.length >= BOOK_SEARCH_MIN_LENGTH ? (
         <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-slate-700 bg-slate-800 shadow-xl">
-          <ul id={resultsId} role="listbox" aria-label="Book search results">
-            {results.map((result, index) => (
-              <li key={result.id} role="presentation">
+        <ul id={resultsId} role="listbox" aria-label="Book and tag search results">
+            {options.map((option, index) => {
+              const isBook = option.type === "book";
+              const id = option.value.id;
+              const href = isBook ? `/books/${encodeURIComponent(id)}` : `/tags/${encodeURIComponent(id)}`;
+              const label = isBook ? option.value.title : option.value.name;
+              return (
+              <li key={`${option.type}:${id}`} role="presentation">
                 <Link
                   id={`${resultsId}-option-${index}`}
                   role="option"
                   aria-selected={activeIndex === index}
-                  href={`/books/${encodeURIComponent(result.id)}`}
+                  href={href}
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => setIsOpen(false)}
                   className={`w-full px-4 py-3 text-left transition ${
@@ -202,25 +229,32 @@ export default function BookSearch() {
                   }`}
                 >
                   <span className="block truncate text-sm font-semibold text-white">
-                    {result.title}
+                    {label}
                   </span>
-                  <div className="mt-1 flex items-center justify-between gap-2">
-                    <AuthorPortrait author={result.author} links={false} />
-                    <span className="shrink-0 text-xs text-slate-400">
-                      {result.readingYear === 2007
-                        ? "pre-2008"
-                        : result.readingYear}
+                  {isBook ? (
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <AuthorPortrait author={option.value.author} links={false} />
+                      <span className="shrink-0 text-xs text-slate-400">
+                        {option.value.readingYear === 2007
+                          ? "pre-2008"
+                          : option.value.readingYear}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="mt-1 block text-xs text-slate-400">
+                      {option.value.category.toLowerCase()} · {option.value.bookCount} books
                     </span>
-                  </div>
+                  )}
                 </Link>
               </li>
-            ))}
+              );
+            })}
           </ul>
-          {isLoading || error || results.length === 0 ? (
+          {isLoading || error || options.length === 0 ? (
             <p className="px-4 py-3 text-sm text-slate-400">
               {isLoading
                 ? "Searching…"
-                : error ?? "No matching books found"}
+                : error ?? "No matching books or tags found"}
             </p>
           ) : null}
         </div>

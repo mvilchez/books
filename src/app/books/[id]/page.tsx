@@ -16,14 +16,25 @@ export default async function BookDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const book = await prisma.book.findUnique({
-    where: { id },
-    include: {
-      author: true,
-      genre: true,
-      tags: { include: { tag: true } },
-    },
-  });
+  const [book, existingSubjectTags] = await Promise.all([
+    prisma.book.findUnique({
+      where: { id },
+      include: {
+        author: true,
+        genre: true,
+        tags: { include: { tag: true } },
+      },
+    }),
+    prisma.tag.findMany({
+      where: {
+        category: "SUBJECT",
+        books: { some: {} },
+      },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+      take: 500,
+    }),
+  ]);
 
   if (!book) notFound();
 
@@ -127,6 +138,7 @@ export default async function BookDetailPage({
           />
 
           <BookMetadataPanel
+            key={book.id}
             bookId={book.id}
             title={book.title}
             author={book.author.name}
@@ -138,10 +150,12 @@ export default async function BookDetailPage({
             seriesName={book.seriesName}
             seriesPosition={book.seriesPosition}
             tags={book.tags.map(({ tag, source }) => ({
+              id: tag.id,
               category: tag.category,
               name: tag.name,
               source,
             }))}
+            existingSubjectTags={existingSubjectTags}
           />
 
           <BookDetailsForm

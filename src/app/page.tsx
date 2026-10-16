@@ -52,6 +52,18 @@ export default function DashboardPage(props: PageProps<"/">) {
           >
             Statistics &amp; graphs
           </Link>
+          <Link
+            href="/reports/open-library-tags"
+            className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+          >
+            Open Library tag report
+          </Link>
+          <Link
+            href="/tags/manage"
+            className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+          >
+            Review similar tags
+          </Link>
           <IngestionWidget />
         </div>
       </header>
@@ -111,12 +123,16 @@ async function DashboardContent({
         id: true,
         name: true,
         category: true,
-        _count: { select: { books: true } },
+        books: { select: { bookId: true } },
       },
     }),
   ]);
   const tags = storedTags
-    .map(({ _count, ...tag }) => ({ ...tag, count: _count.books }))
+    .map(({ books, ...tag }) => ({
+      ...tag,
+      count: new Set(books.map(({ bookId }) => bookId)).size,
+    }))
+    .filter((tag) => tag.count > 0)
     .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name));
   const books = sortDashboardBooks(unsortedBooks, sort, direction);
   const years = Array.from(

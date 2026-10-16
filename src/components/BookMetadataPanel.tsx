@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { BookTagCategory } from "@prisma/client";
+import type { BookTagCategory, BookTagSource } from "@prisma/client";
 import { enrichBookMetadata } from "@/app/actions/openLibraryImageActions";
+import { deleteManualBookTag } from "@/app/actions/openLibraryImageActions";
+import ManualSubjectTags from "@/components/ManualSubjectTags";
 
 const categoryLabels: Record<BookTagCategory, string> = {
   GENRE: "Genre",
@@ -14,9 +17,10 @@ const categoryLabels: Record<BookTagCategory, string> = {
 };
 
 type BookMetadataTag = {
+  id: string;
   category: BookTagCategory;
   name: string;
-  source: "LIBRARY" | "OPEN_LIBRARY";
+  source: BookTagSource;
 };
 
 export default function BookMetadataPanel({
@@ -31,6 +35,7 @@ export default function BookMetadataPanel({
   seriesName,
   seriesPosition,
   tags,
+  existingSubjectTags,
 }: {
   bookId: string;
   title: string;
@@ -43,6 +48,7 @@ export default function BookMetadataPanel({
   seriesName: string | null;
   seriesPosition: number | null;
   tags: BookMetadataTag[];
+  existingSubjectTags: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const lookupKey = `${bookId}:${title}:${author}`;
@@ -51,6 +57,8 @@ export default function BookMetadataPanel({
     metadataCheckedAt ? "Open Library metadata has been checked." : "Checking Open Library metadata…",
   );
   const [lookupFailed, setLookupFailed] = useState(false);
+  const [deletingTagId, setDeletingTagId] = useState<string | null>(null);
+  const [tagDeleteMessage, setTagDeleteMessage] = useState("");
 
   useEffect(() => {
     if (metadataCheckedAt || attemptedLookupKey.current === lookupKey) return;
@@ -81,10 +89,41 @@ export default function BookMetadataPanel({
     };
   }, [bookId, lookupKey, metadataCheckedAt, router]);
 
-  const groupedTags = tags.reduce<Map<BookTagCategory, BookMetadataTag[]>>(
+  const uniqueTags = [
+    ...new Map(
+      [...tags]
+        .sort(
+          (left, right) =>
+            Number(right.source === "LIBRARY" && right.category === "SUBJECT") -
+            Number(left.source === "LIBRARY" && left.category === "SUBJECT"),
+        )
+        .map((tag) => [`${tag.category}:${tag.id}`, tag]),
+    ).values(),
+  ];
+  const groupedTags = uniqueTags.reduce<Map<BookTagCategory, BookMetadataTag[]>>(
     (groups, tag) => groups.set(tag.category, [...(groups.get(tag.category) ?? []), tag]),
     new Map(),
   );
+
+  async function deleteManualTag(tag: BookMetadataTag) {
+    setDeletingTagId(tag.id);
+    setTagDeleteMessage("");
+    try {
+      const result = await deleteManualBookTag(bookId, tag.id);
+      if (result.status === "error") {
+        setTagDeleteMessage(result.message);
+        return;
+      }
+      setTagDeleteMessage("Manual tag removed from this book.");
+      router.refresh();
+    } catch (error) {
+      setTagDeleteMessage(
+        error instanceof Error ? error.message : "Could not remove the manual tag.",
+      );
+    } finally {
+      setDeletingTagId(null);
+    }
+  }
 
   return (
     <section
@@ -127,13 +166,33 @@ export default function BookMetadataPanel({
                 {categoryTags.map((tag) => (
                   <span
                     key={`${tag.source}:${category}:${tag.name}`}
-                    className={`rounded-full border px-3 py-1 text-xs ${
+                    className={`inline-flex items-center gap-1 rounded-full border py-0.5 pl-3 pr-1 text-xs ${
                       tag.source === "OPEN_LIBRARY"
                         ? "border-sky-500/30 bg-sky-500/10 text-sky-200"
-                        : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                        : tag.category === "SUBJECT"
+                          ? "border-violet-500/30 bg-violet-500/10 text-violet-200"
+                          : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
                     }`}
                   >
-                    {tag.name}
+                    <Link
+                      href={`/tags/${encodeURIComponent(tag.id)}`}
+                      className="py-0.5 hover:underline"
+                    >
+                      {tag.name}
+                    </Link>
+                    {tag.source === "LIBRARY" &&
+                    tag.category === "SUBJECT" ? (
+                      <button
+                        type="button"
+                        disabled={deletingTagId !== null}
+                        onClick={() => void deleteManualTag(tag)}
+                        aria-label={`Delete manual tag ${tag.name} from this book`}
+                        title="Delete this tag from this book"
+                        className="rounded-full px-1.5 py-0.5 font-semibold text-violet-200 hover:bg-rose-500/20 hover:text-rose-200 disabled:opacity-50"
+                      >
+                        {deletingTagId === tag.id ? "…" : "×"}
+                      </button>
+                    ) : null}
                   </span>
                 ))}
               </div>
@@ -145,9 +204,21 @@ export default function BookMetadataPanel({
           Tags will appear when library or online metadata is available.
         </p>
       )}
+      {tagDeleteMessage ? (
+        <p role="status" className="mt-3 text-xs text-slate-400">
+          {tagDeleteMessage}
+        </p>
+      ) : null}
       <p className="mt-4 text-xs text-slate-500">
-        Blue tags are sourced from Open Library; green tags come from your library.
+        Blue tags are from Open Library, green tags are library genres/formats, and violet subject tags are manually maintained.
       </p>
+      <ManualSubjectTags
+        bookId={bookId}
+        currentTags={tags
+          .filter((tag) => tag.source === "LIBRARY" && tag.category === "SUBJECT")
+          .map((tag) => tag.name)}
+        existingTags={existingSubjectTags}
+      />
     </section>
   );
 }

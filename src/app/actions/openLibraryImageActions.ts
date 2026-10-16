@@ -294,6 +294,181 @@ export async function enrichBookMetadata(
   };
 }
 
+export async function saveManualBookTags(
+  bookId: string,
+  rawTags: string,
+): Promise<ActionResult<null>> {
+  if (
+    typeof bookId !== "string" ||
+    !bookId ||
+    typeof rawTags !== "string" ||
+    rawTags.length > 10_000
+  ) {
+    return { status: "error", message: "Invalid book tags." };
+  }
+
+  const names = [...new Set(
+    rawTags
+      .split(/[,;\n]/)
+      .map((name) => name.trim())
+      .filter(Boolean),
+  )];
+  if (names.some((name) => name.length > 191)) {
+    return {
+      status: "error",
+      message: "Each tag must be 191 characters or fewer.",
+    };
+  }
+  if (names.length > 100) {
+    return { status: "error", message: "Enter no more than 100 tags." };
+  }
+
+  try {
+    await prisma.$transaction(async (transaction) => {
+      await transaction.book.findUniqueOrThrow({
+        where: { id: bookId },
+        select: { id: true },
+      });
+      await replaceBookTags(
+        transaction,
+        bookId,
+        "LIBRARY",
+        names.map((name) => ({ category: BookTagCategory.SUBJECT, name })),
+        BookTagCategory.SUBJECT,
+      );
+    });
+  } catch (error) {
+    return { status: "error", message: actionError(error) };
+  }
+
+  revalidatePath("/");
+  revalidatePath(`/books/${bookId}`);
+  return { status: "success", data: null, message: "Manual tags saved." };
+}
+
+export async function deleteManualBookTag(
+  bookId: string,
+  tagId: string,
+): Promise<ActionResult<null>> {
+  if (
+    typeof bookId !== "string" ||
+    !bookId ||
+    typeof tagId !== "string" ||
+    !tagId
+  ) {
+    return { status: "error", message: "Invalid book tag." };
+  }
+
+  try {
+    const result = await prisma.bookTag.deleteMany({
+      where: {
+        bookId,
+        tagId,
+        source: "LIBRARY",
+        tag: { category: BookTagCategory.SUBJECT },
+      },
+    });
+    if (result.count === 0) {
+      return {
+        status: "error",
+        message: "Manual tag not found on this book.",
+      };
+    }
+  } catch (error) {
+    return { status: "error", message: actionError(error) };
+  }
+
+  revalidatePath("/");
+  revalidatePath(`/books/${bookId}`);
+  revalidatePath("/reports/open-library-tags");
+  return {
+    status: "success",
+    data: null,
+    message: "Manual tag removed from this book.",
+  };
+}
+
+export async function mergeSimilarTags(
+  keepTagId: string,
+  mergeTagId: string,
+): Promise<ActionResult<null>> {
+  if (
+    typeof keepTagId !== "string" ||
+    typeof mergeTagId !== "string" ||
+    !keepTagId ||
+    !mergeTagId ||
+    keepTagId === mergeTagId
+  ) {
+    return { status: "error", message: "Choose two different tags to merge." };
+  }
+
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const [keepTag, mergeTag] = await Promise.all([
+        transaction.tag.findUnique({ where: { id: keepTagId } }),
+        transaction.tag.findUnique({ where: { id: mergeTagId } }),
+      ]);
+      if (!keepTag || !mergeTag) {
+        throw new Error("One of the selected tags no longer exists.");
+      }
+      if (keepTag.category !== mergeTag.category) {
+        throw new Error("Tags from different categories cannot be merged.");
+      }
+
+      const relationships = await transaction.bookTag.findMany({
+        where: { tagId: mergeTag.id },
+        select: { bookId: true, source: true },
+      });
+      for (const relationship of relationships) {
+        const existing = await transaction.bookTag.findUnique({
+          where: {
+            bookId_tagId_source: {
+              bookId: relationship.bookId,
+              tagId: keepTag.id,
+              source: relationship.source,
+            },
+          },
+          select: { bookId: true },
+        });
+        if (existing) {
+          await transaction.bookTag.delete({
+            where: {
+              bookId_tagId_source: {
+                bookId: relationship.bookId,
+                tagId: mergeTag.id,
+                source: relationship.source,
+              },
+            },
+          });
+        } else {
+          await transaction.bookTag.update({
+            where: {
+              bookId_tagId_source: {
+                bookId: relationship.bookId,
+                tagId: mergeTag.id,
+                source: relationship.source,
+              },
+            },
+            data: { tagId: keepTag.id },
+          });
+        }
+      }
+      await transaction.tag.delete({ where: { id: mergeTag.id } });
+    });
+  } catch (error) {
+    return { status: "error", message: actionError(error) };
+  }
+
+  revalidatePath("/");
+  revalidatePath("/reports/open-library-tags");
+  revalidatePath("/tags");
+  return {
+    status: "success",
+    data: null,
+    message: "Similar tags merged successfully.",
+  };
+}
+
 export async function saveAuthorPhoto(
   bookId: string,
   authorId: string,

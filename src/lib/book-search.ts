@@ -1,3 +1,5 @@
+import type { BookTagCategory } from "@prisma/client";
+
 export const BOOK_SEARCH_MAX_LENGTH = 100;
 export const BOOK_SEARCH_MIN_LENGTH = 2;
 export const BOOK_SEARCH_RESULT_LIMIT = 8;
@@ -14,6 +16,13 @@ export type BookSearchResult = {
     portraitLicenseUrl: string | null;
   };
   readingYear: number;
+};
+
+export type BookTagSearchResult = {
+  id: string;
+  name: string;
+  category: BookTagCategory;
+  bookCount: number;
 };
 
 export type ParsedBookSearchQuery =
@@ -70,6 +79,38 @@ export function isBookSearchResults(value: unknown): value is BookSearchResult[]
           item.author.portraitLicenseUrl === null) &&
         "readingYear" in item &&
         typeof item.readingYear === "number",
+    )
+  );
+}
+
+const tagCategories = new Set<BookTagCategory>([
+  "GENRE",
+  "FORMAT",
+  "LANGUAGE",
+  "SUBJECT",
+  "MOOD",
+]);
+
+export function isBookTagSearchResults(
+  value: unknown,
+): value is BookTagSearchResult[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        typeof item === "object" &&
+        item !== null &&
+        "id" in item &&
+        typeof item.id === "string" &&
+        "name" in item &&
+        typeof item.name === "string" &&
+        "category" in item &&
+        typeof item.category === "string" &&
+        tagCategories.has(item.category as BookTagCategory) &&
+        "bookCount" in item &&
+        typeof item.bookCount === "number" &&
+        Number.isInteger(item.bookCount) &&
+        item.bookCount >= 0,
     )
   );
 }

@@ -4,6 +4,7 @@ import {
   BOOK_SEARCH_MAX_LENGTH,
   escapeBookSearchWildcards,
   isBookSearchResults,
+  isBookTagSearchResults,
   parseBookSearchQuery,
 } from "./book-search";
 
@@ -56,4 +57,25 @@ test("book search response validator rejects malformed result data", () => {
   );
   assert.equal(isBookSearchResults([{ id: "1", title: "Dune" }]), false);
   assert.equal(isBookSearchResults(null), false);
+});
+
+test("tag search response validator checks category and matching book count", () => {
+  assert.equal(
+    isBookTagSearchResults([
+      { id: "tag-1", name: "Fiction", category: "GENRE", bookCount: 12 },
+    ]),
+    true,
+  );
+  assert.equal(
+    isBookTagSearchResults([
+      { id: "tag-1", name: "Fiction", category: "UNKNOWN", bookCount: 12 },
+    ]),
+    false,
+  );
+  assert.equal(
+    isBookTagSearchResults([
+      { id: "tag-1", name: "Fiction", category: "GENRE", bookCount: -1 },
+    ]),
+    false,
+  );
 });
