@@ -87,6 +87,131 @@ export function normalizeOpenLibraryName(value: string): string {
     .replace(/\s+/g, " ");
 }
 
+function authorNameParts(value: string): string[] {
+  return value
+    .split(/\s*(?:;|\||\/|&|\band\b|\by\b)\s*/iu)
+    .map(normalizeOpenLibraryName)
+    .filter(Boolean);
+}
+
+function editSimilarity(left: string, right: string): number {
+  if (left === right) return 1;
+  if (!left || !right) return 0;
+
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex++) {
+    const current = [leftIndex];
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex++) {
+      current[rightIndex] = Math.min(
+        current[rightIndex - 1] + 1,
+        previous[rightIndex] + 1,
+        previous[rightIndex - 1] +
+          Number(left[leftIndex - 1] !== right[rightIndex - 1]),
+      );
+    }
+    previous = current;
+  }
+  return 1 - previous[right.length] / Math.max(left.length, right.length);
+}
+
+function authorTokensMatch(left: string, right: string): boolean {
+  return left === right || (left.length === 1 && right.startsWith(left)) ||
+    (right.length === 1 && left.startsWith(right));
+}
+
+function authorNameMatches(left: string, right: string): boolean {
+  const leftTokens = left.split(" ").filter(Boolean);
+  const rightTokens = right.split(" ").filter(Boolean);
+  if (leftTokens.length === 0 || rightTokens.length === 0) return false;
+
+  const [shorter, longer] =
+    leftTokens.length <= rightTokens.length
+      ? [leftTokens, rightTokens]
+      : [rightTokens, leftTokens];
+  const available = new Set(longer.map((_, index) => index));
+  let matches = 0;
+  for (const token of shorter) {
+    const matchIndex = [...available].find((index) =>
+      authorTokensMatch(token, longer[index]),
+    );
+    if (matchIndex === undefined) continue;
+    available.delete(matchIndex);
+    matches++;
+  }
+
+  if (matches === shorter.length && available.size <= 1) return true;
+  if (Math.min(left.length, right.length) >= 6) {
+    const sortedLeft = [...leftTokens].sort().join(" ");
+    const sortedRight = [...rightTokens].sort().join(" ");
+    if (sortedLeft === sortedRight) return true;
+    return editSimilarity(left, right) >= 0.82;
+  }
+  return false;
+}
+
+function normalizeBookTitle(value: string): string {
+  return normalizeOpenLibraryName(value).replace(
+    /^(?:a|an|the|el|la|los|las|un|una|unos|unas)\s+/u,
+    "",
+  );
+}
+
+export function openLibraryTitleMatches(
+  requestedTitle: string,
+  candidateTitle: string,
+): boolean {
+  const requested = normalizeBookTitle(requestedTitle);
+  const candidate = normalizeBookTitle(candidateTitle);
+  if (!requested || !candidate) return false;
+  if (requested === candidate) return true;
+
+  const requestedTokens = requested.split(" ");
+  const candidateTokens = candidate.split(" ");
+  if (
+    requestedTokens.length > 1 &&
+    candidateTokens.length > 1 &&
+    Math.abs(requestedTokens.length - candidateTokens.length) <= 1
+  ) {
+    const candidateTokenCounts = new Map<string, number>();
+    for (const token of candidateTokens) {
+      candidateTokenCounts.set(token, (candidateTokenCounts.get(token) ?? 0) + 1);
+    }
+    let matchingTokens = 0;
+    for (const token of requestedTokens) {
+      const count = candidateTokenCounts.get(token) ?? 0;
+      if (count === 0) continue;
+      candidateTokenCounts.set(token, count - 1);
+      matchingTokens++;
+    }
+    if (
+      matchingTokens / Math.max(requestedTokens.length, candidateTokens.length) >=
+      0.8
+    ) {
+      return true;
+    }
+  }
+
+  return (
+    Math.min(requested.length, candidate.length) >= 6 &&
+    editSimilarity(requested, candidate) >= 0.86
+  );
+}
+
+export function openLibraryAuthorMatches(
+  requestedAuthor: string,
+  candidateAuthors: readonly string[],
+): boolean {
+  const requestedNames = authorNameParts(requestedAuthor);
+  return candidateAuthors.some((candidateAuthor) => {
+    const candidateNames = authorNameParts(candidateAuthor);
+    return candidateNames.some((candidateName) =>
+      requestedNames.some((requestedName) =>
+        authorNameMatches(requestedName, candidateName),
+      ),
+    );
+  });
+}
+
 function positiveInteger(value: unknown): number | null {
   return typeof value === "number" &&
     Number.isSafeInteger(value) &&
@@ -194,9 +319,8 @@ export function parseOpenLibraryBookMetadata(
     throw new Error("Open Library returned malformed metadata search results.");
   }
 
-  const titleKey = normalizeOpenLibraryName(requestedTitle);
   const authorKey = normalizeOpenLibraryName(requestedAuthor);
-  if (!titleKey || !authorKey) return null;
+  if (!normalizeBookTitle(requestedTitle) || !authorKey) return null;
 
   const matchedDoc = root.docs
     .slice(0, 50)
@@ -207,10 +331,8 @@ export function parseOpenLibraryBookMetadata(
       }
       return (
         typeof doc.title === "string" &&
-        normalizeOpenLibraryName(doc.title) === titleKey &&
-        stringArray(doc.author_name).some(
-          (name) => normalizeOpenLibraryName(name) === authorKey,
-        )
+        openLibraryTitleMatches(requestedTitle, doc.title) &&
+        openLibraryAuthorMatches(requestedAuthor, stringArray(doc.author_name))
       );
     });
   if (!matchedDoc || typeof matchedDoc.key !== "string") return null;

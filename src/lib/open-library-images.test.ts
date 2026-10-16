@@ -7,6 +7,8 @@ import {
   getOpenLibraryCoverUrl,
   getOpenLibraryWorkUrl,
   normalizeOpenLibraryName,
+  openLibraryAuthorMatches,
+  openLibraryTitleMatches,
   parseOpenLibraryAuthorCandidates,
   parseOpenLibraryAuthorProfile,
   parseOpenLibraryBookCandidates,
@@ -120,7 +122,14 @@ test("metadata parser requires an exact normalized title and author", () => {
   );
   assert.equal(
     parseOpenLibraryBookMetadata(
-      { docs: [{ ...response.docs[0], title: "Cien años de soledad (novel)" }] },
+      {
+        docs: [
+          {
+            ...response.docs[0],
+            title: "El amor en los tiempos del cólera",
+          },
+        ],
+      },
       "Cien años de soledad",
       "Gabriel García Márquez",
     ),
@@ -129,6 +138,85 @@ test("metadata parser requires an exact normalized title and author", () => {
   assert.throws(
     () => parseOpenLibraryBookMetadata({ docs: null }, "Title", "Author"),
     /malformed metadata search/,
+  );
+});
+
+test("metadata author matching accepts a near match from a multiple-author record", () => {
+  assert.equal(
+    openLibraryAuthorMatches("Ana María Matute", [
+      "A Different Author",
+      "Ana Maria Matute",
+    ]),
+    true,
+  );
+  assert.equal(
+    openLibraryAuthorMatches("Gabriel Garcia Marquez; Isabel Allende", [
+      "Gabriel García Márquez",
+      "Another Author",
+    ]),
+    true,
+  );
+  assert.equal(
+    openLibraryAuthorMatches("J. K. Rowling", ["Joanne K Rowling"]),
+    true,
+  );
+  assert.equal(
+    openLibraryAuthorMatches("Gabriel Garcia Marquez", [
+      "Gabriel Garcia Marques",
+    ]),
+    true,
+  );
+  assert.equal(
+    openLibraryAuthorMatches("Gabriel Garcia Marquez", [
+      "Gabriel García Moreno",
+    ]),
+    false,
+  );
+});
+
+test("metadata title matching accepts close variants and rejects unrelated titles", () => {
+  assert.equal(openLibraryTitleMatches("The Hobbit", "Hobbit"), true);
+  assert.equal(
+    openLibraryTitleMatches("Cien años de soledad", "Cien anos de soleded"),
+    true,
+  );
+  assert.equal(
+    openLibraryTitleMatches("The Lord of the Rings", "Lord of the Rings"),
+    true,
+  );
+  assert.equal(openLibraryTitleMatches("Dune", "June"), false);
+  assert.equal(
+    openLibraryTitleMatches("Cien años de soledad", "El amor en los tiempos del cólera"),
+    false,
+  );
+});
+
+test("metadata parser accepts a close title variant only with a matching author", () => {
+  const response = {
+    docs: [
+      {
+        key: "/works/OL1W",
+        title: "Cien anos de soleded",
+        author_name: ["Gabriel García Márquez"],
+        subject: ["Novel"],
+      },
+    ],
+  };
+  assert.equal(
+    parseOpenLibraryBookMetadata(
+      response,
+      "Cien años de soledad",
+      "Gabriel Garcia Marquez",
+    )?.workId,
+    "OL1W",
+  );
+  assert.equal(
+    parseOpenLibraryBookMetadata(
+      response,
+      "Cien años de soledad",
+      "A different author",
+    ),
+    null,
   );
 });
 
