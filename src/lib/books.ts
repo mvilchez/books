@@ -57,6 +57,51 @@ export async function getBookDetail(id: string) {
   });
 }
 
+/** Series/saga names represented by at least one library book. */
+export async function getSagaList(): Promise<
+  { name: string; bookCount: number; authors: string[] }[]
+> {
+  const books = await prisma.book.findMany({
+    where: { seriesName: { not: null } },
+    select: {
+      seriesName: true,
+      author: { select: { name: true } },
+    },
+    orderBy: [{ seriesName: "asc" }, { author: { name: "asc" } }],
+  });
+  const sagas = new Map<string, { authors: Set<string>; bookCount: number }>();
+  for (const book of books) {
+    const name = book.seriesName?.trim();
+    if (!name) continue;
+    const saga = sagas.get(name) ?? { authors: new Set<string>(), bookCount: 0 };
+    saga.authors.add(book.author.name);
+    saga.bookCount++;
+    sagas.set(name, saga);
+  }
+  return [...sagas]
+    .map(([name, saga]) => ({
+      name,
+      bookCount: saga.bookCount,
+      authors: [...saga.authors].sort((left, right) =>
+        left.localeCompare(right),
+      ),
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+/** All books assigned to a saga, with author and genre. */
+export async function getSagaBooks(seriesName: string) {
+  const books = await prisma.book.findMany({
+    where: { seriesName },
+    include: { author: true, genre: true },
+  });
+  return books.sort((left, right) => {
+    if (left.seriesPosition === null) return right.seriesPosition === null ? left.title.localeCompare(right.title) : 1;
+    if (right.seriesPosition === null) return -1;
+    return left.seriesPosition - right.seriesPosition || left.title.localeCompare(right.title);
+  });
+}
+
 /**
  * Title/author/tag search for the autocomplete endpoint. `query` must already
  * be validated (2–100 chars) by `parseBookSearchQuery`.
@@ -440,6 +485,8 @@ export type ReadingBookInput = {
   startDate: Date;
   totalPages: number | null;
   readingYear: number;
+  seriesName?: string | null;
+  seriesPosition?: number | null;
 };
 
 /** Create a new READING book plus its LIBRARY tags in one transaction. */
@@ -467,6 +514,8 @@ export async function createReadingBookRecord(
         startDate: input.startDate,
         totalPages: input.totalPages,
         status: "READING",
+        seriesName: input.seriesName ?? null,
+        seriesPosition: input.seriesPosition ?? null,
         authorId: author.id,
         genreId: genre?.id ?? null,
       },
@@ -479,6 +528,30 @@ export async function createReadingBookRecord(
       buildLibraryBookTags(input.genreName, null),
     );
   });
+}
+
+/** Start an existing wishlist entry as a saga book. */
+export async function startSagaWishlistBook(
+  bookId: string,
+  seriesName: string,
+  startDate: Date,
+): Promise<boolean> {
+  const result = await prisma.book.updateMany({
+    where: {
+      id: bookId,
+      seriesName,
+      status: { in: ["PENDING", "WISH_LIST"] },
+    },
+    data: {
+      status: "READING",
+      startDate,
+      finishDate: null,
+      readingYear: startDate.getUTCFullYear(),
+      currentPages: 0,
+      rating: null,
+    },
+  });
+  return result.count > 0;
 }
 
 /** Create a PENDING (wishlist) book for the given reading year. */

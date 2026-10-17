@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { BookTagCategory, BookTagSource } from "@prisma/client";
 import { enrichBookMetadata } from "@/app/actions/openLibraryImageActions";
-import { deleteManualBookTag } from "@/app/actions/openLibraryImageActions";
+import { deleteBookTag } from "@/app/actions/openLibraryImageActions";
 import ManualSubjectTags from "@/components/ManualSubjectTags";
 
 const categoryLabels: Record<BookTagCategory, string> = {
@@ -97,7 +97,7 @@ export default function BookMetadataPanel({
             Number(right.source === "LIBRARY" && right.category === "SUBJECT") -
             Number(left.source === "LIBRARY" && left.category === "SUBJECT"),
         )
-        .map((tag) => [`${tag.category}:${tag.id}`, tag]),
+        .map((tag) => [`${tag.source}:${tag.category}:${tag.id}`, tag]),
     ).values(),
   ];
   const groupedTags = uniqueTags.reduce<Map<BookTagCategory, BookMetadataTag[]>>(
@@ -105,20 +105,21 @@ export default function BookMetadataPanel({
     new Map(),
   );
 
-  async function deleteManualTag(tag: BookMetadataTag) {
-    setDeletingTagId(tag.id);
+  async function deleteTag(tag: BookMetadataTag) {
+    const tagKey = `${tag.source}:${tag.category}:${tag.id}`;
+    setDeletingTagId(tagKey);
     setTagDeleteMessage("");
     try {
-      const result = await deleteManualBookTag(bookId, tag.id);
+      const result = await deleteBookTag(bookId, tag.id, tag.source);
       if (result.status === "error") {
         setTagDeleteMessage(result.message);
         return;
       }
-      setTagDeleteMessage("Manual tag removed from this book.");
+      setTagDeleteMessage(result.message ?? "Tag removed from this book.");
       router.refresh();
     } catch (error) {
       setTagDeleteMessage(
-        error instanceof Error ? error.message : "Could not remove the manual tag.",
+        error instanceof Error ? error.message : "Could not remove the tag.",
       );
     } finally {
       setDeletingTagId(null);
@@ -165,8 +166,8 @@ export default function BookMetadataPanel({
               <div className="flex flex-wrap gap-2">
                 {categoryTags.map((tag) => (
                   <span
-                    key={`${tag.source}:${category}:${tag.name}`}
-                    className={`inline-flex items-center gap-1 rounded-full border py-0.5 pl-3 pr-1 text-xs ${
+                    key={`${tag.source}:${category}:${tag.id}`}
+                    className={`relative inline-flex items-center gap-1 rounded-full border py-0.5 pl-3 pr-1 text-xs ${
                       tag.source === "OPEN_LIBRARY"
                         ? "border-sky-500/30 bg-sky-500/10 text-sky-200"
                         : tag.category === "SUBJECT"
@@ -180,19 +181,18 @@ export default function BookMetadataPanel({
                     >
                       {tag.name}
                     </Link>
-                    {tag.source === "LIBRARY" &&
-                    tag.category === "SUBJECT" ? (
-                      <button
-                        type="button"
-                        disabled={deletingTagId !== null}
-                        onClick={() => void deleteManualTag(tag)}
-                        aria-label={`Delete manual tag ${tag.name} from this book`}
-                        title="Delete this tag from this book"
-                        className="rounded-full px-1.5 py-0.5 font-semibold text-violet-200 hover:bg-rose-500/20 hover:text-rose-200 disabled:opacity-50"
-                      >
-                        {deletingTagId === tag.id ? "…" : "×"}
-                      </button>
-                    ) : null}
+                    <button
+                      type="button"
+                      disabled={deletingTagId !== null}
+                      onClick={() => void deleteTag(tag)}
+                      aria-label={`Remove ${tag.name} (${tag.source.toLowerCase()}) tag from this book`}
+                      title={`Remove ${tag.source === "OPEN_LIBRARY" ? "Open Library" : "library"} tag from this book`}
+                      className="absolute -right-1.5 -top-2 flex h-4 w-4 items-center justify-center rounded-full border border-slate-600 bg-slate-900 text-[10px] font-bold text-slate-300 shadow transition hover:border-rose-400 hover:bg-rose-500 hover:text-white disabled:cursor-wait disabled:opacity-50"
+                    >
+                      {deletingTagId === `${tag.source}:${tag.category}:${tag.id}`
+                        ? "…"
+                        : "×"}
+                    </button>
                   </span>
                 ))}
               </div>

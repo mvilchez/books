@@ -5,9 +5,13 @@
  * functions. Tag categories/sources are applied inside this module so route
  * handlers and server actions never import `@prisma/client` at runtime.
  */
-import { BookTagCategory } from "@prisma/client";
+import { BookTagCategory, BookTagSource } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { replaceBookTags, replaceManyBookTags } from "@/lib/book-tags";
+
+export function isBookTagSource(value: string): value is BookTagSource {
+  return value === "LIBRARY" || value === "OPEN_LIBRARY";
+}
 
 export type UsedTag = {
   id: string;
@@ -87,17 +91,17 @@ export async function saveManualSubjectTags(
   });
 }
 
-/** Remove one LIBRARY SUBJECT tag from a book. */
-export async function deleteManualSubjectTag(
+/** Remove one source-specific tag association from a book. */
+export async function deleteBookTag(
   bookId: string,
   tagId: string,
+  source: BookTagSource,
 ): Promise<{ deleted: boolean }> {
   const result = await prisma.bookTag.deleteMany({
     where: {
       bookId,
       tagId,
-      source: "LIBRARY",
-      tag: { category: BookTagCategory.SUBJECT },
+      source,
     },
   });
   return { deleted: result.count > 0 };

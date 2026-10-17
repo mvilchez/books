@@ -12,7 +12,8 @@ import {
   updateAuthorPortrait,
 } from "@/lib/books";
 import {
-  deleteManualSubjectTag,
+  deleteBookTag as removeBookTag,
+  isBookTagSource,
   mergeTags,
   saveManualSubjectTags,
 } from "@/lib/tags";
@@ -302,25 +303,27 @@ export async function saveManualBookTags(
   return { status: "success", data: null, message: "Manual tags saved." };
 }
 
-export async function deleteManualBookTag(
+export async function deleteBookTag(
   bookId: string,
   tagId: string,
+  source: string,
 ): Promise<ActionResult<null>> {
   if (
     typeof bookId !== "string" ||
     !bookId ||
     typeof tagId !== "string" ||
-    !tagId
+    !tagId ||
+    !isBookTagSource(source)
   ) {
     return { status: "error", message: "Invalid book tag." };
   }
 
   try {
-    const { deleted } = await deleteManualSubjectTag(bookId, tagId);
+    const { deleted } = await removeBookTag(bookId, tagId, source);
     if (!deleted) {
       return {
         status: "error",
-        message: "Manual tag not found on this book.",
+        message: "Tag not found on this book.",
       };
     }
   } catch (error) {
@@ -333,7 +336,7 @@ export async function deleteManualBookTag(
   return {
     status: "success",
     data: null,
-    message: "Manual tag removed from this book.",
+    message: "Tag removed from this book.",
   };
 }
 

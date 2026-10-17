@@ -12,9 +12,17 @@ const initialState: BookFormState = { status: "idle", message: "" };
 export default function NewReadingBookForm({
   initialTitle = "",
   initialAuthor = "",
+  initialSeriesName = "",
+  initialSeriesPosition = "",
+  titleSuggestions = [],
+  authorSuggestions = [],
 }: {
   initialTitle?: string;
   initialAuthor?: string;
+  initialSeriesName?: string;
+  initialSeriesPosition?: string;
+  titleSuggestions?: string[];
+  authorSuggestions?: string[];
 }) {
   const [state, formAction, pending] = useActionState(
     createReadingBook,
@@ -47,10 +55,16 @@ export default function NewReadingBookForm({
           type="text"
           required
           maxLength={191}
-          autoComplete="off"
+          list={titleSuggestions.length > 0 ? "saga-title-suggestions" : undefined}
+          autoComplete={titleSuggestions.length > 0 ? "on" : "off"}
           defaultValue={initialTitle}
           className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
         />
+        {titleSuggestions.length > 0 ? (
+          <datalist id="saga-title-suggestions">
+            {titleSuggestions.map((title) => <option key={title} value={title} />)}
+          </datalist>
+        ) : null}
       </div>
       <div>
         <label htmlFor="author" className="mb-1 block text-sm font-medium text-slate-300">
@@ -62,11 +76,49 @@ export default function NewReadingBookForm({
           type="text"
           required
           maxLength={191}
-          autoComplete="off"
+          list={authorSuggestions.length > 0 ? "saga-author-suggestions" : undefined}
+          autoComplete={authorSuggestions.length > 0 ? "on" : "off"}
           defaultValue={initialAuthor}
           className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
         />
+        {authorSuggestions.length > 0 ? (
+          <datalist id="saga-author-suggestions">
+            {authorSuggestions.map((author) => <option key={author} value={author} />)}
+          </datalist>
+        ) : null}
       </div>
+      {initialSeriesName ? (
+        <div className="grid gap-5 sm:grid-cols-[1fr_10rem]">
+          <div>
+            <label htmlFor="seriesName" className="mb-1 block text-sm font-medium text-slate-300">
+              Saga
+            </label>
+            <input
+              id="seriesName"
+              name="seriesName"
+              type="text"
+              required
+              maxLength={191}
+              defaultValue={initialSeriesName}
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
+            />
+          </div>
+          <div>
+            <label htmlFor="seriesPosition" className="mb-1 block text-sm font-medium text-slate-300">
+              Book number
+            </label>
+            <input
+              id="seriesPosition"
+              name="seriesPosition"
+              type="number"
+              min={0.01}
+              step="any"
+              defaultValue={initialSeriesPosition}
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
+            />
+          </div>
+        </div>
+      ) : null}
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
           <label htmlFor="startDate" className="mb-1 block text-sm font-medium text-slate-300">

@@ -8,6 +8,10 @@ export default function NewBookPage({
   searchParams: Promise<{
     title?: string | string[];
     author?: string | string[];
+    seriesName?: string | string[];
+    seriesPosition?: string | string[];
+    titleSuggestions?: string | string[];
+    authorSuggestions?: string | string[];
   }>;
 }) {
   return (
@@ -47,16 +51,27 @@ async function PrefilledBookForm({
   searchParams: Promise<{
     title?: string | string[];
     author?: string | string[];
+    seriesName?: string | string[];
+    seriesPosition?: string | string[];
+    titleSuggestions?: string | string[];
+    authorSuggestions?: string | string[];
   }>;
 }) {
   const params = await searchParams;
-  const title =
-    typeof params.title === "string" && params.title.length <= 191
-      ? params.title
-      : "";
-  const author =
-    typeof params.author === "string" && params.author.length <= 191
-      ? params.author
-      : "";
-  return <NewReadingBookForm initialTitle={title} initialAuthor={author} />;
+  const safeValue = (value: string | string[] | undefined, maxLength: number) =>
+    typeof value === "string" && value.length <= maxLength ? value : "";
+  const safeList = (value: string | string[] | undefined) =>
+    (Array.isArray(value) ? value : typeof value === "string" ? [value] : [])
+      .filter((item) => item.length <= 191)
+      .slice(0, 50);
+  return (
+    <NewReadingBookForm
+      initialTitle={safeValue(params.title, 191)}
+      initialAuthor={safeValue(params.author, 191)}
+      initialSeriesName={safeValue(params.seriesName, 191)}
+      initialSeriesPosition={safeValue(params.seriesPosition, 30)}
+      titleSuggestions={safeList(params.titleSuggestions)}
+      authorSuggestions={safeList(params.authorSuggestions)}
+    />
+  );
 }

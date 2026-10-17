@@ -9,6 +9,7 @@ import {
   saveBookDetails,
   setBookProgressPages,
   setBookStillReadingRecord,
+  startSagaWishlistBook,
 } from "@/lib/books";
 import {
   isRecordNotFound,
@@ -238,6 +239,12 @@ export async function createReadingBook(
   const title = formString(formData, "title");
   const authorName = formString(formData, "author");
   const genreName = formString(formData, "genre");
+  const seriesName = formString(formData, "seriesName");
+  const seriesPositionValue = formString(formData, "seriesPosition");
+  const seriesPosition =
+    seriesPositionValue === null || seriesPositionValue === ""
+      ? null
+      : Number(seriesPositionValue);
   const startDate = parseDate(formString(formData, "startDate"));
   const totalPagesValue = formString(formData, "totalPages");
   const totalPages =
@@ -253,6 +260,15 @@ export async function createReadingBook(
   }
   if (genreName && genreName.length > 191) {
     return { status: "error", message: "Genre must be 191 characters or fewer." };
+  }
+  if (seriesName && seriesName.length > 191) {
+    return { status: "error", message: "Saga name must be 191 characters or fewer." };
+  }
+  if (
+    seriesPosition !== null &&
+    (!Number.isFinite(seriesPosition) || seriesPosition <= 0)
+  ) {
+    return { status: "error", message: "Saga position must be a positive number." };
   }
   if (!startDate || startDate.getUTCFullYear() < 1) {
     return { status: "error", message: "Enter a valid start date." };
@@ -275,6 +291,8 @@ export async function createReadingBook(
       startDate,
       totalPages,
       readingYear,
+      seriesName: seriesName || null,
+      seriesPosition,
     });
   } catch (error) {
     if (isUniqueConstraintViolation(error)) {
@@ -288,11 +306,36 @@ export async function createReadingBook(
 
   revalidatePath("/");
   revalidatePath("/stats");
+  revalidatePath("/sagas");
+  if (seriesName) revalidatePath(`/sagas/${encodeURIComponent(seriesName)}`);
   return {
     status: "success",
     message: "Book added to your reading list.",
     year: readingYear,
   };
+}
+
+export async function startSagaWishlistBookAction(
+  formData: FormData,
+): Promise<void> {
+  const bookId = formString(formData, "bookId");
+  const seriesName = formString(formData, "seriesName");
+  if (!bookId || !seriesName) {
+    throw new Error("Invalid saga book.");
+  }
+  const now = new Date();
+  const startDate = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+  const started = await startSagaWishlistBook(bookId, seriesName, startDate);
+  if (!started) {
+    throw new Error("This saga book is no longer available to start.");
+  }
+  revalidatePath("/");
+  revalidatePath("/stats");
+  revalidatePath("/sagas");
+  revalidatePath(`/sagas/${encodeURIComponent(seriesName)}`);
+  revalidatePath(`/books/${bookId}`);
 }
 
 export type PendingBookFormState = {
