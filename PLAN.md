@@ -469,19 +469,113 @@ export async function POST(request: Request) {
 **Objective:** Deploy your local workspace configurations to enterprise cloud infrastructure by initializing a managed production database on **MariaDB** (SkySQL) and setting up automated deployments via Render.
 
 #### Step 4.1: Managed Database Orchestration (SkySQL / MariaDB)
-1. Log into your **SkySQL** console (MariaDB's official managed cloud — https://www.mariadb.com/products/skysql/) and create a new database service named `Books Application Engine`.
-2. Navigate to the service's **Connection** tab and copy the Transaction-based Connection String URL (a `mysql://` URI).
-3. Update your local git repository configuration by shifting target connections. Create a `.env.production` file to hold the connection string:
-   ```env
-   DATABASE_URL="mysql://DB_USER:[YOUR_DB_PASSWORD]@YOUR_MARIADB_HOST:PORT/reading_tracker?sslaccept=strict"
+
+> **What this step actually does.** It bundles two independent tasks: **(A)** deploy the *database server* (schema + data) from your workstation's MariaDB to a managed SkySQL instance, and **(B)** point an *application instance* at that cloud URL. Task B can be done from your own laptop before Render exists — that is the recommended order: prove cloud connectivity locally first, deploy the app later. Only the `DATABASE_URL` changes between targets; code, `prisma/schema.prisma`, and `prisma/migrations/` are identical for local and cloud.
+
+##### A. Provision the database service
+
+1. Log into the **MariaDB Cloud (SkySQL)** portal — MariaDB's official managed cloud, https://www.mariadb.com/products/skysql/ — and create a service named `Books Application Engine`.
+2. Service type: **Transactional** (standard primary/replica). Do **not** choose Analytics/ColumnStore — Prisma's `mysql` driver cannot query those. Pick the smallest/dev tier and a region near you.
+3. Wait until the service status is **Running/Available**, then open the service's **Connect** window. It provides exactly four values to copy:
+   *   **Username** (default admin user)
+   *   **Password** (generated — copy it immediately; it may be shown only once)
+   *   **Hostname** (FQDN, e.g. `serverless-us-east1.sysp0000.db2.skysql.com`)
+   *   **TCP port** (service-specific, e.g. `4014`; some tiers use `3306`/`3307`)
+4. Create the empty target database (portal SQL console, or the CLI shown in the Connect window):
+   ```sql
+   CREATE DATABASE IF NOT EXISTS reading_tracker;
    ```
-   > **Note:** managed MariaDB endpoints enforce TLS. Append `?sslaccept=strict` (paired with `sslcert`) for the SkySQL endpoint, and keep `connection_limit` modest for the pooled PaaS instance.
-4. For production, apply the schema through a versioned migration (preferred over `db push`, so every change is reviewed and recorded under `prisma/migrations/`):
-   ```bash
-   npx prisma migrate dev --name init      # first migration against the prod DB
-   npx prisma migrate deploy               # apply pending migrations in the deploy pipeline
-   ```
-   > `db push` (Step 2.2 §4) is fine for the local dev loop, but `migrate dev`/`migrate deploy` is the safe, auditable path for production.
+5. **Whitelist your client IP — the step most often missed, and the reason connections silently hang.** Portal → service → **Manage → Security Access → Add my current IP**. The firewall rejects every connection from unknown IPs. Never use `0.0.0.0/0` (it disables the firewall) outside of throwaway experiments.
+
+##### B. Build the connection string
+
+The value for `DATABASE_URL` is a **Prisma/MySQL URI** assembled from the Connect window:
+
+```
+mysql://USER:PASSWORD@HOST:PORT/DATABASE?sslaccept=strict
+```
+
+```env
+# .env.production — replace the placeholders with the Connect-window values.
+DATABASE_URL="mysql://DB_USER:[YOUR_DB_PASSWORD]@YOUR_MARIADB_HOST:PORT/reading_tracker?sslaccept=strict"
+```
+
+*   **`mysql://` is mandatory.** The provider in `schema.prisma` is `mysql` (MariaDB has no separate provider), and Prisma rejects any other protocol. The portal also shows a **CLI invocation** (`mariadb --host ... --port ... -p`) under a "CLI" tab — that string is for a terminal and must NEVER be placed in `DATABASE_URL` (it produces `the URL must start with the protocol mysql://`).
+*   **URL-encode special characters in the password**: `@` → `%40`, `/` → `%2F`, `#` → `%23`, `:` → `%3A`, `+` → `%2B`. An unencoded `@` makes the URL unparseable.
+*   **`?sslaccept=strict`** — managed MariaDB endpoints enforce TLS; `strict` verifies the server certificate. Current MariaDB Cloud tenants no longer need a server-certificate file (`sslcert=` applies only to legacy SkySQL tenants), and keep `connection_limit` modest for the pooled PaaS instance (append `&connection_limit=5` if needed).
+*   `.env*` files are gitignored (`.gitignore`: `.env*`), so credentials never reach the repository.
+
+##### C. Connect the LOCAL app to the cloud database
+
+The app reads `DATABASE_URL` from the environment; **which file wins depends on the run mode**:
+
+*   **One-off shell switch (recommended first try — leaves files untouched):**
+    ```bash
+    export DATABASE_URL="mysql://USER:PASSWORD@HOST:PORT/reading_tracker?sslaccept=strict"
+    npm run dev           # dev server now talks to the CLOUD database
+    unset DATABASE_URL    # switch back to .env → local MariaDB
+    ```
+    A shell-exported variable overrides all `.env` files.
+*   **Permanent local→cloud wiring:** put the URL in `.env.production`, which is loaded only by `next start` (`NODE_ENV=production`):
+    ```bash
+    npm run build && npm start   # loads .env.production → connects to SkySQL
+    ```
+    > `next dev` **ignores** `.env.production`; it reads only `.env` / `.env.local` / `.env.development*`. Do not expect dev mode to pick it up.
+
+**Create the schema in the cloud** — with migrations already recorded in `prisma/migrations/`, the cloud side is a deploy, not a re-init:
+
+```bash
+# with DATABASE_URL pointing at SkySQL
+npx prisma migrate deploy   # applies recorded migrations; no prompts, no new migrations
+```
+
+> `migrate deploy` is the safe, auditable production path. `migrate dev` (which can generate and reset) is for the local dev loop only — never run it against prod.
+
+**Verify connectivity** (`P1001 can't reach host` → IP not whitelisted or wrong port; protocol error → malformed URL; handshake error → missing `?sslaccept=strict`):
+
+```bash
+npx prisma migrate status                     # expect: up to date
+curl -s -o /dev/null -w "%{http_code}\n" localhost:3000/stats   # expect 200 with live KPIs
+```
+
+**Load data into the cloud** (it starts empty) — either path:
+
+1.  *Re-ingest (simplest):* with the app pointed at SkySQL, open `/` → **Import workbook** and upload the legacy `.xlsx`; the transactional importer rebuilds authors, genres, and tags atomically.
+2.  *Dump & restore (exact copy, includes post-import edits):*
+    ```bash
+    mysqldump -h 127.0.0.1 -u book -p reading_tracker_local > reading_tracker.sql
+    time mariadb --host YOUR_MARIADB_HOST --port PORT --user USER -p \
+      --ssl-verify-server-cert reading_tracker < reading_tracker.sql
+    ```
+    `mysqldump` exports data; `mariadb` (or `mysql`) imports it. If the target schema already exists, export with `--no-create-info` and make sure the dump's tables and columns match it.
+
+    **Expected restore time:** the current `db/dump-reading_tracker_local-202610171721.sql` is about **919 KiB** (6,301 lines). For a dump this size, expect the import to finish in **seconds to about a minute**; allow a few minutes for SkySQL/network overhead. This is an estimate, not a measured restore. `time` reports the actual duration after the import completes; no terminal output while it runs is normal.
+
+**Switch back to local dev:** `unset DATABASE_URL` (shell switch), or do nothing if you used `.env.production` — `next dev` still reads `.env` → local MariaDB.
+
+##### D. Render (Phase 4 app deployment)
+
+On Render, do **not** rely on `.env` files: set `DATABASE_URL` as an **environment variable** in the Render dashboard (Service → Environment). Dashboard-injected variables override every `.env` file — that is the standard production pattern; `.env.production` is really the "run production mode locally" file.
+
+##### E. Pitfalls checklist
+
+1.  Pasting the CLI invocation instead of a URL → `the URL must start with the protocol mysql://`.
+2.  Forgetting the IP allowlist → `P1001 can't reach host` (looks like a Prisma bug; it is the firewall).
+3.  Unencoded `@`/`:` in the password → invalid URL / auth failures.
+4.  Missing `?sslaccept=strict` → TLS handshake failure against SkySQL.
+5.  Running `migrate dev` against prod → can prompt/reset; only `migrate deploy` in production paths.
+6.  Expecting `next dev` to read `.env.production` → it does not; export the variable or edit `.env`.
+7.  Committing credentials → prevented by `.gitignore` (`.env*`); never opt in for these files.
+
+##### F. Migration strategy (versioned over `db push`)
+
+| Situation | Command | Why |
+|---|---|---|
+| Local dev loop | `npx prisma db push` | Fast, no migration files needed |
+| Developing a schema change | `npx prisma migrate dev --name <change>` | Generates a reviewed migration under `prisma/migrations/` |
+| Production / cloud | `npx prisma migrate deploy` | Applies recorded migrations only; never prompts or resets |
+
+`db push` is fine locally but must never run against the production SkySQL instance.
 
 ---
 
