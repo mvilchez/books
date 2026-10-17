@@ -64,15 +64,10 @@ export async function getBookDetail(id: string) {
 export async function searchBooksAndTags(
   query: string,
 ): Promise<{ results: BookSearchResult[]; tags: BookTagSearchResult[] }> {
-  const escaped = escapeBookSearchWildcards(query);
+  const bookWhere = buildBookSearchWhere(query);
   const [books, tagRows] = await Promise.all([
     prisma.book.findMany({
-      where: {
-        OR: [
-          { title: { contains: escaped } },
-          { author: { name: { contains: escaped } } },
-        ],
-      },
+      where: bookWhere,
       select: {
         id: true,
         title: true,
@@ -91,20 +86,7 @@ export async function searchBooksAndTags(
       orderBy: [{ title: "asc" }, { id: "asc" }],
       take: BOOK_SEARCH_RESULT_LIMIT,
     }),
-    prisma.tag.findMany({
-      where: {
-        name: { contains: escaped },
-        books: { some: {} },
-      },
-      select: {
-        id: true,
-        name: true,
-        category: true,
-        _count: { select: { books: true } },
-      },
-      orderBy: [{ books: { _count: "desc" } }, { name: "asc" }],
-      take: 5,
-    }),
+    findMatchingTags(query, 5),
   ]);
 
   return {
@@ -114,11 +96,112 @@ export async function searchBooksAndTags(
       author,
       readingYear,
     })),
-    tags: tagRows.map(({ _count, ...tag }) => ({
-      ...tag,
-      bookCount: _count.books,
-    })),
+    tags: tagRows,
   };
+}
+
+/** All matching books for the dedicated full search results page. */
+export async function searchBooks(query: string): Promise<DashboardBook[]> {
+  return prisma.book.findMany({
+    where: buildBookSearchWhere(query),
+    include: { author: true, genre: true },
+    orderBy: [{ title: "asc" }, { id: "asc" }],
+  });
+}
+
+/** All matching tags for the dedicated full search results page. */
+export async function searchTags(query: string): Promise<BookTagSearchResult[]> {
+  return findMatchingTags(query);
+}
+
+async function findMatchingTags(
+  query: string,
+  take?: number,
+): Promise<BookTagSearchResult[]> {
+  const escaped = escapeBookSearchWildcards(query);
+  const tags = await prisma.tag.findMany({
+    where: {
+      name: { contains: escaped },
+      books: { some: {} },
+    },
+    select: {
+      id: true,
+      name: true,
+      category: true,
+      _count: { select: { books: true } },
+    },
+    orderBy: [{ books: { _count: "desc" } }, { name: "asc" }],
+    ...(take ? { take } : {}),
+  });
+  return tags.map(({ _count, ...tag }) => ({
+    ...tag,
+    bookCount: _count.books,
+  }));
+}
+
+function buildBookSearchWhere(query: string): Prisma.BookWhereInput {
+  const escaped = escapeBookSearchWildcards(query);
+  const normalizedStatus = query.trim().toUpperCase();
+  const numericValue = Number(query.trim());
+  const hasNumericValue = query.trim() !== "" && Number.isFinite(numericValue);
+  const dateMatch = parseSearchDate(query.trim());
+  const fields: Prisma.BookWhereInput[] = [
+    { id: { contains: escaped } },
+    { title: { contains: escaped } },
+    { editionKey: { contains: escaped } },
+    { openLibraryWorkId: { contains: escaped } },
+    { isbn13: { contains: escaped } },
+    { bookFormat: { contains: escaped } },
+    { synopsis: { contains: escaped } },
+    { synopsisLanguage: { contains: escaped } },
+    { synopsisSourceUrl: { contains: escaped } },
+    { seriesName: { contains: escaped } },
+    { origin: { contains: escaped } },
+    { authorId: { contains: escaped } },
+    { genreId: { contains: escaped } },
+    { author: { name: { contains: escaped } } },
+    { genre: { name: { contains: escaped } } },
+    { tags: { some: { tag: { name: { contains: escaped } } } } },
+    { tags: { some: { tag: { normalizedName: { contains: escaped } } } } },
+  ];
+
+  if (normalizedStatus in ReadingStatus) {
+    fields.push({ status: normalizedStatus as ReadingStatus });
+  }
+  if (hasNumericValue) {
+    fields.push(
+      { totalPages: numericValue },
+      { currentPages: numericValue },
+      { readingYear: numericValue },
+      { publicationYear: numericValue },
+      { rating: numericValue },
+      { seriesPosition: numericValue },
+      { openLibraryCoverId: numericValue },
+    );
+  }
+  if (dateMatch) {
+    fields.push(
+      { startDate: dateMatch },
+      { finishDate: dateMatch },
+      { metadataCheckedAt: dateMatch },
+      { synopsisCheckedAt: dateMatch },
+      { createdAt: dateMatch },
+      { updatedAt: dateMatch },
+    );
+  }
+
+  return { OR: fields };
+}
+
+function parseSearchDate(value: string): { gte: Date; lt: Date } | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) return null;
+  const start = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(start.getTime()) || start.toISOString().slice(0, 10) !== value) {
+    return null;
+  }
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { gte: start, lt: end };
 }
 
 /** Books with saved metadata but no Open Library tags (tag-gap report + CSV). */
@@ -519,5 +602,3 @@ export async function updateAuthorPortrait(
     },
   });
 }
-
-

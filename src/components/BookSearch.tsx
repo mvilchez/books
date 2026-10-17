@@ -257,6 +257,15 @@ export default function BookSearch() {
                 : error ?? "No matching books or tags found"}
             </p>
           ) : null}
+          {currentResponse && !error ? (
+            <Link
+              href={`/search?q=${encodeURIComponent(normalizedQuery)}`}
+              onClick={() => setIsOpen(false)}
+              className="block border-t border-slate-700 px-4 py-3 text-sm font-semibold text-emerald-300 transition hover:bg-slate-700/70 hover:text-emerald-200"
+            >
+              View all book search results
+            </Link>
+          ) : null}
         </div>
       ) : null}
     </div>
