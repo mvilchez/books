@@ -109,5 +109,22 @@ npm run cleanup:books -- --execute
 
 ## Deployment
 
+### Connect to the SkySQL MariaDB instance
+
+Install the MariaDB command-line client, then run:
+
+```bash
+./scripts/connect-skysql.sh
+```
+
+The script connects to `serverless-us-east1.sysp0000.db2.skysql.com` on port
+`4014` as user `dbpgf14648016`, verifies the server certificate, and prompts
+for the database password. It accepts additional `mariadb` client arguments,
+for example `./scripts/connect-skysql.sh reading_tracker`. Do not put the
+password in the script or on the command line.
+
+This command-line connection is separate from the app's Prisma
+`DATABASE_URL`; it does not change the database configuration used by the app.
+
 Production database and hosting are not configured yet. The deployment plan is
 to use managed MariaDB and Render; see [Phase 4 in PLAN.md](PLAN.md#phase-4-cloud-engine-provisioning--production-pipelines).

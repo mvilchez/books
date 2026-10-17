@@ -22,19 +22,18 @@ export type UsedTag = {
  * popularity).
  */
 export async function getUsedTags(): Promise<UsedTag[]> {
-  const storedTags = await prisma.tag.findMany({
-    where: { books: { some: {} } },
-    select: {
-      id: true,
-      name: true,
-      category: true,
-      books: { select: { bookId: true } },
-    },
-    orderBy: [{ category: "asc" }, { name: "asc" }],
-  });
-  return storedTags.map(({ books, ...tag }) => ({
+  const storedTags = await prisma.$queryRaw<
+    { id: string; name: string; category: BookTagCategory; count: bigint }[]
+  >`
+    SELECT t.id, t.name, t.category, COUNT(DISTINCT bt.book_id) AS count
+    FROM Tag AS t
+    INNER JOIN book_tags AS bt ON bt.tag_id = t.id
+    GROUP BY t.id, t.name, t.category
+    ORDER BY t.category ASC, t.name ASC
+  `;
+  return storedTags.map(({ count, ...tag }) => ({
     ...tag,
-    count: new Set(books.map(({ bookId }) => bookId)).size,
+    count: Number(count),
   }));
 }
 
@@ -124,44 +123,13 @@ export async function mergeTags(
       throw new Error("Tags from different categories cannot be merged.");
     }
 
-    const relationships = await transaction.bookTag.findMany({
-      where: { tagId: mergeTag.id },
-      select: { bookId: true, source: true },
-    });
-    for (const relationship of relationships) {
-      const existing = await transaction.bookTag.findUnique({
-        where: {
-          bookId_tagId_source: {
-            bookId: relationship.bookId,
-            tagId: keepTag.id,
-            source: relationship.source,
-          },
-        },
-        select: { bookId: true },
-      });
-      if (existing) {
-        await transaction.bookTag.delete({
-          where: {
-            bookId_tagId_source: {
-              bookId: relationship.bookId,
-              tagId: mergeTag.id,
-              source: relationship.source,
-            },
-          },
-        });
-      } else {
-        await transaction.bookTag.update({
-          where: {
-            bookId_tagId_source: {
-              bookId: relationship.bookId,
-              tagId: mergeTag.id,
-              source: relationship.source,
-            },
-          },
-          data: { tagId: keepTag.id },
-        });
-      }
-    }
+    await transaction.$executeRaw`
+      INSERT IGNORE INTO book_tags (book_id, tag_id, source, created_at)
+      SELECT book_id, ${keepTag.id}, source, created_at
+      FROM book_tags
+      WHERE tag_id = ${mergeTag.id}
+    `;
+    await transaction.bookTag.deleteMany({ where: { tagId: mergeTag.id } });
     await transaction.tag.delete({ where: { id: mergeTag.id } });
   });
 }

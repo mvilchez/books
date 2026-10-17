@@ -81,6 +81,7 @@ model Book {
   // Each row is a reading event: rereads in different years remain distinct,
   // while the same edition read in one year upserts idempotently.
   @@unique([title, authorId, readingYear, editionKey])
+  @@index([readingYear, status])
 }
 
 model BookMetadataCandidate {

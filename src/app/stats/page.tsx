@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Suspense } from 'react';
 import { PRE_TAB_READING_YEAR_SENTINEL } from '@/lib/ingestion/workbook-parser';
 import {
-  getDiscoveryMetrics, getGenreShares, getMonthlyPace,
+  getDiscoveryMetrics, getMonthlyPace,
   getRatingDistribution, getTopAuthors, getYearKpis, getYearlyTrend,
 } from '@/lib/analytics';
 import { Kpi, nf, StatsSkeleton, SuggestionsList, TopAuthorsBooks, TopList } from './_components';
@@ -51,13 +51,14 @@ async function StatsContent({ searchParams }: { searchParams: StatsSearchParams 
     ? requested
     : (availableYears[availableYears.length - 1] ?? PRE_TAB_READING_YEAR_SENTINEL);
 
-  const [kpis, ratings, genres, authors, pace, discovery] = await Promise.all([
+  const authorsPromise = getTopAuthors(10);
+  const discoveryPromise = authorsPromise.then(getDiscoveryMetrics);
+  const [kpis, ratings, authors, pace, discovery] = await Promise.all([
     getYearKpis(year),
     getRatingDistribution(),
-    getGenreShares(),
-    getTopAuthors(10),
+    authorsPromise,
     getMonthlyPace(year),
-    getDiscoveryMetrics(),
+    discoveryPromise,
   ]);
 
   return (
@@ -93,7 +94,7 @@ async function StatsContent({ searchParams }: { searchParams: StatsSearchParams 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="lg:col-span-2"><YearTrendChart data={trend} /></div>
         <RatingChart data={ratings} />
-        <GenreChart data={genres} />
+        <GenreChart data={discovery.genreShares} />
         <MonthlyPaceChart data={pace.points} withoutDates={pace.withoutDates} />
         <AuthorsChart data={authors} />
       </section>

@@ -101,14 +101,32 @@ export async function getRatingDistribution(): Promise<RatingDistribution> {
  */
 export async function getGenreShares(): Promise<GenreShare[]> {
   const [genres, ungenred] = await Promise.all([
-    prisma.genre.findMany({
-      where: { books: { some: { status: 'COMPLETED' } } },
-      include: { _count: { select: { books: { where: { status: 'COMPLETED' } } } } },
-    }),
+    getCompletedGenreRanks(),
     prisma.book.count({ where: { status: 'COMPLETED', genreId: null } }),
   ]);
 
-  const shares: GenreShare[] = genres.map((g) => ({ genre: g.name, books: g._count.books }));
+  return toGenreShares(genres, ungenred);
+}
+
+async function getCompletedGenreRanks() {
+  return prisma.genre.findMany({
+    where: { books: { some: { status: 'COMPLETED' } } },
+    select: {
+      id: true,
+      name: true,
+      _count: { select: { books: { where: { status: 'COMPLETED' } } } },
+    },
+  });
+}
+
+function toGenreShares(
+  genres: Awaited<ReturnType<typeof getCompletedGenreRanks>>,
+  ungenred: number,
+): GenreShare[] {
+  const shares: GenreShare[] = genres.map((genre) => ({
+    genre: genre.name,
+    books: genre._count.books,
+  }));
   if (ungenred > 0) shares.push({ genre: null, books: ungenred });
   return shares.sort((a, b) => b.books - a.books);
 }
@@ -116,7 +134,19 @@ export async function getGenreShares(): Promise<GenreShare[]> {
 /** Top-N authors by completed books (accent-insensitive names already unified on Author.name). */
 export async function getTopAuthors(limit = 10): Promise<AuthorRank[]> {
   const authors = await prisma.author.findMany({
-    include: { _count: { select: { books: { where: { status: 'COMPLETED' } } } } },
+    where: { books: { some: { status: 'COMPLETED' } } },
+    select: {
+      id: true,
+      name: true,
+      portraitUrl: true,
+      portraitSourceUrl: true,
+      portraitArtist: true,
+      portraitLicense: true,
+      portraitLicenseUrl: true,
+      _count: { select: { books: { where: { status: 'COMPLETED' } } } },
+    },
+    orderBy: [{ books: { _count: 'desc' } }, { name: 'asc' }],
+    take: limit,
   });
   return authors
     .map((a) => ({
@@ -128,9 +158,7 @@ export async function getTopAuthors(limit = 10): Promise<AuthorRank[]> {
       portraitArtist: a.portraitArtist,
       portraitLicense: a.portraitLicense,
       portraitLicenseUrl: a.portraitLicenseUrl,
-    }))
-    .sort((a, b) => b.books - a.books || a.name.localeCompare(b.name))
-    .slice(0, limit);
+    }));
 }
 
 /**
@@ -163,8 +191,16 @@ export async function getMonthlyPace(year: number): Promise<{ points: MonthPaceP
 }
 
 /** Top-5 authors / genres + WISH_LIST suggestions (CONTEXT.md §4 recommender rule). */
-export async function getDiscoveryMetrics(): Promise<DiscoveryMetrics> {
-  const [topAuthors, topGenres] = await Promise.all([getTopAuthors(5), getGenreShares()]);
+export async function getDiscoveryMetrics(
+  authorRanks?: AuthorRank[],
+): Promise<DiscoveryMetrics> {
+  const [rankedAuthors, genreRows, ungenred] = await Promise.all([
+    authorRanks ? Promise.resolve(authorRanks) : getTopAuthors(5),
+    getCompletedGenreRanks(),
+    prisma.book.count({ where: { status: 'COMPLETED', genreId: null } }),
+  ]);
+  const topAuthors = rankedAuthors.slice(0, 5);
+  const genreShares = toGenreShares(genreRows, ungenred);
   const authorBooks = topAuthors.length
     ? await prisma.book.findMany({
         where: {
@@ -181,14 +217,10 @@ export async function getDiscoveryMetrics(): Promise<DiscoveryMetrics> {
     booksByAuthor.set(authorId, [...(booksByAuthor.get(authorId) ?? []), details]);
   }
 
-  // The recommender matches WISH_LIST books against the two most consumed
-  // genres — it needs genre IDs, so re-read the top-2 with ids included.
-  const topGenreRows = await prisma.genre.findMany({
-    where: { books: { some: { status: 'COMPLETED' } } },
-    include: { _count: { select: { books: { where: { status: 'COMPLETED' } } } } },
-  });
-  topGenreRows.sort((a, b) => b._count.books - a._count.books);
-  const topGenreIds = topGenreRows.slice(0, 2).map((g) => g.id);
+  const topGenreIds = [...genreRows]
+    .sort((a, b) => b._count.books - a._count.books)
+    .slice(0, 2)
+    .map((genre) => genre.id);
 
   const rows = await prisma.book.findMany({
     where: { status: 'WISH_LIST', genreId: { in: topGenreIds } },
@@ -202,7 +234,8 @@ export async function getDiscoveryMetrics(): Promise<DiscoveryMetrics> {
       authorId: author.id,
       books: booksByAuthor.get(author.id) ?? [],
     })),
-    topGenres: topGenres.slice(0, 5),
+    genreShares,
+    topGenres: genreShares.slice(0, 5),
     suggestions: rows.map((b): Suggestion => ({
       id: b.id,
       title: b.title,

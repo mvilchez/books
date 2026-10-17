@@ -68,6 +68,7 @@ export interface Suggestion {
 export interface DiscoveryMetrics {
   topAuthors: AuthorRank[];  // top 5
   topAuthorBooks: AuthorBookList[];
+  genreShares: GenreShare[];
   topGenres: GenreShare[];   // top 5, names resolved
   suggestions: Suggestion[]; // up to 3
 }
