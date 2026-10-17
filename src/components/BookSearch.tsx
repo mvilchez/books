@@ -233,7 +233,7 @@ export default function BookSearch() {
                   </span>
                   {isBook ? (
                     <div className="mt-1 flex items-center justify-between gap-2">
-                      <AuthorPortrait author={option.value.author} links={false} />
+                      <AuthorPortrait author={option.value.author} links={false} searchLink={false} />
                       <span className="shrink-0 text-xs text-slate-400">
                         {option.value.readingYear === 2007
                           ? "pre-2008"

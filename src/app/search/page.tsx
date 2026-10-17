@@ -115,7 +115,7 @@ async function SearchResultsContent({
                       {book.title}
                     </h2>
                     <div className="mt-1">
-                      <AuthorPortrait author={book.author} links={false} />
+                      <AuthorPortrait author={book.author} links={false} searchLink={false} />
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">

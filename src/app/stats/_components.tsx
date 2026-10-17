@@ -63,7 +63,13 @@ export function TopAuthorsBooks({
             return (
               <details key={author.id} className="group rounded-lg bg-slate-900/60">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg p-4 text-sm marker:content-none hover:bg-slate-900">
-                  <span className="font-semibold text-slate-200">{author.name}</span>
+                  <Link
+                    href={`/search?q=${encodeURIComponent(author.name)}`}
+                    aria-label={`Search all books by ${author.name}`}
+                    className="font-semibold text-slate-200 hover:text-emerald-300"
+                  >
+                    {author.name}
+                  </Link>
                   <span className="shrink-0 text-xs font-bold text-emerald-400">
                     {author.books} books
                   </span>

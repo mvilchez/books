@@ -71,7 +71,7 @@ export default function BookCard({
             </span>
           </div>
           <div className="mb-2 mt-1">
-            <AuthorPortrait author={book.author} links={false} />
+            <AuthorPortrait author={book.author} links={false} searchLink={false} />
           </div>
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs text-slate-400">
             <dt>Genre</dt>

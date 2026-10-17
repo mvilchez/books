@@ -78,7 +78,15 @@ async function OpenLibraryTagReportContent() {
                         {book.title}
                       </Link>
                     </th>
-                    <td className="px-4 py-3">{book.author.name}</td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/search?q=${encodeURIComponent(book.author.name)}`}
+                        aria-label={`Search all books by ${book.author.name}`}
+                        className="hover:text-emerald-300"
+                      >
+                        {book.author.name}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3">
                       {book.metadataCheckedAt
                         ? "Checked; no tags found"

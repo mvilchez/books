@@ -53,7 +53,13 @@ async function OpenLibraryMatchesReport() {
                       {book.title}
                     </Link>
                   </h2>
-                  <span className="text-sm text-slate-400">{book.author.name}</span>
+                  <Link
+                    href={`/search?q=${encodeURIComponent(book.author.name)}`}
+                    aria-label={`Search all books by ${book.author.name}`}
+                    className="text-sm text-slate-400 hover:text-emerald-300"
+                  >
+                    {book.author.name}
+                  </Link>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
                   Checked {book.metadataCheckedAt?.toLocaleDateString()}

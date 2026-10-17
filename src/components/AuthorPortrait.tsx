@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 import type { Author } from "@prisma/client";
 
@@ -74,10 +75,12 @@ export default function AuthorPortrait({
   author,
   size = "small",
   links = true,
+  searchLink = true,
 }: {
   author: PortraitAuthor;
   size?: "small" | "large";
   links?: boolean;
+  searchLink?: boolean;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
   const sourceUrl = trustedCommonsSourceUrl(author.portraitSourceUrl);
@@ -122,9 +125,19 @@ export default function AuthorPortrait({
         )}
       </div>
       <figcaption className="min-w-0">
-        <span className="block truncate text-sm font-semibold text-slate-200">
-          {author.name}
-        </span>
+        {searchLink ? (
+          <Link
+            href={`/search?q=${encodeURIComponent(author.name)}`}
+            className="block truncate text-sm font-semibold text-slate-200 hover:text-emerald-300"
+            aria-label={`Search all books by ${author.name}`}
+          >
+            {author.name}
+          </Link>
+        ) : (
+          <span className="block truncate text-sm font-semibold text-slate-200">
+            {author.name}
+          </span>
+        )}
         {portraitUrl && openLibrarySourceUrl ? (
           links ? (
             <a
