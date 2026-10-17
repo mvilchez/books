@@ -64,6 +64,10 @@ model Book {
   isbn13             String?                 @map("isbn_13") @db.VarChar(13)
   bookFormat         String?                 @map("book_format") @db.VarChar(191)
   metadataCheckedAt  DateTime?               @map("metadata_checked_at")
+  synopsis           String?                 @db.Text
+  synopsisLanguage   String?                 @map("synopsis_language") @db.VarChar(12)
+  synopsisSourceUrl  String?                 @map("synopsis_source_url") @db.Text
+  synopsisCheckedAt  DateTime?               @map("synopsis_checked_at")
   seriesName         String?                 @map("series_name") @db.VarChar(191)
   seriesPosition     Float?                  @map("series_position")
   origin             String?                 @map("origen")

@@ -282,9 +282,9 @@ export type BookDetailsInput = {
 
 /**
  * Persist edited book details. Upserts the author/genre, updates the book, and
- * rebuilds its LIBRARY tags — clearing the Open Library tags when the book's
- * identity (title/author) changed. Throws the underlying Prisma errors so the
- * caller can map P2025/P2002 onto user-facing messages.
+ * rebuilds its LIBRARY tags — clearing the Open Library tags and synopsis when
+ * the book's identity (title/author) changed. Throws the underlying Prisma
+ * errors so the caller can map P2025/P2002 onto user-facing messages.
  */
 export async function saveBookDetails(input: BookDetailsInput): Promise<void> {
   await prisma.$transaction(async (transaction) => {
@@ -330,6 +330,10 @@ export async function saveBookDetails(input: BookDetailsInput): Promise<void> {
         isbn13: identityChanged ? null : undefined,
         bookFormat: identityChanged ? null : undefined,
         metadataCheckedAt: identityChanged ? null : undefined,
+        synopsis: identityChanged ? null : undefined,
+        synopsisLanguage: identityChanged ? null : undefined,
+        synopsisSourceUrl: identityChanged ? null : undefined,
+        synopsisCheckedAt: identityChanged ? null : undefined,
         authorId: author.id,
         genreId: genre?.id ?? null,
       },
@@ -515,6 +519,5 @@ export async function updateAuthorPortrait(
     },
   });
 }
-
 
 

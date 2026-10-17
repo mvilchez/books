@@ -116,6 +116,39 @@ export default async function BookDetailPage({
             </p>
           ) : null}
 
+          {book.synopsis ? (
+            <section
+              aria-labelledby="book-synopsis"
+              className="mt-6 rounded-xl border border-slate-700/60 bg-slate-900/50 p-5"
+            >
+              <h2 id="book-synopsis" className="text-lg font-bold text-white">
+                Synopsis
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-300">
+                {book.synopsis}
+              </p>
+              {book.synopsisSourceUrl ? (
+                <p className="mt-3 text-xs text-slate-500">
+                  Source
+                  {book.synopsisLanguage
+                    ? ` · ${book.synopsisLanguage.toUpperCase()}`
+                    : ""}
+                  :{" "}
+                  <a
+                    href={book.synopsisSourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline decoration-slate-600 underline-offset-2 hover:text-emerald-300"
+                  >
+                    {book.synopsisSourceUrl.includes("openlibrary.org")
+                      ? "Open Library"
+                      : "Google Books"}
+                  </a>
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+
           <OpenLibraryImagePicker bookId={book.id} />
 
           <BookRecommendations

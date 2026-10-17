@@ -124,10 +124,11 @@ export async function mergeTags(
     }
 
     await transaction.$executeRaw`
-      INSERT IGNORE INTO book_tags (book_id, tag_id, source, created_at)
+      INSERT INTO book_tags (book_id, tag_id, source, created_at)
       SELECT book_id, ${keepTag.id}, source, created_at
       FROM book_tags
       WHERE tag_id = ${mergeTag.id}
+      ON DUPLICATE KEY UPDATE tag_id = VALUES(tag_id)
     `;
     await transaction.bookTag.deleteMany({ where: { tagId: mergeTag.id } });
     await transaction.tag.delete({ where: { id: mergeTag.id } });
