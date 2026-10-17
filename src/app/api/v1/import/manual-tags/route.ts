@@ -1,8 +1,7 @@
 import { revalidatePath } from "next/cache";
-import { BookTagCategory } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { getExistingBookIds } from "@/lib/books";
+import { importManualSubjectTags } from "@/lib/tags";
 import { parseCsv } from "@/lib/csv";
-import { replaceManyBookTags } from "@/lib/book-tags";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_ROWS = 2_000;
@@ -67,10 +66,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const bookIds = [...entries.keys()];
-  const existingBooks = await prisma.book.findMany({
-    where: { id: { in: bookIds } },
-    select: { id: true },
-  });
+  const existingBooks = await getExistingBookIds(bookIds);
   if (existingBooks.length !== bookIds.length) {
     const existingIds = new Set(existingBooks.map(({ id }) => id));
     const missingId = bookIds.find((id) => !existingIds.has(id));
@@ -78,22 +74,8 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    await prisma.$transaction(
-      async (transaction) => {
-        await replaceManyBookTags(
-          transaction,
-          [...entries].map(([bookId, names]) => ({
-            bookId,
-            tags: names.map((name) => ({
-              category: BookTagCategory.SUBJECT,
-              name,
-            })),
-          })),
-          "LIBRARY",
-          BookTagCategory.SUBJECT,
-        );
-      },
-      { timeout: 120_000 },
+    await importManualSubjectTags(
+      [...entries].map(([bookId, names]) => ({ bookId, names })),
     );
   } catch (error) {
     return Response.json(

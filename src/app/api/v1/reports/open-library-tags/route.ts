@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getBooksWithoutOpenLibraryTags } from "@/lib/books";
 
 function csvCell(value: string | number | null): string {
   const rawText = value === null ? "" : String(value);
@@ -7,26 +7,7 @@ function csvCell(value: string | number | null): string {
 }
 
 export async function GET(): Promise<Response> {
-  const books = await prisma.book.findMany({
-    where: { tags: { none: { source: "OPEN_LIBRARY" } } },
-    select: {
-      id: true,
-      title: true,
-      author: { select: { name: true } },
-      publicationYear: true,
-      totalPages: true,
-      metadataCheckedAt: true,
-      genre: { select: { name: true } },
-      tags: {
-        where: {
-          source: "LIBRARY",
-          tag: { category: "SUBJECT" },
-        },
-        include: { tag: true },
-      },
-    },
-    orderBy: [{ metadataCheckedAt: "desc" }, { author: { name: "asc" } }, { title: "asc" }],
-  });
+  const books = await getBooksWithoutOpenLibraryTags();
 
   const rows = [
     [

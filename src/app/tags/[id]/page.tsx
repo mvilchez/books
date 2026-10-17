@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import BookCard from "@/components/BookCard";
 import BookSearch from "@/components/BookSearch";
-import { prisma } from "@/lib/prisma";
+import { getTagWithBooks } from "@/lib/tags";
 
 export default function TagBooksPage({
   params,
@@ -23,17 +23,7 @@ async function TagBooksContent({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const tag = await prisma.tag.findUnique({
-    where: { id },
-    include: {
-      books: {
-        include: {
-          book: { include: { author: true, genre: true } },
-        },
-        orderBy: { book: { title: "asc" } },
-      },
-    },
-  });
+  const tag = await getTagWithBooks(id);
   if (!tag) notFound();
 
   return (

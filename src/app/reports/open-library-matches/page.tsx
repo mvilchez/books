@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import ApplyOpenLibraryCandidateButton from "@/components/ApplyOpenLibraryCandidateButton";
-import { prisma } from "@/lib/prisma";
+import { getBooksWithMetadataCandidates } from "@/lib/books";
 
 export default function OpenLibraryMatchesReportPage() {
   return (
@@ -12,32 +12,7 @@ export default function OpenLibraryMatchesReportPage() {
 }
 
 async function OpenLibraryMatchesReport() {
-  const books = await prisma.book.findMany({
-    where: {
-      metadataCheckedAt: { not: null },
-      metadataCandidates: { some: {} },
-    },
-    select: {
-      id: true,
-      title: true,
-      author: { select: { name: true } },
-      metadataCheckedAt: true,
-      metadataCandidates: {
-        select: {
-          id: true,
-          workId: true,
-          title: true,
-          authorNames: true,
-          subjects: true,
-          firstPublishYear: true,
-          titleSimilarity: true,
-          authorSimilarity: true,
-        },
-        orderBy: [{ titleSimilarity: "desc" }, { authorSimilarity: "desc" }],
-      },
-    },
-    orderBy: [{ author: { name: "asc" } }, { title: "asc" }],
-  });
+  const books = await getBooksWithMetadataCandidates();
 
   return (
     <main className="min-h-screen bg-slate-900 p-6 text-slate-100 md:p-12">

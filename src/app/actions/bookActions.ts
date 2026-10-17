@@ -1,9 +1,19 @@
 "use server";
 
 import { refresh, revalidatePath } from "next/cache";
-import { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
-import { buildLibraryBookTags, replaceBookTags } from "@/lib/book-tags";
+import {
+  completeBookRecord,
+  createPendingBookRecord,
+  createReadingBookRecord,
+  deleteBookById,
+  saveBookDetails,
+  setBookProgressPages,
+  setBookStillReadingRecord,
+} from "@/lib/books";
+import {
+  isRecordNotFound,
+  isUniqueConstraintViolation,
+} from "@/lib/prisma-errors";
 
 export type BookFormState = {
   status: "idle" | "error" | "success";
@@ -130,67 +140,29 @@ export async function updateBookDetails(
   }
 
   try {
-    await prisma.$transaction(async (transaction) => {
-      const existingBook = await transaction.book.findUnique({
-        where: { id: bookId },
-        select: { title: true, authorId: true },
-      });
-      const author = await transaction.author.upsert({
-        where: { name: authorName },
-        create: { name: authorName },
-        update: {},
-      });
-      const identityChanged =
-        existingBook !== null &&
-        (existingBook.title !== title || existingBook.authorId !== author.id);
-      const genre = genreName
-        ? await transaction.genre.upsert({
-            where: { name: genreName },
-            create: { name: genreName },
-            update: {},
-          })
-        : null;
-
-      await transaction.book.update({
-        where: { id: bookId },
-        data: {
-          title,
-          status: statusValue,
-          rating,
-          readingYear,
-          publicationYear,
-          totalPages,
-          currentPages,
-          editionKey: editionKey ?? "",
-          origin: origin || null,
-          startDate,
-          finishDate,
-          seriesName: seriesName || null,
-          seriesPosition,
-          openLibraryWorkId: identityChanged ? null : undefined,
-          openLibraryCoverId: identityChanged ? null : undefined,
-          isbn13: identityChanged ? null : undefined,
-          bookFormat: identityChanged ? null : undefined,
-          metadataCheckedAt: identityChanged ? null : undefined,
-          authorId: author.id,
-          genreId: genre?.id ?? null,
-        },
-      });
-      if (identityChanged) {
-        await replaceBookTags(transaction, bookId, "OPEN_LIBRARY", []);
-      }
-      await replaceBookTags(
-        transaction,
-        bookId,
-        "LIBRARY",
-        buildLibraryBookTags(genreName, origin),
-      );
+    await saveBookDetails({
+      bookId,
+      title,
+      authorName,
+      genreName: genreName || null,
+      origin,
+      editionKey,
+      seriesName,
+      seriesPosition,
+      status: statusValue,
+      readingYear,
+      publicationYear,
+      totalPages,
+      currentPages,
+      rating,
+      startDate,
+      finishDate,
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+    if (isRecordNotFound(error)) {
       return { status: "error", message: "Book not found." };
     }
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    if (isUniqueConstraintViolation(error)) {
       return {
         status: "error",
         message: "A book with this title, author, reading year, and edition already exists.",
@@ -217,8 +189,8 @@ export async function deleteBook(
   const bookId = formString(formData, "bookId");
   if (!bookId) return { status: "error", message: "Invalid book." };
 
-  const result = await prisma.book.deleteMany({ where: { id: bookId } });
-  if (result.count === 0) {
+  const { deleted } = await deleteBookById(bookId);
+  if (!deleted) {
     return { status: "error", message: "Book not found; it may already be deleted." };
   }
 
@@ -237,13 +209,9 @@ export async function setBookStillReading(
 
   let updatedBook: { status: string; finishDate: Date | null; rating: number | null };
   try {
-    updatedBook = await prisma.book.update({
-      where: { id: bookId },
-      data: { status: "READING", finishDate: null, rating: null },
-      select: { status: true, finishDate: true, rating: true },
-    });
+    updatedBook = await setBookStillReadingRecord(bookId);
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+    if (isRecordNotFound(error)) {
       return { status: "error", message: "Book not found." };
     }
     throw error;
@@ -300,41 +268,16 @@ export async function createReadingBook(
 
   const readingYear = startDate.getUTCFullYear();
   try {
-    await prisma.$transaction(async (transaction) => {
-      const author = await transaction.author.upsert({
-        where: { name: authorName },
-        create: { name: authorName },
-        update: {},
-      });
-      const genre = genreName
-        ? await transaction.genre.upsert({
-            where: { name: genreName },
-            create: { name: genreName },
-            update: {},
-          })
-        : null;
-
-      const book = await transaction.book.create({
-        data: {
-          title,
-          readingYear,
-          startDate,
-          totalPages,
-          status: "READING",
-          authorId: author.id,
-          genreId: genre?.id ?? null,
-        },
-        select: { id: true },
-      });
-      await replaceBookTags(
-        transaction,
-        book.id,
-        "LIBRARY",
-        buildLibraryBookTags(genreName, null),
-      );
+    await createReadingBookRecord({
+      title,
+      authorName,
+      genreName: genreName || null,
+      startDate,
+      totalPages,
+      readingYear,
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    if (isUniqueConstraintViolation(error)) {
       return {
         status: "error",
         message: "This author already has a book with that title in the selected year.",
@@ -375,26 +318,13 @@ export async function addPendingBook(
   const readingYear = new Date().getUTCFullYear();
   let bookId: string;
   try {
-    bookId = await prisma.$transaction(async (transaction) => {
-      const author = await transaction.author.upsert({
-        where: { name: authorName },
-        create: { name: authorName },
-        update: {},
-      });
-      const book = await transaction.book.create({
-        data: {
-          title,
-          readingYear,
-          status: "PENDING",
-          authorId: author.id,
-        },
-        select: { id: true },
-      });
-      await replaceBookTags(transaction, book.id, "LIBRARY", []);
-      return book.id;
+    bookId = await createPendingBookRecord({
+      title,
+      authorName,
+      readingYear,
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    if (isUniqueConstraintViolation(error)) {
       return {
         status: "error",
         message: "This book is already in your library for the current year.",
@@ -434,22 +364,7 @@ export async function updateBookProgress(
     throw new Error("updateBookProgress: nextPages must be a finite number.");
   }
 
-  const book = await prisma.book.findUnique({
-    where: { id: bookId },
-    select: { totalPages: true },
-  });
-  if (!book) {
-    throw new Error(`updateBookProgress: book ${bookId} not found.`);
-  }
-
-  const rounded = Math.round(nextPages);
-  const ceiling = book.totalPages ?? Number.MAX_SAFE_INTEGER;
-  const currentPages = Math.min(Math.max(rounded, 0), ceiling);
-
-  await prisma.book.update({
-    where: { id: bookId },
-    data: { currentPages },
-  });
+  await setBookProgressPages(bookId, nextPages);
 
   // The dashboard is an uncached Server Component tree — revalidate so the
   // incremented progress bar is visible on the very next render.
@@ -479,10 +394,7 @@ export async function completeReadingBook(
   const finishDate = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
   );
-  const result = await prisma.book.updateMany({
-    where: { id: bookId, status: "READING" },
-    data: { status: "COMPLETED", finishDate, rating },
-  });
+  const result = await completeBookRecord(bookId, rating, finishDate);
 
   if (result.count === 0) {
     return {

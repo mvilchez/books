@@ -1,7 +1,25 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
+import {
+  getBookAuthorId,
+  getBookAuthorName,
+  getBookCoverTarget,
+  getBookEnrichmentSnapshot,
+  getBookForRecommendation,
+  getCompletedBookSummaries,
+  saveBookCoverSelection,
+  updateAuthorPortrait,
+} from "@/lib/books";
+import {
+  deleteManualSubjectTag,
+  mergeTags,
+  saveManualSubjectTags,
+} from "@/lib/tags";
+import {
+  applyOpenLibraryCandidateMatch,
+  saveOpenLibraryMetadata,
+} from "@/lib/open-library-candidates";
 import {
   getOpenLibraryAuthorProfile,
   getOpenLibraryAuthorPhotoUrl,
@@ -15,8 +33,6 @@ import {
   type OpenLibraryBookCandidate,
   type OpenLibraryRecommendationResult,
 } from "@/lib/open-library-images";
-import { BookTagCategory } from "@prisma/client";
-import { replaceBookTags } from "@/lib/book-tags";
 
 type ActionResult<T> =
   | { status: "success"; data: T; message?: string }
@@ -46,18 +62,8 @@ export async function findBookRecommendations(
   let readBooks: { title: string; openLibraryWorkId: string | null }[];
   try {
     [book, readBooks] = await Promise.all([
-      prisma.book.findUnique({
-        where: { id: bookId },
-        select: {
-          title: true,
-          openLibraryWorkId: true,
-          author: { select: { name: true } },
-        },
-      }),
-      prisma.book.findMany({
-        where: { status: "COMPLETED" },
-        select: { title: true, openLibraryWorkId: true },
-      }),
+      getBookForRecommendation(bookId),
+      getCompletedBookSummaries(),
     ]);
   } catch (error) {
     return { status: "error", message: actionError(error) };
@@ -91,10 +97,7 @@ export async function searchBookCoverCandidates(
   if (!bookId) return { status: "error", message: "Invalid book." };
   let book: { title: string; author: { name: string } } | null;
   try {
-    book = await prisma.book.findUnique({
-      where: { id: bookId },
-      select: { title: true, author: { select: { name: true } } },
-    });
+    book = await getBookCoverTarget(bookId);
   } catch (error) {
     return { status: "error", message: actionError(error) };
   }
@@ -120,10 +123,7 @@ export async function searchAuthorCandidates(
   if (!bookId) return { status: "error", message: "Invalid book." };
   let book: { author: { name: string } } | null;
   try {
-    book = await prisma.book.findUnique({
-      where: { id: bookId },
-      select: { author: { select: { name: true } } },
-    });
+    book = await getBookAuthorName(bookId);
   } catch (error) {
     return { status: "error", message: actionError(error) };
   }
@@ -154,13 +154,7 @@ export async function saveBookCover(
   }
 
   try {
-    await prisma.book.update({
-      where: { id: bookId },
-      data: {
-        openLibraryWorkId: workId,
-        openLibraryCoverId: coverId,
-      },
-    });
+    await saveBookCoverSelection(bookId, workId, coverId);
   } catch (error) {
     return { status: "error", message: actionError(error) };
   }
@@ -176,40 +170,9 @@ export async function enrichBookMetadata(
     return { status: "error", message: "Invalid book." };
   }
 
-  let book: {
-    id: string;
-    title: string;
-    totalPages: number | null;
-    currentPages: number;
-    publicationYear: number | null;
-    metadataCheckedAt: Date | null;
-    openLibraryWorkId: string | null;
-    openLibraryCoverId: number | null;
-    isbn13: string | null;
-    bookFormat: string | null;
-    seriesName: string | null;
-    seriesPosition: number | null;
-    author: { name: string };
-  } | null;
+  let book: Awaited<ReturnType<typeof getBookEnrichmentSnapshot>>;
   try {
-    book = await prisma.book.findUnique({
-      where: { id: bookId },
-      select: {
-        id: true,
-        title: true,
-        totalPages: true,
-        currentPages: true,
-        publicationYear: true,
-        metadataCheckedAt: true,
-        openLibraryWorkId: true,
-        openLibraryCoverId: true,
-        isbn13: true,
-        bookFormat: true,
-        seriesName: true,
-        seriesPosition: true,
-        author: { select: { name: true } },
-      },
-    });
+    book = await getBookEnrichmentSnapshot(bookId);
   } catch (error) {
     return { status: "error", message: actionError(error) };
   }
@@ -237,67 +200,24 @@ export async function enrichBookMetadata(
   }
 
   const { metadata } = lookup;
-  const checkedAt = new Date();
   try {
-    await prisma.$transaction(async (transaction) => {
-      await transaction.book.update({
-        where: { id: book.id },
-        data: {
-          publicationYear: book.publicationYear ?? metadata?.firstPublishYear,
-          totalPages:
-            book.totalPages ??
-            (metadata?.pageCount !== null &&
-            metadata?.pageCount !== undefined &&
-            book.currentPages <= metadata.pageCount
-              ? metadata.pageCount
-              : undefined),
-          openLibraryWorkId: book.openLibraryWorkId ?? metadata?.workId,
-          openLibraryCoverId: book.openLibraryCoverId ?? metadata?.coverId,
-          isbn13: book.isbn13 ?? metadata?.isbn13,
-          bookFormat: book.bookFormat ?? metadata?.format,
-          seriesName: book.seriesName ?? metadata?.seriesName,
-          seriesPosition: book.seriesPosition ?? metadata?.seriesPosition,
-          metadataCheckedAt: checkedAt,
-        },
-      });
-      if (metadata) {
-        await replaceBookTags(transaction, book.id, "OPEN_LIBRARY", [
-          ...metadata.subjects.map((name) => ({
-            category: BookTagCategory.SUBJECT,
-            name,
-          })),
-          ...metadata.languages.map((name) => ({
-            category: BookTagCategory.LANGUAGE,
-            name,
-          })),
-          ...(metadata.format
-            ? [{ category: BookTagCategory.FORMAT, name: metadata.format }]
-            : []),
-        ]);
-        await transaction.bookMetadataCandidate.deleteMany({
-            where: { bookId: book.id },
-        });
-      } else {
-        await transaction.bookMetadataCandidate.deleteMany({
-            where: { bookId: book.id },
-        });
-        if (lookup.possibleMatches.length > 0) {
-            await transaction.bookMetadataCandidate.createMany({
-              data: lookup.possibleMatches.map((candidate) => ({
-                bookId: book.id,
-                workId: candidate.workId,
-                title: candidate.title,
-                authorNames: JSON.stringify(candidate.authors),
-                subjects: JSON.stringify(candidate.subjects),
-                firstPublishYear: candidate.firstPublishYear,
-                coverId: candidate.coverId,
-                titleSimilarity: candidate.titleSimilarity,
-                authorSimilarity: candidate.authorSimilarity,
-              })),
-            });
-        }
-      }
-    });
+    await saveOpenLibraryMetadata(
+      book.id,
+      {
+        id: book.id,
+        totalPages: book.totalPages,
+        currentPages: book.currentPages,
+        publicationYear: book.publicationYear,
+        openLibraryWorkId: book.openLibraryWorkId,
+        openLibraryCoverId: book.openLibraryCoverId,
+        isbn13: book.isbn13,
+        bookFormat: book.bookFormat,
+        seriesName: book.seriesName,
+        seriesPosition: book.seriesPosition,
+      },
+      metadata,
+      lookup.possibleMatches,
+    );
   } catch (error) {
     return { status: "error", message: actionError(error) };
   }
@@ -325,63 +245,7 @@ export async function applyOpenLibraryCandidate(
   }
 
   try {
-    await prisma.$transaction(async (transaction) => {
-      const candidate = await transaction.bookMetadataCandidate.findFirst({
-        where: { id: candidateId, bookId },
-        select: {
-          workId: true,
-          coverId: true,
-          firstPublishYear: true,
-          subjects: true,
-        },
-      });
-      if (!candidate) throw new Error("This possible match is no longer available.");
-      const book = await transaction.book.findUnique({
-        where: { id: bookId },
-        select: {
-          publicationYear: true,
-          openLibraryCoverId: true,
-        },
-      });
-      if (!book) throw new Error("Book not found.");
-
-      let subjects: unknown;
-      try {
-        subjects = JSON.parse(candidate.subjects);
-      } catch {
-        throw new Error("The saved match has invalid subject data.");
-      }
-      if (
-        !Array.isArray(subjects) ||
-        !subjects.every((subject) => typeof subject === "string")
-      ) {
-        throw new Error("The saved match has invalid subject data.");
-      }
-
-      await transaction.book.update({
-        where: { id: bookId },
-        data: {
-          openLibraryWorkId: candidate.workId,
-          openLibraryCoverId: candidate.coverId ?? book.openLibraryCoverId,
-          publicationYear:
-            book.publicationYear ?? candidate.firstPublishYear ?? undefined,
-          metadataCheckedAt: new Date(),
-        },
-      });
-      await replaceBookTags(
-        transaction,
-        bookId,
-        "OPEN_LIBRARY",
-        subjects.map((name) => ({
-          category: BookTagCategory.SUBJECT,
-          name,
-        })),
-        BookTagCategory.SUBJECT,
-      );
-      await transaction.bookMetadataCandidate.deleteMany({
-        where: { bookId },
-      });
-    });
+    await applyOpenLibraryCandidateMatch(bookId, candidateId);
   } catch (error) {
     return { status: "error", message: actionError(error) };
   }
@@ -428,19 +292,7 @@ export async function saveManualBookTags(
   }
 
   try {
-    await prisma.$transaction(async (transaction) => {
-      await transaction.book.findUniqueOrThrow({
-        where: { id: bookId },
-        select: { id: true },
-      });
-      await replaceBookTags(
-        transaction,
-        bookId,
-        "LIBRARY",
-        names.map((name) => ({ category: BookTagCategory.SUBJECT, name })),
-        BookTagCategory.SUBJECT,
-      );
-    });
+    await saveManualSubjectTags(bookId, names);
   } catch (error) {
     return { status: "error", message: actionError(error) };
   }
@@ -464,15 +316,8 @@ export async function deleteManualBookTag(
   }
 
   try {
-    const result = await prisma.bookTag.deleteMany({
-      where: {
-        bookId,
-        tagId,
-        source: "LIBRARY",
-        tag: { category: BookTagCategory.SUBJECT },
-      },
-    });
-    if (result.count === 0) {
+    const { deleted } = await deleteManualSubjectTag(bookId, tagId);
+    if (!deleted) {
       return {
         status: "error",
         message: "Manual tag not found on this book.",
@@ -507,58 +352,7 @@ export async function mergeSimilarTags(
   }
 
   try {
-    await prisma.$transaction(async (transaction) => {
-      const [keepTag, mergeTag] = await Promise.all([
-        transaction.tag.findUnique({ where: { id: keepTagId } }),
-        transaction.tag.findUnique({ where: { id: mergeTagId } }),
-      ]);
-      if (!keepTag || !mergeTag) {
-        throw new Error("One of the selected tags no longer exists.");
-      }
-      if (keepTag.category !== mergeTag.category) {
-        throw new Error("Tags from different categories cannot be merged.");
-      }
-
-      const relationships = await transaction.bookTag.findMany({
-        where: { tagId: mergeTag.id },
-        select: { bookId: true, source: true },
-      });
-      for (const relationship of relationships) {
-        const existing = await transaction.bookTag.findUnique({
-          where: {
-            bookId_tagId_source: {
-              bookId: relationship.bookId,
-              tagId: keepTag.id,
-              source: relationship.source,
-            },
-          },
-          select: { bookId: true },
-        });
-        if (existing) {
-          await transaction.bookTag.delete({
-            where: {
-              bookId_tagId_source: {
-                bookId: relationship.bookId,
-                tagId: mergeTag.id,
-                source: relationship.source,
-              },
-            },
-          });
-        } else {
-          await transaction.bookTag.update({
-            where: {
-              bookId_tagId_source: {
-                bookId: relationship.bookId,
-                tagId: mergeTag.id,
-                source: relationship.source,
-              },
-            },
-            data: { tagId: keepTag.id },
-          });
-        }
-      }
-      await transaction.tag.delete({ where: { id: mergeTag.id } });
-    });
+    await mergeTags(keepTagId, mergeTagId);
   } catch (error) {
     return { status: "error", message: actionError(error) };
   }
@@ -586,10 +380,7 @@ export async function saveAuthorPhoto(
 
   let book: { authorId: string } | null;
   try {
-    book = await prisma.book.findUnique({
-      where: { id: bookId },
-      select: { authorId: true },
-    });
+    book = await getBookAuthorId(bookId);
   } catch (error) {
     return { status: "error", message: actionError(error) };
   }
@@ -604,17 +395,7 @@ export async function saveAuthorPhoto(
         message: "The selected photo is not listed on this Open Library author record.",
       };
     }
-    await prisma.author.update({
-      where: { id: book.authorId },
-      data: {
-        wikidataId: null,
-        portraitUrl: photoUrl,
-        portraitSourceUrl: sourceUrl,
-        portraitArtist: null,
-        portraitLicense: null,
-        portraitLicenseUrl: null,
-      },
-    });
+    await updateAuthorPortrait(book.authorId, photoUrl, sourceUrl);
   } catch (error) {
     return { status: "error", message: actionError(error) };
   }

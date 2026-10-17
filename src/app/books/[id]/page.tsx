@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { getBookDetail } from "@/lib/books";
+import { getSubjectTagOptions } from "@/lib/tags";
 import BookCover from "@/components/BookCover";
 import BookDetailsForm from "@/components/BookDetailsForm";
 import BookRecommendations from "@/components/BookRecommendations";
@@ -17,23 +18,8 @@ export default async function BookDetailPage({
 }) {
   const { id } = await params;
   const [book, existingSubjectTags] = await Promise.all([
-    prisma.book.findUnique({
-      where: { id },
-      include: {
-        author: true,
-        genre: true,
-        tags: { include: { tag: true } },
-      },
-    }),
-    prisma.tag.findMany({
-      where: {
-        category: "SUBJECT",
-        books: { some: {} },
-      },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-      take: 500,
-    }),
+    getBookDetail(id),
+    getSubjectTagOptions(),
   ]);
 
   if (!book) notFound();

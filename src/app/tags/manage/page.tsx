@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import SimilarTagReview from "@/components/SimilarTagReview";
-import { prisma } from "@/lib/prisma";
+import { getUsedTags } from "@/lib/tags";
 import { findSimilarTagPairs } from "@/lib/tag-similarity";
 
 export default function ManageTagsPage() {
@@ -13,20 +13,7 @@ export default function ManageTagsPage() {
 }
 
 async function ManageTagsContent() {
-  const storedTags = await prisma.tag.findMany({
-    where: { books: { some: {} } },
-    select: {
-      id: true,
-      name: true,
-      category: true,
-      books: { select: { bookId: true } },
-    },
-    orderBy: [{ category: "asc" }, { name: "asc" }],
-  });
-  const tags = storedTags.map(({ books, ...tag }) => ({
-    ...tag,
-    count: new Set(books.map(({ bookId }) => bookId)).size,
-  }));
+  const tags = await getUsedTags();
   const tagsByCategory = new Map<string, typeof tags>();
   for (const tag of tags) {
     tagsByCategory.set(tag.category, [

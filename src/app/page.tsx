@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import { prisma } from "@/lib/prisma"; // Step 2.3 singleton — never `new PrismaClient()` in app code
+import {
+  getAvailableReadingYears,
+  getBooksByReadingYear,
+  type DashboardBook,
+} from "@/lib/books";
+import { getUsedTags } from "@/lib/tags";
 import BookCard from "@/components/BookCard";
 import BookCover from "@/components/BookCover";
 import CompleteBookForm from "@/components/CompleteBookForm";
@@ -20,7 +25,6 @@ import {
   type DashboardSort,
   type SortDirection,
 } from "@/lib/dashboard";
-import type { Prisma } from "@prisma/client";
 
 type DashboardSearchParams = PageProps<"/">["searchParams"];
 
@@ -108,38 +112,20 @@ async function DashboardContent({
     view === "list" ? "asc" : "desc",
   );
 
-  const availableYears = await prisma.book.findMany({
-    select: { readingYear: true },
-    distinct: ["readingYear"],
-    orderBy: { readingYear: "asc" },
-  });
+  const availableYears = await getAvailableReadingYears();
   const latestYear = availableYears.at(-1)?.readingYear;
   const year = requestedYearIsValid
     ? requestedYear
     : (latestYear ?? PRE_TAB_READING_YEAR_SENTINEL);
   const [unsortedBooks, kpis, storedTags] = await Promise.all([
-    prisma.book.findMany({
-      where: { readingYear: year },
-      include: { author: true, genre: true },
-    }),
+    getBooksByReadingYear(year),
     getYearKpis(year),
-    prisma.tag.findMany({
-      where: { books: { some: {} } },
-      select: {
-        id: true,
-        name: true,
-        category: true,
-        books: { select: { bookId: true } },
-      },
-    }),
+    getUsedTags(),
   ]);
-  const tags = storedTags
-    .map(({ books, ...tag }) => ({
-      ...tag,
-      count: new Set(books.map(({ bookId }) => bookId)).size,
-    }))
-    .filter((tag) => tag.count > 0)
-    .sort((left, right) => right.count - left.count || left.name.localeCompare(right.name));
+  const tags = [...storedTags].sort(
+    (left, right) =>
+      right.count - left.count || left.name.localeCompare(right.name),
+  );
   const books = sortDashboardBooks(unsortedBooks, sort, direction);
   const years = Array.from(
     new Set([...availableYears.map(({ readingYear }) => readingYear), year]),
@@ -261,15 +247,11 @@ async function DashboardContent({
   );
 }
 
-type DashboardBook = Prisma.BookGetPayload<{
-  include: { author: true; genre: true };
-}>[];
-
 function BookList({
   books,
   year,
 }: {
-  books: DashboardBook;
+  books: DashboardBook[];
   year: number;
 }) {
   if (books.length === 0) {
@@ -378,7 +360,7 @@ function BookGrid({
   books,
   year,
 }: {
-  books: DashboardBook;
+  books: DashboardBook[];
   year: number;
 }) {
   if (books.length === 0) {
