@@ -59,6 +59,12 @@ export default function DashboardPage(props: PageProps<"/">) {
             Open Library tag report
           </Link>
           <Link
+            href="/reports/open-library-matches"
+            className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+          >
+            Possible Open Library matches
+          </Link>
+          <Link
             href="/tags/manage"
             className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
           >

@@ -10,6 +10,7 @@
     "test": "node --import tsx --test src/lib/dashboard.test.ts src/lib/book-search.test.ts src/lib/book-recommendations.test.ts src/lib/book-tags.test.ts src/lib/csv.test.ts src/lib/tag-similarity.test.ts src/lib/ingestion/workbook-parser.test.ts src/lib/open-library-images.test.ts",
     "validate:ingestion": "tsx --tsconfig tsconfig.json src/scripts/validate-ingestion.ts",
     "backfill:book-tags": "tsx --tsconfig tsconfig.json src/scripts/backfill-book-tags.ts",
+    "enrich:open-library": "tsx --tsconfig tsconfig.json src/scripts/enrich-open-library-metadata.ts",
     "cleanup:books": "tsx --tsconfig tsconfig.json src/scripts/cleanup-invalid-books.ts",
     "postinstall": "prisma generate || exit 0"
   },

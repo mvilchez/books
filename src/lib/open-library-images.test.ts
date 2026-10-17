@@ -8,11 +8,14 @@ import {
   getOpenLibraryWorkUrl,
   normalizeOpenLibraryName,
   openLibraryAuthorMatches,
+  openLibraryAuthorSimilarity,
   openLibraryTitleMatches,
+  openLibraryTitleSimilarity,
   parseOpenLibraryAuthorCandidates,
   parseOpenLibraryAuthorProfile,
   parseOpenLibraryBookCandidates,
   parseOpenLibraryBookMetadata,
+  parseOpenLibraryPossibleMatches,
   parseOpenLibraryRecommendationCandidates,
   prioritizeOpenLibraryAuthorCandidates,
   searchOpenLibraryRecommendations,
@@ -188,6 +191,42 @@ test("metadata title matching accepts close variants and rejects unrelated title
   assert.equal(
     openLibraryTitleMatches("Cien años de soledad", "El amor en los tiempos del cólera"),
     false,
+  );
+});
+
+test("possible metadata matches rank similar titles and authors", () => {
+  const possibleMatches = parseOpenLibraryPossibleMatches(
+    {
+      docs: [
+        {
+          key: "/works/OL1W",
+          title: "Cien anos de soleded",
+          author_name: ["Gabriel García Marquez"],
+          first_publish_year: 1967,
+          subject: ["Novel"],
+        },
+        {
+          key: "/works/OL2W",
+          title: "A completely unrelated book",
+          author_name: ["Someone Else"],
+        },
+      ],
+    },
+    "Cien años de soledad",
+    "Gabriel Garcia Marquez",
+  );
+
+  assert.equal(possibleMatches.length, 1);
+  assert.equal(possibleMatches[0].workId, "OL1W");
+  assert.equal(possibleMatches[0].firstPublishYear, 1967);
+  assert.deepEqual(possibleMatches[0].subjects, ["Novel"]);
+  assert.ok(possibleMatches[0].titleSimilarity >= 0.8);
+  assert.ok(possibleMatches[0].authorSimilarity >= 0.9);
+  assert.equal(openLibraryTitleSimilarity("The Hobbit", "Hobbit"), 1);
+  assert.ok(openLibraryAuthorSimilarity("J. K. Rowling", ["Joanne K Rowling"]) > 0.8);
+  assert.throws(
+    () => parseOpenLibraryPossibleMatches({ docs: null }, "Title", "Author"),
+    /malformed metadata search/,
   );
 });
 

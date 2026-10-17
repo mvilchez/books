@@ -7,13 +7,12 @@ import {
   getOpenLibraryAuthorPhotoUrl,
   getOpenLibraryAuthorUrl,
   getOpenLibraryWorkUrl,
-  searchOpenLibraryMetadata,
+  searchOpenLibraryBookLookup,
   searchOpenLibraryAuthorPhotos,
   searchOpenLibraryBooks,
   searchOpenLibraryRecommendations,
   type OpenLibraryAuthorPhotoCandidate,
   type OpenLibraryBookCandidate,
-  type OpenLibraryBookMetadata,
   type OpenLibraryRecommendationResult,
 } from "@/lib/open-library-images";
 import { BookTagCategory } from "@prisma/client";
@@ -225,9 +224,9 @@ export async function enrichBookMetadata(
     };
   }
 
-  let metadata: OpenLibraryBookMetadata | null;
+  let lookup: Awaited<ReturnType<typeof searchOpenLibraryBookLookup>>;
   try {
-    metadata = await searchOpenLibraryMetadata(
+    lookup = await searchOpenLibraryBookLookup(
       book.title,
       book.author.name,
       book.totalPages,
@@ -237,6 +236,7 @@ export async function enrichBookMetadata(
     return { status: "error", message: actionError(error) };
   }
 
+  const { metadata } = lookup;
   const checkedAt = new Date();
   try {
     await prisma.$transaction(async (transaction) => {
@@ -274,6 +274,28 @@ export async function enrichBookMetadata(
             ? [{ category: BookTagCategory.FORMAT, name: metadata.format }]
             : []),
         ]);
+        await transaction.bookMetadataCandidate.deleteMany({
+            where: { bookId: book.id },
+        });
+      } else {
+        await transaction.bookMetadataCandidate.deleteMany({
+            where: { bookId: book.id },
+        });
+        if (lookup.possibleMatches.length > 0) {
+            await transaction.bookMetadataCandidate.createMany({
+              data: lookup.possibleMatches.map((candidate) => ({
+                bookId: book.id,
+                workId: candidate.workId,
+                title: candidate.title,
+                authorNames: JSON.stringify(candidate.authors),
+                subjects: JSON.stringify(candidate.subjects),
+                firstPublishYear: candidate.firstPublishYear,
+                coverId: candidate.coverId,
+                titleSimilarity: candidate.titleSimilarity,
+                authorSimilarity: candidate.authorSimilarity,
+              })),
+            });
+        }
       }
     });
   } catch (error) {
@@ -291,6 +313,88 @@ export async function enrichBookMetadata(
         ? "Book metadata was matched and saved from Open Library."
         : "No exact title-and-author match was found; no external metadata was applied.",
     },
+  };
+}
+
+export async function applyOpenLibraryCandidate(
+  bookId: string,
+  candidateId: string,
+): Promise<ActionResult<null>> {
+  if (!bookId || !candidateId) {
+    return { status: "error", message: "Invalid book or Open Library match." };
+  }
+
+  try {
+    await prisma.$transaction(async (transaction) => {
+      const candidate = await transaction.bookMetadataCandidate.findFirst({
+        where: { id: candidateId, bookId },
+        select: {
+          workId: true,
+          coverId: true,
+          firstPublishYear: true,
+          subjects: true,
+        },
+      });
+      if (!candidate) throw new Error("This possible match is no longer available.");
+      const book = await transaction.book.findUnique({
+        where: { id: bookId },
+        select: {
+          publicationYear: true,
+          openLibraryCoverId: true,
+        },
+      });
+      if (!book) throw new Error("Book not found.");
+
+      let subjects: unknown;
+      try {
+        subjects = JSON.parse(candidate.subjects);
+      } catch {
+        throw new Error("The saved match has invalid subject data.");
+      }
+      if (
+        !Array.isArray(subjects) ||
+        !subjects.every((subject) => typeof subject === "string")
+      ) {
+        throw new Error("The saved match has invalid subject data.");
+      }
+
+      await transaction.book.update({
+        where: { id: bookId },
+        data: {
+          openLibraryWorkId: candidate.workId,
+          openLibraryCoverId: candidate.coverId ?? book.openLibraryCoverId,
+          publicationYear:
+            book.publicationYear ?? candidate.firstPublishYear ?? undefined,
+          metadataCheckedAt: new Date(),
+        },
+      });
+      await replaceBookTags(
+        transaction,
+        bookId,
+        "OPEN_LIBRARY",
+        subjects.map((name) => ({
+          category: BookTagCategory.SUBJECT,
+          name,
+        })),
+        BookTagCategory.SUBJECT,
+      );
+      await transaction.bookMetadataCandidate.deleteMany({
+        where: { bookId },
+      });
+    });
+  } catch (error) {
+    return { status: "error", message: actionError(error) };
+  }
+
+  revalidatePath("/");
+  revalidatePath("/stats");
+  revalidatePath("/reports/open-library-matches");
+  revalidatePath("/reports/open-library-tags");
+  revalidatePath(`/books/${bookId}`);
+  return {
+    status: "success",
+    data: null,
+    message: "The selected Open Library match was applied.",
   };
 }
 

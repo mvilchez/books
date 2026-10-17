@@ -34,6 +34,22 @@ export type OpenLibraryBookMetadata = {
   seriesPosition: number | null;
 };
 
+export type OpenLibraryMetadataCandidate = {
+  workId: string;
+  title: string;
+  authors: string[];
+  subjects: string[];
+  firstPublishYear: number | null;
+  coverId: number | null;
+  titleSimilarity: number;
+  authorSimilarity: number;
+};
+
+export type OpenLibraryBookLookup = {
+  metadata: OpenLibraryBookMetadata | null;
+  possibleMatches: OpenLibraryMetadataCandidate[];
+};
+
 export type OpenLibraryAuthorCandidate = {
   authorId: string;
   name: string;
@@ -197,6 +213,50 @@ export function openLibraryTitleMatches(
   );
 }
 
+export function openLibraryTitleSimilarity(
+  requestedTitle: string,
+  candidateTitle: string,
+): number {
+  const requested = normalizeBookTitle(requestedTitle);
+  const candidate = normalizeBookTitle(candidateTitle);
+  if (!requested || !candidate) return 0;
+  if (requested === candidate) return 1;
+
+  const requestedTokens = requested.split(" ");
+  const candidateTokens = candidate.split(" ");
+  const tokenOverlap =
+    requestedTokens.length > 1 && candidateTokens.length > 1
+      ? (() => {
+          const remaining = new Map<string, number>();
+          for (const token of candidateTokens) {
+            remaining.set(token, (remaining.get(token) ?? 0) + 1);
+          }
+          let matches = 0;
+          for (const token of requestedTokens) {
+            const count = remaining.get(token) ?? 0;
+            if (count === 0) continue;
+            remaining.set(token, count - 1);
+            matches++;
+          }
+          return matches / Math.max(requestedTokens.length, candidateTokens.length);
+        })()
+      : 0;
+  return Math.max(editSimilarity(requested, candidate), tokenOverlap);
+}
+
+function authorNameSimilarity(left: string, right: string): number {
+  const normalizedLeft = normalizeOpenLibraryName(left);
+  const normalizedRight = normalizeOpenLibraryName(right);
+  if (!normalizedLeft || !normalizedRight) return 0;
+  if (authorNameMatches(normalizedLeft, normalizedRight)) return 1;
+  const sortedLeft = normalizedLeft.split(" ").sort().join(" ");
+  const sortedRight = normalizedRight.split(" ").sort().join(" ");
+  return Math.max(
+    editSimilarity(sortedLeft, sortedRight),
+    editSimilarity(normalizedLeft, normalizedRight),
+  );
+}
+
 export function openLibraryAuthorMatches(
   requestedAuthor: string,
   candidateAuthors: readonly string[],
@@ -210,6 +270,24 @@ export function openLibraryAuthorMatches(
       ),
     );
   });
+}
+
+export function openLibraryAuthorSimilarity(
+  requestedAuthor: string,
+  candidateAuthors: readonly string[],
+): number {
+  const requestedNames = authorNameParts(requestedAuthor);
+  if (requestedNames.length === 0) return 0;
+  return Math.max(
+    0,
+    ...candidateAuthors.flatMap((candidateAuthor) =>
+      authorNameParts(candidateAuthor).flatMap((candidateName) =>
+        requestedNames.map((requestedName) =>
+          authorNameSimilarity(requestedName, candidateName),
+        ),
+      ),
+    ),
+  );
 }
 
 function positiveInteger(value: unknown): number | null {
@@ -373,6 +451,69 @@ export function parseOpenLibraryBookMetadata(
   };
 }
 
+export function parseOpenLibraryPossibleMatches(
+  value: unknown,
+  requestedTitle: string,
+  requestedAuthor: string,
+): OpenLibraryMetadataCandidate[] {
+  const root = record(value);
+  if (!Array.isArray(root?.docs)) {
+    throw new Error("Open Library returned malformed metadata search results.");
+  }
+
+  return root.docs
+    .slice(0, 50)
+    .map(record)
+    .filter((doc): doc is Record<string, unknown> => doc !== null)
+    .flatMap((doc) => {
+      if (
+        typeof doc.key !== "string" ||
+        !/^\/works\/OL\d+W$/.test(doc.key) ||
+        typeof doc.title !== "string" ||
+        !doc.title.trim()
+      ) {
+        return [];
+      }
+      const authors = stringArray(doc.author_name).slice(0, 10);
+      const titleSimilarity = openLibraryTitleSimilarity(
+        requestedTitle,
+        doc.title,
+      );
+      const authorSimilarity = openLibraryAuthorSimilarity(
+        requestedAuthor,
+        authors,
+      );
+      if (
+        titleSimilarity < 0.55 ||
+        (titleSimilarity < 0.8 && authorSimilarity < 0.55)
+      ) {
+        return [];
+      }
+      return [
+        {
+          workId: doc.key.slice("/works/".length),
+          title: doc.title.trim(),
+          authors,
+          subjects: stringArray(doc.subject)
+            .map((subject) => subject.trim())
+            .filter(Boolean)
+            .slice(0, 10),
+          firstPublishYear: publicationYear(doc.first_publish_year),
+          coverId: positiveInteger(doc.cover_i),
+          titleSimilarity,
+          authorSimilarity,
+        },
+      ];
+    })
+    .sort(
+      (left, right) =>
+        right.titleSimilarity + right.authorSimilarity -
+          (left.titleSimilarity + left.authorSimilarity) ||
+        left.title.localeCompare(right.title),
+    )
+    .slice(0, 5);
+}
+
 export function parseOpenLibraryBookCandidates(
   value: unknown,
 ): OpenLibraryBookCandidate[] {
@@ -520,6 +661,22 @@ export async function searchOpenLibraryMetadata(
   knownPageCount: number | null,
   knownPublicationYear: number | null,
 ): Promise<OpenLibraryBookMetadata | null> {
+  return (
+    await searchOpenLibraryBookLookup(
+      title,
+      author,
+      knownPageCount,
+      knownPublicationYear,
+    )
+  ).metadata;
+}
+
+export async function searchOpenLibraryBookLookup(
+  title: string,
+  author: string,
+  knownPageCount: number | null,
+  knownPublicationYear: number | null,
+): Promise<OpenLibraryBookLookup> {
   const url = new URL("/search.json", OPEN_LIBRARY_ORIGIN);
   url.search = new URLSearchParams({
     title,
@@ -528,13 +685,21 @@ export async function searchOpenLibraryMetadata(
     fields:
       "key,title,author_name,cover_i,first_publish_year,subject,language,editions,editions.key,editions.title,editions.number_of_pages,editions.physical_format,editions.isbn_13,editions.publish_date",
   }).toString();
-  return parseOpenLibraryBookMetadata(
-    await fetchJson(url),
-    title,
-    author,
-    knownPageCount,
-    knownPublicationYear,
-  );
+  const response = await fetchJson(url);
+  return {
+   metadata: parseOpenLibraryBookMetadata(
+     response,
+     title,
+     author,
+     knownPageCount,
+     knownPublicationYear,
+   ),
+   possibleMatches: parseOpenLibraryPossibleMatches(
+     response,
+     title,
+     author,
+   ),
+  };
 }
 
 export async function searchOpenLibraryRecommendations(
