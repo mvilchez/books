@@ -194,6 +194,50 @@ it is never hard-coded in the script. Pair this with
 `scripts/connect-skysql.sh` when you need an interactive cloud session instead
 of a file backup.
 
+### Restoring a backup into the local database
+
+Backups under `db/backups/` are plain SQL dumps (gzipped). To restore one into
+a local MariaDB database, pipe the dump through the `mariadb` client. The dumps
+are produced with `--skip-add-drop-table` and without `CREATE DATABASE`/`USE`
+statements, so the target database must exist and be **empty** — restore into a
+fresh database, not on top of an existing one.
+
+```bash
+# 1. Create an empty target database (skip if it already exists and is empty)
+mariadb --host=127.0.0.1 --port=3306 --user=book \
+  -e "CREATE DATABASE IF NOT EXISTS reading_tracker_local;"
+
+# 2. Load the dump into it (.sql.gz is piped straight through gunzip)
+gunzip -c db/backups/reading_tracker_cloud_20261018_122349.sql.gz | \
+  mariadb --host=127.0.0.1 --port=3306 --user=book reading_tracker_local
+```
+
+The client prompts for the password (never pass it on the command line). Both
+local (`reading_tracker_*.sql.gz`) and cloud (`reading_tracker_cloud_*.sql.gz`)
+dumps restore the same way — they share the same schema, so a cloud dump can
+seed or replace the local database.
+
+Because the dumps contain no `DROP TABLE` statements, restoring into a
+non-empty database fails with "table already exists". In that case drop and
+recreate the target first (this deletes its data):
+
+```bash
+mariadb --host=127.0.0.1 --port=3306 --user=book \
+  -e "DROP DATABASE reading_tracker_local; CREATE DATABASE reading_tracker_local;"
+```
+
+Verify the restore by counting tables and rows:
+
+```bash
+mariadb --host=127.0.0.1 --port=3306 --user=book -e "
+  SELECT COUNT(*) AS tables FROM information_schema.tables
+    WHERE table_schema = 'reading_tracker_local';
+  SELECT COUNT(*) AS books FROM reading_tracker_local.Book;"
+```
+
+After restoring, run `npx prisma migrate deploy` if the dump predates recent
+schema migrations, then start the app with `npm run dev`.
+
 ### Switching databases
 
 **`scripts/switch-db.sh`** (npm: `switch-db`) — Toggle the app's active
