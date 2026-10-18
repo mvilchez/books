@@ -11,6 +11,10 @@
     "test": "node --import tsx --test src/lib/dashboard.test.ts src/lib/book-search.test.ts src/lib/book-recommendations.test.ts src/lib/book-tags.test.ts src/lib/csv.test.ts src/lib/tag-similarity.test.ts src/lib/ingestion/workbook-parser.test.ts src/lib/open-library-images.test.ts src/lib/book-synopsis.test.ts",
     "validate:ingestion": "tsx --tsconfig tsconfig.json src/scripts/validate-ingestion.ts",
     "backfill:book-tags": "tsx --tsconfig tsconfig.json src/scripts/backfill-book-tags.ts",
+    "backup:postgresql": "bash scripts/backup-to-postgresql.sh",
+    "backup:local": "bash scripts/backup-local.sh",
+    "backup:cloud-local": "bash scripts/backup-cloud-local.sh",
+    "switch-db": "bash scripts/switch-db.sh",
     "enrich:open-library": "tsx --tsconfig tsconfig.json src/scripts/enrich-open-library-metadata.ts",
     "cleanup:books": "tsx --tsconfig tsconfig.json src/scripts/cleanup-invalid-books.ts",
     "postinstall": "prisma generate || exit 0"
@@ -26,12 +30,12 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
+    "prisma": "^6.19.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
-    "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5"

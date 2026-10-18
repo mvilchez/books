@@ -3,6 +3,7 @@
 //
 // Stable Prisma (v6) + MariaDB, driven by Prisma's `mysql` provider (there is
 // no "mariadb" provider — MariaDB uses the `mysql` provider).
+// Use this file for local MariaDB or SkySQL/Aiven MariaDB cloud.
 //
 // Replaces the multi-tab Excel ledger with a normalized relational model:
 //   Author (1) ──< Book (M) ──> Genre (0..1)
@@ -20,7 +21,7 @@
 // ---------------------------------------------------------------------------
 
 datasource db {
-  provider = "mysql" // MariaDB is driven by Prisma's "mysql" provider
+  provider = "postgresql" // MariaDB is driven by Prisma's "mysql" provider
   url      = env("DATABASE_URL")
 }
 

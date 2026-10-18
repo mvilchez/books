@@ -108,6 +108,194 @@ edition matches. Nothing is deleted unless explicitly requested:
 npm run cleanup:books -- --execute
 ```
 
+## Scripts
+
+All scripts live under `scripts/` and most are also exposed as npm scripts.
+
+### Database scripts
+
+**`scripts/connect-skysql.sh`** — Open an interactive MariaDB client session to the
+production SkySQL instance.
+
+```bash
+./scripts/connect-skysql.sh
+# with an extra argument, e.g. select a database:
+./scripts/connect-skysql.sh reading_tracker
+```
+
+Connects to `serverless-us-east1.sysp0000.db2.skysql.com:4014` as user
+`dbpgf14648016`, verifies the server certificate, and prompts for the database
+password. Requires the `mariadb` CLI client. This is a separate connection from
+the app's Prisma `DATABASE_URL` and does not change the app's configuration.
+
+**`scripts/backup-local.sh`** (npm: `backup:local`) — One-shot backup of the local
+MariaDB database to `db/backups/` as a timestamped, gzipped SQL dump.
+
+```bash
+npm run backup:local
+# or, with explicit credentials:
+DATABASE_URL="mysql://book:password@127.0.0.1:3306/reading_tracker_local" \
+  ./scripts/backup-local.sh
+```
+
+Writes `db/backups/reading_tracker_YYYYMMDD_HHMMSS.sql.gz` and keeps the newest
+10 backups (override with `KEEP_COUNT`). Set `COMPRESS=0` to skip gzip. Read-only
+for the source database; safe to run before schema changes or deploys.
+
+**`scripts/backup-cloud-local.sh`** (npm: `backup:cloud-local`) — Dump a MariaDB
+cloud instance (SkySQL / Aiven / any managed MariaDB) to a local SQL file under
+`db/backups/`. Read-only for the cloud database; never writes to the source.
+
+```bash
+# Preferred: pass the full cloud URL (must start with mysql://)
+CLOUD_DB_URL="mysql://USER:PASS@HOST:PORT/DB?sslaccept=strict" \
+  npm run backup:cloud-local
+
+# Or with individual variables (defaults match scripts/connect-skysql.sh):
+CLOUD_DB_HOST=serverless-us-east1.sysp0000.db2.skysql.com \
+CLOUD_DB_PORT=4014 CLOUD_DB_USER=dbpgf14648016 \
+CLOUD_DB_NAME=reading_tracker CLOUD_DB_PASSWORD=... \
+  npm run backup:cloud-local
+```
+
+Writes `db/backups/reading_tracker_cloud_YYYYMMDD_HHMMSS.sql.gz` and keeps the
+newest 10 backups (override with `KEEP_COUNT`). Set `COMPRESS=0` to skip gzip.
+The cloud password must be supplied via `CLOUD_DB_URL` or `CLOUD_DB_PASSWORD` —
+it is never hard-coded in the script. Pair this with
+`scripts/connect-skysql.sh` when you need an interactive cloud session instead
+of a file backup.
+
+**`scripts/backup-to-postgresql.sh`** (npm: `backup:postgresql`) — One-way migration
+of the reading-tracker ledger from MariaDB (local or SkySQL) to PostgreSQL
+(Neon DB, Aiven PostgreSQL, or any managed Postgres). See Phase 4, Step 4.4 in
+[PLAN.md](PLAN.md#phase-4-cloud-engine-provisioning--production-pipelines).
+
+```bash
+MARIADB_URL="mysql://book:password@127.0.0.1:3306/reading_tracker_local" \
+PG_DATABASE_URL="postgresql://user:pass@host.region.neon.tech/db?sslmode=require&pgbouncer=true&connection_limit=1" \
+npm run backup:postgresql
+```
+
+1. Requires `prisma/schema.prisma` to use `provider = "postgresql"` (run
+   `npx prisma generate` first).
+2. Runs `prisma db push` against PostgreSQL to create the schema.
+3. Dumps **data only** from MariaDB in foreign-key-safe order
+   (Author → Genre → Tag → Book → BookTag → BookMetadataCandidate).
+4. Normalizes the dump for PostgreSQL and loads it inside a single transaction.
+5. Verifies per-table row counts on both databases.
+
+Read-only for MariaDB (never writes to the source); the PostgreSQL target is
+loaded into, so back it up before running.
+
+Writes `db/backups/reading_tracker_cloud_YYYYMMDD_HHMMSS.sql.gz` and keeps the
+newest 10 backups (override with `KEEP_COUNT`). Set `COMPRESS=0` to skip gzip.
+The cloud password must be supplied via `CLOUD_DB_URL` or `CLOUD_DB_PASSWORD` —
+it is never hard-coded in the script. Pair this with
+`scripts/connect-skysql.sh` when you need an interactive cloud session instead
+of a file backup.
+
+### Switching databases
+
+**`scripts/switch-db.sh`** (npm: `switch-db`) — Toggle the app's active
+`DATABASE_URL` (in `.env`, the dev config) between a local database and a
+remote database. `.env.production` is treated as a read-only registry that
+holds both remote URLs and is never overwritten:
+
+*   `DATABASE_URL` → MariaDB cloud (SkySQL / Aiven)
+*   `POSTGRES_URL` → NeonDB (PostgreSQL)
+
+```bash
+# Local MariaDB (dev default)
+npm run switch-db local
+
+# MariaDB cloud (SkySQL / Aiven) — reads DATABASE_URL from .env.production
+npm run switch-db cloud
+
+# NeonDB (PostgreSQL) — reads POSTGRES_URL from .env.production
+npm run switch-db neon
+
+# Show current configuration
+npm run switch-db status
+```
+
+You can also pass an explicit URL as the second argument to override:
+
+```bash
+npm run switch-db cloud  "mysql://user:pass@host:4014/db?sslaccept=strict"
+npm run switch-db neon   "postgresql://user:pass@host.region.neon.tech/db?sslmode=require"
+```
+
+The script switches the Prisma provider in `prisma/schema.prisma` (`mysql` ↔
+`postgresql`) in place and runs `npx prisma generate` automatically when moving
+between MariaDB and PostgreSQL. The connection URL is read from `DATABASE_URL`
+in the environment (`.env` for dev).
+
+After switching, apply the schema to the target database:
+- Local/dev: `npx prisma db push`
+- Production/cloud: `npx prisma migrate deploy`
+
+> **Provider switch and P3019:** `prisma/migrations/` is provider-specific —
+> `migration_lock.toml` records the provider the migrations were created for
+> (in this repo, `mysql`). If you switch to `postgresql` and run
+> `npx prisma migrate deploy`, Prisma fails with error **P3019** (provider
+> mismatch). To start fresh on PostgreSQL, remove the migration lock (and
+> optionally the old MySQL migrations) and use `db push` instead:
+>
+> ```bash
+> npm run switch-db neon
+> rm prisma/migrations/migration_lock.toml
+> rm -rf prisma/migrations/     # optional: remove old MySQL migrations
+> npx prisma db push            # creates the schema in NeonDB
+> ```
+>
+> `switch-db.sh` prints this warning automatically when it detects a provider
+> mismatch with `migration_lock.toml`.
+
+> `.env` and `.env.production` are gitignored — credentials never reach the
+> repository. `.env.production` already holds `DATABASE_URL` (SkySQL MariaDB)
+> and `POSTGRES_URL` (NeonDB); use `cloud` or `neon` to activate either
+> without typing the full URL.
+
+### Data scripts
+
+**`npm run validate:ingestion`** — Parses the source workbook (`telemetry_sandbox/source.xlsx`
+by default, or pass a path) and validates the ingestion layer with no database
+required. See the [Ingestion Sandbox](#ingestion-sandbox-step-12) section.
+
+**`npm run backfill:book-tags`** — Turns existing genres and known e-book origins
+into database-backed tags. Run once after applying the schema.
+
+**`npm run enrich:open-library`** — Fetches Open Library metadata for books.
+
+**`npm run cleanup:books`** — Detects and (optionally) removes duplicate reading
+entries and imported summary/footer rows. Run `npm run cleanup:books` for a
+dry-run, or add `-- --execute` to actually delete. See the
+[Remove imported summary rows](#remove-imported-summary-rows) section.
+
+### Utility scripts
+
+**`scripts/check-encapsulation.sh`** (npm: `check:encapsulation`) — Verifies
+module encapsulation rules.
+
+### npm script reference
+
+| npm script | What it does |
+|---|---|
+| `dev` | Start Next.js dev server |
+| `build` | Production build |
+| `start` | Production server (`next start`, loads `.env.production`) |
+| `lint` | Run ESLint |
+| `test` | Run the unit test suite |
+| `validate:ingestion` | Parse and validate the source workbook |
+| `backfill:book-tags` | Backfill database tags from genres/origins |
+| `enrich:open-library` | Enrich books with Open Library metadata |
+| `cleanup:books` | Remove duplicate/summary rows (add `-- --execute` to delete) |
+| `backup:local` | Dump local MariaDB to `db/backups/` |
+| `backup:cloud-local` | Dump MariaDB cloud (SkySQL) to `db/backups/` |
+| `switch-db` | Switch between local / cloud / NeonDB database |
+| `backup:postgresql` | Migrate MariaDB data to PostgreSQL |
+| `check:encapsulation` | Verify module encapsulation |
+
 ## Deployment
 
 ### Connect to the SkySQL MariaDB instance

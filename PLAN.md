@@ -466,11 +466,11 @@ export async function POST(request: Request) {
 ---
 
 ### PHASE 4: Cloud Engine Provisioning & Production Pipelines
-**Objective:** Deploy your local workspace configurations to enterprise cloud infrastructure by initializing a managed production database on **MariaDB** (SkySQL) and setting up automated deployments via Render.
+**Objective:** Deploy your local workspace configurations to production cloud infrastructure: provision a managed production database, point the Next.js app at it, and ship the app to a free cloud platform (Render). Only `DATABASE_URL` changes between targets — code, `prisma/schema.prisma`, and `prisma/migrations/` are identical for local and cloud.
 
 #### Step 4.1: Managed Database Orchestration (SkySQL / MariaDB)
 
-> **What this step actually does.** It bundles two independent tasks: **(A)** deploy the *database server* (schema + data) from your workstation's MariaDB to a managed SkySQL instance, and **(B)** point an *application instance* at that cloud URL. Task B can be done from your own laptop before Render exists — that is the recommended order: prove cloud connectivity locally first, deploy the app later. Only the `DATABASE_URL` changes between targets; code, `prisma/schema.prisma`, and `prisma/migrations/` are identical for local and cloud.
+> **What this step actually does.** It bundles two independent tasks: **(A)** copy the *database server* (schema + data) from your workstation's MariaDB to a managed cloud instance, and **(B)** point an *application instance* at that cloud URL. Task B can be proven from your laptop before any cloud deployment exists — that is the recommended order: verify cloud connectivity locally first, deploy the app later.
 
 ##### A. Provision the database service
 
@@ -553,21 +553,78 @@ curl -s -o /dev/null -w "%{http_code}\n" localhost:3000/stats   # expect 200 wit
 
 **Switch back to local dev:** `unset DATABASE_URL` (shell switch), or do nothing if you used `.env.production` — `next dev` still reads `.env` → local MariaDB.
 
-##### D. Render (Phase 4 app deployment)
+#### Step 4.2: Deploy the app on a free cloud provider (Render)
 
-On Render, do **not** rely on `.env` files: set `DATABASE_URL` as an **environment variable** in the Render dashboard (Service → Environment). Dashboard-injected variables override every `.env` file — that is the standard production pattern; `.env.production` is really the "run production mode locally" file.
+Render's free tier is the deployment target in this plan: a public Git repository plus `npm run build` / `npm start`, 512 MB RAM, automatic deploys on every push, and no credit card required. Free web services spin down after ~15 minutes of inactivity, so the first request after sleep can take ~30 seconds while the instance boots.
 
-##### E. Pitfalls checklist
+1. Push the repo to GitHub — Render's free tier requires a public repository. Secrets never reach it: `.env*` files are gitignored, and credentials go into Render's dashboard environment variables instead.
+2. In Render: **New → Web Service**, connect the `books` repository.
+   - Runtime: **Node**, Region: choose one close to your database.
+   - Build command: `npm run build`
+   - Start command: `npm start`
+   - Plan: **Free**
+3. Add environment variables in the Render dashboard (**Service → Environment**; dashboard-injected variables override every `.env` file — `.env.production` is only the "run production mode locally" file):
+   - `DATABASE_URL` — the managed-database URL (SkySQL: `mysql://...?sslaccept=strict`; see Step 4.1-B).
+   - `NODE_ENV=production`
+   - `PRISMA_HIDE_UPDATE_MESSAGE=1` (optional; quieter build logs)
+4. **Migrations are not automatic on Render.** Apply them before the app serves traffic — either change the start command to `npx prisma migrate deploy && npm start`, or run `npx prisma migrate deploy` once in the Render shell after the first deploy. Never use `prisma db push` or `migrate dev` against production.
+5. Trigger a deploy and open the Render URL: `curl -I <render-url>/` and `/stats` should both return `HTTP/2 200` with live data.
+
+> Free-tier caveats: the service spins down after inactivity, the filesystem is ephemeral (do not persist uploads or the Excel workspace on Render disk), and RAM is capped at 512 MB. If you need an always-on service, upgrade to a paid Render tier or move to another free-tier PaaS — the `DATABASE_URL` is the only thing that changes between targets.
+
+#### Step 4.3: Managed database alternatives — Neon DB or Aiven instead of SkySQL
+
+SkySQL (MariaDB's official managed cloud) is not the only option. Two free-tier-managed alternatives work as drop-in replacements for Step 4.1 because only `DATABASE_URL` changes — the app code, Prisma schema, and migrations stay the same:
+
+*   **Neon DB** (neon.tech): serverless PostgreSQL with a generous free tier, database branching (handy for testing schema changes before production), autoscaling, and built-in connection pooling. Connect with `postgresql://...?sslmode=require`; because Neon is serverless, use the pooled endpoint (`*.pooler.neon.tech`, port 5432) and append `?pgbouncer=true&connection_limit=1` so a serverless function never exhausts connections. Note: Prisma must switch to the `postgresql` provider (see Step 4.4).
+*   **Aiven** (aiven.io): managed MySQL/MariaDB and PostgreSQL across multiple clouds, with a free tier starting around 5 GB of storage. If you want to stay on MariaDB/MySQL, Aiven is the closest drop-in replacement for SkySQL — provision a MariaDB service, copy its connection string from the Aiven console, whitelist Render's outbound IP addresses in the Aiven network ACL, and the rest of Step 4.1 applies unchanged.
+
+Either service replaces Step 4.1-A/B (provisioning + connection string); the Render deployment steps in Step 4.2 are identical.
+
+#### Step 4.4: Using PostgreSQL instead of MariaDB
+
+The app currently targets MariaDB through Prisma's `mysql` provider. To run on PostgreSQL (Neon DB, Aiven PostgreSQL, or a self-hosted instance):
+
+1. In `prisma/schema.prisma`, change `provider = "mysql"` → `provider = "postgresql"` and point `url` at a PostgreSQL `DATABASE_URL` (`postgresql://USER:PASSWORD@HOST:PORT/DB?sslmode=require`).
+2. Regenerate the client: `npx prisma generate`.
+3. Create the schema on PostgreSQL: `npx prisma db push` (one-time), or regenerate PostgreSQL-flavored migrations locally (`prisma migrate dev` against Postgres) and apply them in production with `prisma migrate deploy`.
+4. Move the existing data: `scripts/backup-to-postgresql.sh` dumps the live MariaDB database and loads it into PostgreSQL (see below).
+
+Run the migration script once, verify the row counts, then switch `DATABASE_URL` to PostgreSQL and deploy.
+
+##### `scripts/backup-to-postgresql.sh` — MariaDB → PostgreSQL dump and restore
+
+The script performs a one-way copy of the Books ledger from MariaDB (local or SkySQL) into a PostgreSQL target. It never writes to MariaDB; it only reads from it.
+
+What it does:
+1.  Checks that `mysqldump` (or `mariadb-dump`), `psql`, and `npx prisma` are available.
+2.  Verifies `prisma/schema.prisma` targets `postgresql`, then runs `npx prisma db push` against `$PG_DATABASE_URL` so the PostgreSQL schema already exists before data is loaded.
+3.  Dumps **data only** (`--no-create-info`) from MariaDB with `mysqldump --compatible=postgresql`, in dependency order (Author, Genre, Tag, Book, BookTag, BookMetadataCandidate), so foreign keys are satisfied while loading.
+4.  Normalizes the dump for PostgreSQL: strips MySQL version comments, converts backtick identifiers to double quotes, drops `ENGINE`/`CHARSET`/`COLLATE`/`AUTO_INCREMENT` remnants, and sets `standard_conforming_strings = off` so MySQL-style escaped quotes (`\'`) load correctly.
+5.  Loads everything into PostgreSQL via `psql` inside a single transaction (`ON_ERROR_STOP=1`), then prints per-table row counts from both databases so you can verify nothing was lost.
+
+Run it before cutting the app over to PostgreSQL:
+
+```bash
+MARIADB_URL="mysql://book:password@127.0.0.1:3306/reading_tracker_local" \
+PG_DATABASE_URL="postgresql://user:pass@ep-...-pooler.us-east-1.aws.neon.tech/db?pgbouncer=true&connection_limit=1" \
+./scripts/backup-to-postgresql.sh
+```
+
+> **Prerequisites:** `mysqldump`/`mariadb-dump`, `psql`, and `npx prisma`. The script is read-only for MariaDB but destructive for the PostgreSQL target — back up both databases before running. Review the mapped column types (UUIDs, `DateTime`, `Float`) after the load; the script moves data, it does not rewrite schema.
+
+#### Step 4.5: Pitfalls checklist
 
 1.  Pasting the CLI invocation instead of a URL → `the URL must start with the protocol mysql://`.
-2.  Forgetting the IP allowlist → `P1001 can't reach host` (looks like a Prisma bug; it is the firewall).
+2.  Forgetting the IP allowlist → `P1001 can't reach host` (looks like a Prisma bug; it is the firewall). Applies to SkySQL and Aiven alike.
 3.  Unencoded `@`/`:` in the password → invalid URL / auth failures.
 4.  Missing `?sslaccept=strict` → TLS handshake failure against SkySQL.
 5.  Running `migrate dev` against prod → can prompt/reset; only `migrate deploy` in production paths.
 6.  Expecting `next dev` to read `.env.production` → it does not; export the variable or edit `.env`.
 7.  Committing credentials → prevented by `.gitignore` (`.env*`); never opt in for these files.
+8.  Render free tier spins down after inactivity — the first request after sleep is slow (~30 seconds).
 
-##### F. Migration strategy (versioned over `db push`)
+#### Step 4.6: Migration strategy (versioned over `db push`)
 
 | Situation | Command | Why |
 |---|---|---|
@@ -575,8 +632,7 @@ On Render, do **not** rely on `.env` files: set `DATABASE_URL` as an **environme
 | Developing a schema change | `npx prisma migrate dev --name <change>` | Generates a reviewed migration under `prisma/migrations/` |
 | Production / cloud | `npx prisma migrate deploy` | Applies recorded migrations only; never prompts or resets |
 
-`db push` is fine locally but must never run against the production SkySQL instance.
-
+`db push` is fine locally but must never run against the production database instance.
 ---
 
 ### PHASE 5: Statistics & Graphs View — Trends, Rankings & Recommendations
