@@ -5,6 +5,7 @@ import {
   completeReadingBook,
   type BookFormState,
 } from "@/app/actions/bookActions";
+import { CheckIcon } from "@/components/icons";
 
 const initialState: BookFormState = { status: "idle", message: "" };
 
@@ -46,8 +47,9 @@ export default function CompleteBookForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-emerald-500 px-2 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-wait disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 px-2 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-wait disabled:opacity-60"
         >
+          <CheckIcon />
           {pending ? "Saving…" : "Complete"}
         </button>
       </div>

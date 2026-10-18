@@ -6,6 +6,7 @@ import {
   deleteBook,
   type DeleteBookFormState,
 } from "@/app/actions/bookActions";
+import { TrashIcon } from "@/components/icons";
 
 const initialState: DeleteBookFormState = { status: "idle", message: "" };
 
@@ -46,10 +47,11 @@ export default function DeleteBookButton({
       <button
         type="submit"
         disabled={pending}
-        className={`rounded-lg border border-rose-500/40 font-semibold text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-wait disabled:opacity-60 ${
+        className={`inline-flex items-center gap-1.5 rounded-lg border border-rose-500/40 font-semibold text-rose-300 transition hover:bg-rose-500/10 disabled:cursor-wait disabled:opacity-60 ${
           compact ? "px-2 py-1 text-xs" : "px-4 py-2 text-sm"
         }`}
       >
+        <TrashIcon />
         {pending ? "Deleting…" : "Delete"}
       </button>
       {state.status === "error" ? (

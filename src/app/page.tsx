@@ -10,11 +10,17 @@ import BookCard from "@/components/BookCard";
 import BookCover from "@/components/BookCover";
 import CompleteBookForm from "@/components/CompleteBookForm";
 import BookSearch from "@/components/BookSearch";
+import DashboardShell from "@/components/DashboardShell";
 import DashboardSortControls from "@/components/DashboardSortControls";
 import DeleteBookButton from "@/components/DeleteBookButton";
 import AuthorPortrait from "@/components/AuthorPortrait";
-import IngestionWidget from "@/components/IngestionWidget";
 import TagCloud from "@/components/TagCloud";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  GridIcon,
+  ListIcon,
+} from "@/components/icons";
 import { getYearKpis } from "@/lib/analytics";
 import { getBookStatusPresentation } from "@/lib/book-status-presentation";
 import { PRE_TAB_READING_YEAR_SENTINEL } from "@/lib/ingestion/workbook-parser";
@@ -34,67 +40,20 @@ type DashboardView = "cards" | "list";
 
 export default function DashboardPage(props: PageProps<"/">) {
   return (
-    <main className="min-h-screen bg-slate-900 text-slate-100 p-6 md:p-12">
-      <header className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-10 gap-4 border-b border-slate-800 pb-6">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white">
-            Books Tracker Workspace
-          </h1>
-          <p className="text-slate-400 mt-1">
-            Replacing legacy spreadsheets with clean engineering metrics.
-          </p>
-        </div>
-        <BookSearch />
-        <div className="flex flex-wrap items-center gap-3">
-          <Link
-            href="/books/new"
-            className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-emerald-400"
-          >
-            Start a book
-          </Link>
-          <Link
-            href="/sagas"
-            className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
-          >
-            Book sagas
-          </Link>
-          <Link
-            href="/stats"
-            className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
-          >
-            Statistics &amp; graphs
-          </Link>
-          <Link
-            href="/reports/open-library-tags"
-            className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
-          >
-            Open Library tag report
-          </Link>
-          <Link
-            href="/reports/open-library-matches"
-            className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
-          >
-            Possible Open Library matches
-          </Link>
-          <Link
-            href="/tags/manage"
-            className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
-          >
-            Review similar tags
-          </Link>
-          <IngestionWidget />
-        </div>
-      </header>
-
+    <DashboardShell
+      title="Books Tracker Workspace"
+      subtitle="Replacing legacy spreadsheets with clean engineering metrics."
+      search={<BookSearch />}
+    >
       {/*
         cacheComponents (next.config.ts): the uncached Prisma read must sit
         behind <Suspense>, otherwise the prerender reports a blocking route.
-        The header above stays in the static shell and streams the grid.
+        The shell header stays in the static shell and streams the grid.
       */}
       <Suspense fallback={<BookGridSkeleton />}>
         <DashboardContent searchParams={props.searchParams} />
       </Suspense>
-    </main>
+    </DashboardShell>
   );
 }
 
@@ -242,12 +201,13 @@ async function DashboardContent({
                     : "desc",
               })}
               aria-current={view === option ? "page" : undefined}
-              className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold transition ${
                 view === option
                   ? "bg-emerald-500/15 text-emerald-300"
                   : "text-slate-400 hover:text-white"
               }`}
             >
+              {option === "cards" ? <GridIcon /> : <ListIcon />}
               {option === "cards" ? "Cards" : "List"}
             </Link>
           ))}
@@ -316,8 +276,9 @@ function BookPagination({
             href={hrefForPage(page - 1)}
             prefetch={false}
             rel="prev"
-            className="rounded-lg border border-slate-700 px-3 py-1.5 font-semibold text-slate-300 hover:border-emerald-500/50 hover:text-white"
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-3 py-1.5 font-semibold text-slate-300 hover:border-emerald-500/50 hover:text-white"
           >
+            <ChevronLeftIcon />
             Previous
           </Link>
         ) : null}
@@ -329,8 +290,9 @@ function BookPagination({
             href={hrefForPage(page + 1)}
             prefetch={false}
             rel="next"
-            className="rounded-lg border border-slate-700 px-3 py-1.5 font-semibold text-slate-300 hover:border-emerald-500/50 hover:text-white"
+            className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-3 py-1.5 font-semibold text-slate-300 hover:border-emerald-500/50 hover:text-white"
           >
+            <ChevronRightIcon />
             Next
           </Link>
         ) : null}

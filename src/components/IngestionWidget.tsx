@@ -2,9 +2,10 @@
 
 import { useRef, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
+import { UploadIcon } from "@/components/icons";
 
 /**
- * Header widget that uploads the legacy workbook to POST /api/v1/import
+ * Menu widget (left dashboard menu) that uploads the legacy workbook to POST /api/v1/import
  * (multipart/form-data, `file` field) and refreshes the server-rendered
  * dashboard so new rows appear without a full page load.
  */
@@ -72,7 +73,7 @@ export default function IngestionWidget() {
   const uploading = state.kind === "uploading";
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <input
         ref={inputRef}
         type="file"
@@ -86,8 +87,9 @@ export default function IngestionWidget() {
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={uploading}
-        className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-60"
+        className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-60"
       >
+        <UploadIcon />
         {uploading ? "Importing…" : "Import workbook"}
       </button>
       {state.kind === "success" && (
@@ -98,7 +100,7 @@ export default function IngestionWidget() {
       {state.kind === "error" && (
         <span
           role="alert"
-          className="max-w-[22rem] truncate text-xs font-semibold text-rose-400"
+          className="max-w-full truncate text-xs font-semibold text-rose-400"
           title={state.text}
         >
           {state.text}
