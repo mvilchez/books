@@ -14,6 +14,7 @@ import {
 } from "@/lib/books";
 import {
   deleteBookTag as removeBookTag,
+  countOpenLibrarySubjectTags,
   isBookTagSource,
   mergeTags,
   saveManualSubjectTags,
@@ -31,7 +32,9 @@ import {
   searchOpenLibraryBookLookup,
   searchOpenLibraryAuthorPhotos,
   searchOpenLibraryBooks,
+  searchOpenLibraryMetadata,
   searchOpenLibraryRecommendations,
+  shouldReplaceOpenLibraryWorkLink,
   type OpenLibraryAuthorPhotoCandidate,
   type OpenLibraryBookCandidate,
   type OpenLibraryIsbnLookup,
@@ -287,6 +290,21 @@ async function runBookMetadataEnrichment(
   }
 
   const { metadata } = lookup;
+  // A fresh match may heal a stale work link (e.g. a subject-less duplicate
+  // work) only when every guard in shouldReplaceOpenLibraryWorkLink holds:
+  // the saved link differs, the fresh match brings subjects, and no
+  // OPEN_LIBRARY subject tags are saved that replacement could discard.
+  let replaceWorkLink = false;
+  try {
+    const savedSubjectCount = await countOpenLibrarySubjectTags(book.id);
+    replaceWorkLink = shouldReplaceOpenLibraryWorkLink(
+      book.openLibraryWorkId,
+      metadata,
+      savedSubjectCount,
+    );
+  } catch (error) {
+    return { status: "error", message: actionError(error) };
+  }
   try {
     await saveOpenLibraryMetadata(
       book.id,
@@ -304,6 +322,7 @@ async function runBookMetadataEnrichment(
       },
       metadata,
       lookup.possibleMatches,
+      { replaceWorkLink },
     );
   } catch (error) {
     return { status: "error", message: actionError(error) };

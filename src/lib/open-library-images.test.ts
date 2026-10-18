@@ -327,6 +327,154 @@ test("metadata search requests fields once and returns the exact match", async (
   }
 });
 
+test("metadata search falls back to full-text query for edition-title translations", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: URL[] = [];
+  // Primary `title=` query returns only the subject-less Spanish duplicate.
+  const primary = {
+    docs: [
+      {
+        key: "/works/OL24865927W",
+        title: "MAGALLANES",
+        author_name: ["Stefan Zweig", "Damilys Yanez"],
+        first_publish_year: 2019,
+      },
+    ],
+  };
+  // Full-text `q=` query finds the rich work via its Spanish edition title.
+  const fallback = {
+    docs: [
+      {
+        key: "/works/OL28375W",
+        title: "Magellan",
+        author_name: ["Stefan Zweig"],
+        first_publish_year: 1938,
+        subject: ["Explorers", "Biography"],
+        language: ["spa", "eng"],
+        editions: { docs: [{ title: "Magallanes" }] },
+      },
+    ],
+  };
+  globalThis.fetch = (async (input) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    requests.push(url);
+    return Response.json(url.searchParams.has("q") ? fallback : primary);
+  }) as typeof fetch;
+  try {
+    const metadata = await searchOpenLibraryMetadata(
+      "Magallanes",
+      "Stefan Zweig",
+      null,
+      null,
+    );
+    assert.equal(metadata?.workId, "OL28375W");
+    assert.deepEqual(metadata?.subjects, ["Explorers", "Biography"]);
+    assert.equal(requests.length, 2);
+    assert.equal(requests[0].searchParams.get("title"), "Magallanes");
+    assert.equal(requests[1].searchParams.get("q"), "Magallanes Stefan Zweig");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("metadata search does not fall back when primary match already has subjects", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests: URL[] = [];
+  globalThis.fetch = (async (input) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    requests.push(url);
+    return Response.json({
+      docs: [
+        {
+          key: "/works/OL123W",
+          title: "The book",
+          author_name: ["An Author"],
+          first_publish_year: 1980,
+          subject: ["Fiction"],
+          language: ["eng"],
+        },
+      ],
+    });
+  }) as typeof fetch;
+  try {
+    const metadata = await searchOpenLibraryMetadata("The book", "An Author", null, null);
+    assert.equal(metadata?.workId, "OL123W");
+    assert.equal(requests.length, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("metadata search rejects fallback matches with a different author", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    if (url.searchParams.has("q")) {
+      return Response.json({
+        docs: [
+          {
+            key: "/works/OL999W",
+            title: "Magallanes",
+            author_name: ["Someone Else"],
+            subject: ["Fiction"],
+          },
+        ],
+      });
+    }
+    return Response.json({ docs: [] });
+  }) as typeof fetch;
+  try {
+    const metadata = await searchOpenLibraryMetadata(
+      "Magallanes",
+      "Stefan Zweig",
+      null,
+      null,
+    );
+    assert.equal(metadata, null);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("metadata parser accepts a work whose edition title matches", () => {
+  assert.equal(
+    parseOpenLibraryBookMetadata(
+      {
+        docs: [
+          {
+            key: "/works/OL28375W",
+            title: "Magellan",
+            author_name: ["Stefan Zweig"],
+            subject: ["Explorers"],
+            editions: { docs: [{ title: "Magallanes" }] },
+          },
+        ],
+      },
+      "Magallanes",
+      "Stefan Zweig",
+    )?.workId,
+    "OL28375W",
+  );
+  assert.equal(
+    parseOpenLibraryPossibleMatches(
+      {
+        docs: [
+          {
+            key: "/works/OL28375W",
+            title: "Magellan",
+            author_name: ["Stefan Zweig"],
+            subject: ["Explorers"],
+            editions: { docs: [{ title: "Magallanes" }] },
+          },
+        ],
+      },
+      "Magallanes",
+      "Stefan Zweig",
+    )[0]?.workId,
+    "OL28375W",
+  );
+});
+
 test("recommendation search prefers Spanish and falls back to English only when needed", async () => {
   const originalFetch = globalThis.fetch;
   const requests: string[] = [];

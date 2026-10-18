@@ -13,6 +13,19 @@ export function isBookTagSource(value: string): value is BookTagSource {
   return value === "LIBRARY" || value === "OPEN_LIBRARY";
 }
 
+/** How many OPEN_LIBRARY SUBJECT tags a book currently has (never negative). */
+export async function countOpenLibrarySubjectTags(
+  bookId: string,
+): Promise<number> {
+  return prisma.bookTag.count({
+    where: {
+      bookId,
+      source: "OPEN_LIBRARY",
+      tag: { category: "SUBJECT" },
+    },
+  });
+}
+
 export type UsedTag = {
   id: string;
   name: string;

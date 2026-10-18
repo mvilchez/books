@@ -39,6 +39,7 @@ export async function saveOpenLibraryMetadata(
   current: EnrichmentBookSnapshot,
   metadata: OpenLibraryBookMetadata | null,
   possibleMatches: readonly OpenLibraryMetadataCandidate[],
+  options: { replaceWorkLink?: boolean } = {},
 ): Promise<void> {
   const checkedAt = new Date();
   await prisma.$transaction(async (transaction) => {
@@ -53,8 +54,12 @@ export async function saveOpenLibraryMetadata(
           current.currentPages <= metadata.pageCount
             ? metadata.pageCount
             : undefined),
-        openLibraryWorkId: current.openLibraryWorkId ?? metadata?.workId,
-        openLibraryCoverId: current.openLibraryCoverId ?? metadata?.coverId,
+        openLibraryWorkId: options.replaceWorkLink
+          ? (metadata?.workId ?? current.openLibraryWorkId)
+          : (current.openLibraryWorkId ?? metadata?.workId),
+        openLibraryCoverId: options.replaceWorkLink
+          ? (metadata?.coverId ?? current.openLibraryCoverId)
+          : (current.openLibraryCoverId ?? metadata?.coverId),
         isbn13: current.isbn13 ?? metadata?.isbn13,
         bookFormat: current.bookFormat ?? metadata?.format,
         seriesName: current.seriesName ?? metadata?.seriesName,

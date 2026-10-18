@@ -331,6 +331,56 @@ function values(value: unknown): string[] {
   return stringArray(value);
 }
 
+function editionTitles(value: unknown): string[] {
+  const root = record(value);
+  const rawEditions = root?.docs ?? value;
+  if (!Array.isArray(rawEditions)) return [];
+  const titles: string[] = [];
+  for (const rawEdition of rawEditions) {
+    const edition = record(rawEdition);
+    if (typeof edition?.title === "string" && edition.title.trim()) {
+      titles.push(edition.title);
+    }
+  }
+  return titles;
+}
+
+/**
+ * A doc matches when the work title matches, or when any of its sampled
+ * edition titles matches. Open Library indexes translations as separate
+ * editions under one work (e.g. work "Magellan" with a Spanish edition
+ * "Magallanes"), so matching edition titles recovers works that a
+ * work-title-only comparison would reject.
+ */
+function docTitleMatches(requestedTitle: string, doc: Record<string, unknown>): boolean {
+  if (
+    typeof doc.title === "string" &&
+    openLibraryTitleMatches(requestedTitle, doc.title)
+  ) {
+    return true;
+  }
+  return editionTitles(doc.editions).some((editionTitle) =>
+    openLibraryTitleMatches(requestedTitle, editionTitle),
+  );
+}
+
+/** Best title similarity across the work title and sampled edition titles. */
+function docTitleSimilarity(
+  requestedTitle: string,
+  doc: Record<string, unknown>,
+): number {
+  const candidates =
+    typeof doc.title === "string" && doc.title.trim()
+      ? [doc.title, ...editionTitles(doc.editions)]
+      : editionTitles(doc.editions);
+  return Math.max(
+    0,
+    ...candidates.map((candidate) =>
+      openLibraryTitleSimilarity(requestedTitle, candidate),
+    ),
+  );
+}
+
 function languageName(value: string): string {
   const code = value.split("/").at(-1)?.toLowerCase() ?? value.toLowerCase();
   const known: Record<string, string> = {
@@ -427,8 +477,7 @@ export function parseOpenLibraryBookMetadata(
         return false;
       }
       return (
-        typeof doc.title === "string" &&
-        openLibraryTitleMatches(requestedTitle, doc.title) &&
+        docTitleMatches(requestedTitle, doc) &&
         openLibraryAuthorMatches(requestedAuthor, stringArray(doc.author_name))
       );
     });
@@ -494,10 +543,7 @@ export function parseOpenLibraryPossibleMatches(
         return [];
       }
       const authors = stringArray(doc.author_name).slice(0, 10);
-      const titleSimilarity = openLibraryTitleSimilarity(
-        requestedTitle,
-        doc.title,
-      );
+      const titleSimilarity = docTitleSimilarity(requestedTitle, doc);
       const authorSimilarity = openLibraryAuthorSimilarity(
         requestedAuthor,
         authors,
@@ -747,6 +793,53 @@ export async function lookupOpenLibraryBookByIsbn(
   return parseOpenLibraryIsbnLookup(await fetchJson(url), isbn13);
 }
 
+/**
+ * Decide whether a fresh metadata match may replace an already-saved Open
+ * Library work link. Replacement is allowed only when every guard holds:
+ *
+ * - the book already has a work link different from the fresh match (a stale
+ *   or empty duplicate-work link, never an identical one);
+ * - the fresh match carries at least one subject (it must bring real value);
+ * - no OPEN_LIBRARY subject tags are saved on the book (replacement must
+ *   never discard tags the user already has).
+ *
+ * Pure (no I/O) so it is unit-testable; the caller supplies the saved
+ * OPEN_LIBRARY subject-tag count.
+ */
+export function shouldReplaceOpenLibraryWorkLink(
+  savedWorkId: string | null,
+  freshMatch: OpenLibraryBookMetadata | null,
+  savedOpenLibrarySubjectCount: number,
+): boolean {
+  if (!savedWorkId || !freshMatch) return false;
+  if (savedWorkId === freshMatch.workId) return false;
+  if (freshMatch.subjects.length === 0) return false;
+  if (savedOpenLibrarySubjectCount > 0) return false;
+  return true;
+}
+
+const METADATA_FIELDS =
+  "key,title,author_name,cover_i,first_publish_year,subject,language,editions,editions.key,editions.title,editions.number_of_pages,editions.physical_format,editions.isbn_13,editions.publish_date";
+
+function metadataSearchUrl(params: Record<string, string>): URL {
+  const url = new URL("/search.json", OPEN_LIBRARY_ORIGIN);
+  url.search = new URLSearchParams({
+    limit: "50",
+    fields: METADATA_FIELDS,
+    ...params,
+  }).toString();
+  return url;
+}
+
+/**
+ * Whether a lookup result is still missing usable subjects: no exact match,
+ * or an exact match without subjects. Only then is the broader full-text
+ * fallback (`q=`) worth a second request.
+ */
+function needsBroaderMetadataSearch(metadata: OpenLibraryBookMetadata | null): boolean {
+  return !metadata || metadata.subjects.length === 0;
+}
+
 export async function searchOpenLibraryMetadata(
   title: string,
   author: string,
@@ -770,28 +863,42 @@ export async function searchOpenLibraryBookLookup(
   knownPublicationYear: number | null,
   options: { fresh?: boolean } = {},
 ): Promise<OpenLibraryBookLookup> {
-  const url = new URL("/search.json", OPEN_LIBRARY_ORIGIN);
-  url.search = new URLSearchParams({
+  const primary = await fetchJson(metadataSearchUrl({ title, author }), {
+    fresh: options.fresh,
+  });
+  const primaryLookup = {
+    metadata: parseOpenLibraryBookMetadata(
+      primary,
+      title,
+      author,
+      knownPageCount,
+      knownPublicationYear,
+    ),
+    possibleMatches: parseOpenLibraryPossibleMatches(primary, title, author),
+  };
+  // The fielded `title=` query only matches work titles. When it yields no
+  // match -- or a subject-less duplicate work -- retry once with full-text
+  // `q=`, which also matches edition titles (translations like "Magallanes"
+  // under work "Magellan"). The strict title+author filters still apply, so
+  // precision is preserved; this only widens recall for translated titles.
+  if (!needsBroaderMetadataSearch(primaryLookup.metadata)) return primaryLookup;
+  const fallback = await fetchJson(
+    metadataSearchUrl({ q: `${title} ${author}` }),
+    { fresh: options.fresh },
+  );
+  const fallbackMetadata = parseOpenLibraryBookMetadata(
+    fallback,
     title,
     author,
-    limit: "50",
-    fields:
-      "key,title,author_name,cover_i,first_publish_year,subject,language,editions,editions.key,editions.title,editions.number_of_pages,editions.physical_format,editions.isbn_13,editions.publish_date",
-  }).toString();
-  const response = await fetchJson(url, { fresh: options.fresh });
+    knownPageCount,
+    knownPublicationYear,
+  );
+  if (!fallbackMetadata || fallbackMetadata.subjects.length === 0) {
+    return primaryLookup;
+  }
   return {
-   metadata: parseOpenLibraryBookMetadata(
-     response,
-     title,
-     author,
-     knownPageCount,
-     knownPublicationYear,
-   ),
-   possibleMatches: parseOpenLibraryPossibleMatches(
-     response,
-     title,
-     author,
-   ),
+    metadata: fallbackMetadata,
+    possibleMatches: parseOpenLibraryPossibleMatches(fallback, title, author),
   };
 }
 
