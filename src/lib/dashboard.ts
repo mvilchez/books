@@ -1,4 +1,5 @@
 export const DASHBOARD_SORTS = ["startDate", "author", "title"] as const;
+export const DASHBOARD_PAGE_SIZE = 12;
 export type DashboardSort = (typeof DASHBOARD_SORTS)[number];
 export type SortDirection = "asc" | "desc";
 
@@ -25,6 +26,12 @@ export function parseSortDirection(
   fallback: SortDirection = "asc",
 ): SortDirection {
   return value === "desc" || value === "asc" ? value : fallback;
+}
+
+export function parseDashboardPage(value: string | string[] | undefined): number {
+  if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) return 1;
+  const page = Number(value);
+  return Number.isSafeInteger(page) ? page : 1;
 }
 
 function compareStable(a: DashboardSortableBook, b: DashboardSortableBook): number {

@@ -1,11 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  parseDashboardPage,
   parseDashboardSort,
   parseSortDirection,
   sortDashboardBooks,
   type DashboardSortableBook,
 } from "./dashboard";
+
+test("dashboard pages default invalid values to the first page", () => {
+  assert.equal(parseDashboardPage("3"), 3);
+  assert.equal(parseDashboardPage(undefined), 1);
+  assert.equal(parseDashboardPage("0"), 1);
+  assert.equal(parseDashboardPage("-1"), 1);
+  assert.equal(parseDashboardPage("1.5"), 1);
+  assert.equal(parseDashboardPage(["2", "3"]), 1);
+  assert.equal(parseDashboardPage("9007199254740992"), 1);
+});
 
 const books: DashboardSortableBook[] = [
   {

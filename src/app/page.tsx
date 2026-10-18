@@ -19,6 +19,8 @@ import { getYearKpis } from "@/lib/analytics";
 import { getBookStatusPresentation } from "@/lib/book-status-presentation";
 import { PRE_TAB_READING_YEAR_SENTINEL } from "@/lib/ingestion/workbook-parser";
 import {
+  DASHBOARD_PAGE_SIZE,
+  parseDashboardPage,
   parseDashboardSort,
   parseSortDirection,
   sortDashboardBooks,
@@ -106,12 +108,14 @@ async function DashboardContent({
     view: rawView,
     sort: rawSort,
     direction: rawDirection,
+    page: rawPage,
   } = await searchParams;
   const requestedYear = typeof rawYear === "string" ? Number(rawYear) : NaN;
   const requestedYearIsValid =
     Number.isInteger(requestedYear) && requestedYear >= 1 && requestedYear <= 9999;
   const view: DashboardView = rawView === "list" ? "list" : "cards";
   const sort = parseDashboardSort(rawSort);
+  const requestedPage = parseDashboardPage(rawPage);
   const hasExplicitDirection = rawDirection === "asc" || rawDirection === "desc";
   const direction = parseSortDirection(
     rawDirection,
@@ -133,6 +137,12 @@ async function DashboardContent({
       right.count - left.count || left.name.localeCompare(right.name),
   );
   const books = sortDashboardBooks(unsortedBooks, sort, direction);
+  const pageCount = Math.max(1, Math.ceil(books.length / DASHBOARD_PAGE_SIZE));
+  const page = Math.min(requestedPage, pageCount);
+  const pageBooks = books.slice(
+    (page - 1) * DASHBOARD_PAGE_SIZE,
+    page * DASHBOARD_PAGE_SIZE,
+  );
   const years = Array.from(
     new Set([...availableYears.map(({ readingYear }) => readingYear), year]),
   ).sort((a, b) => a - b);
@@ -141,11 +151,13 @@ async function DashboardContent({
     selectedView = view,
     selectedSort = sort,
     selectedDirection = direction,
+    selectedPage,
   }: {
     selectedYear?: number;
     selectedView?: DashboardView;
     selectedSort?: DashboardSort;
     selectedDirection?: SortDirection;
+    selectedPage?: number;
   } = {}) => {
     const params = new URLSearchParams({
       year: String(selectedYear),
@@ -153,6 +165,9 @@ async function DashboardContent({
       direction: selectedDirection,
     });
     if (selectedView === "list") params.set("view", "list");
+    if (selectedPage && selectedPage > 1) {
+      params.set("page", String(selectedPage));
+    }
     return `/?${params.toString()}`;
   };
 
@@ -244,12 +259,83 @@ async function DashboardContent({
         sort={sort}
         direction={direction}
       />
+      {books.length > DASHBOARD_PAGE_SIZE ? (
+        <BookPagination
+          bookCount={books.length}
+          page={page}
+          pageCount={pageCount}
+          hrefForPage={(selectedPage) =>
+            dashboardHref({ selectedPage })
+          }
+        />
+      ) : null}
       {view === "list" ? (
-        <BookList books={books} year={year} />
+        <BookList books={pageBooks} year={year} />
       ) : (
-        <BookGrid books={books} year={year} />
+        <BookGrid books={pageBooks} year={year} />
       )}
+      {books.length > DASHBOARD_PAGE_SIZE ? (
+        <BookPagination
+          bookCount={books.length}
+          page={page}
+          pageCount={pageCount}
+          hrefForPage={(selectedPage) =>
+            dashboardHref({ selectedPage })
+          }
+        />
+      ) : null}
     </div>
+  );
+}
+
+function BookPagination({
+  bookCount,
+  page,
+  pageCount,
+  hrefForPage,
+}: {
+  bookCount: number;
+  page: number;
+  pageCount: number;
+  hrefForPage: (page: number) => string;
+}) {
+  const firstBook = (page - 1) * DASHBOARD_PAGE_SIZE + 1;
+  const lastBook = Math.min(page * DASHBOARD_PAGE_SIZE, bookCount);
+
+  return (
+    <nav
+      aria-label="Book pages"
+      className="flex flex-wrap items-center justify-between gap-3 text-sm"
+    >
+      <p className="text-slate-400">
+        Showing {firstBook}–{lastBook} of {bookCount} books
+      </p>
+      <div className="flex items-center gap-2">
+        {page > 1 ? (
+          <Link
+            href={hrefForPage(page - 1)}
+            prefetch={false}
+            rel="prev"
+            className="rounded-lg border border-slate-700 px-3 py-1.5 font-semibold text-slate-300 hover:border-emerald-500/50 hover:text-white"
+          >
+            Previous
+          </Link>
+        ) : null}
+        <span aria-current="page" className="px-2 text-slate-300">
+          Page {page} of {pageCount}
+        </span>
+        {page < pageCount ? (
+          <Link
+            href={hrefForPage(page + 1)}
+            prefetch={false}
+            rel="next"
+            className="rounded-lg border border-slate-700 px-3 py-1.5 font-semibold text-slate-300 hover:border-emerald-500/50 hover:text-white"
+          >
+            Next
+          </Link>
+        ) : null}
+      </div>
+    </nav>
   );
 }
 
