@@ -55,6 +55,16 @@ export type OpenLibraryAuthorCandidate = {
   name: string;
 };
 
+export type OpenLibraryIsbnLookup = {
+  isbn13: string;
+  title: string;
+  authors: string[];
+  pageCount: number | null;
+  publicationYear: number | null;
+  coverId: number | null;
+  workId: string | null;
+};
+
 export type OpenLibraryAuthorPhotoCandidate = OpenLibraryAuthorCandidate & {
   photoId: number;
   photoUrl: string;
@@ -653,6 +663,79 @@ export async function searchOpenLibraryBooks(
     fields: "key,title,author_name,isbn,cover_i",
   }).toString();
   return parseOpenLibraryBookCandidates(await fetchJson(url));
+}
+
+function coverIdFromUrl(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const match = value.match(/\/b\/id\/(\d+)-/);
+  return match ? positiveInteger(Number(match[1])) : null;
+}
+
+/**
+ * Parse the `GET /api/books?jscmd=data` response for one ISBN. The payload is
+ * keyed by `ISBN:<isbn13>`; a missing key means Open Library has no record for
+ * that ISBN and is reported as `null`, not as an error.
+ */
+export function parseOpenLibraryIsbnLookup(
+  value: unknown,
+  isbn13: string,
+): OpenLibraryIsbnLookup | null {
+  const root = record(value);
+  if (root === null) {
+    throw new Error("Open Library returned malformed ISBN lookup results.");
+  }
+  const entry = record(root[`ISBN:${isbn13}`]);
+  if (!entry) return null;
+  const title = typeof entry.title === "string" ? entry.title.trim() : "";
+  if (!title) return null;
+
+  const authors = Array.isArray(entry.authors)
+    ? entry.authors
+        .map(record)
+        .map((author) =>
+          typeof author?.name === "string" ? author.name.trim() : "",
+        )
+        .filter(Boolean)
+    : [];
+  const cover = record(entry.cover);
+  const coverId =
+    coverIdFromUrl(cover?.medium) ??
+    coverIdFromUrl(cover?.large) ??
+    coverIdFromUrl(cover?.small);
+  const workId =
+    typeof entry.url === "string"
+      ? entry.url.match(/\/works\/(OL\d+W)\//)?.[1] ?? null
+      : null;
+
+  return {
+    isbn13,
+    title,
+    authors,
+    pageCount: positiveInteger(entry.number_of_pages),
+    publicationYear: publicationYear(values(entry.publish_date)[0]),
+    coverId,
+    workId,
+  };
+}
+
+/**
+ * Look up a single edition by its canonical ISBN-13 through the Open Library
+ * books API (a different endpoint from `search.json`, which cannot query by
+ * ISBN). Returns `null` when no record exists for the ISBN.
+ */
+export async function lookupOpenLibraryBookByIsbn(
+  isbn13: string,
+): Promise<OpenLibraryIsbnLookup | null> {
+  if (!/^\d{13}$/.test(isbn13)) {
+    throw new Error("Invalid ISBN-13 for Open Library lookup.");
+  }
+  const url = new URL("/api/books", OPEN_LIBRARY_ORIGIN);
+  url.search = new URLSearchParams({
+    bibkeys: `ISBN:${isbn13}`,
+    jscmd: "data",
+    format: "json",
+  }).toString();
+  return parseOpenLibraryIsbnLookup(await fetchJson(url), isbn13);
 }
 
 export async function searchOpenLibraryMetadata(

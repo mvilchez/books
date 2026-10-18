@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "check:encapsulation": "bash scripts/check-encapsulation.sh",
-    "test": "node --import tsx --test src/lib/dashboard.test.ts src/lib/book-search.test.ts src/lib/book-recommendations.test.ts src/lib/book-tags.test.ts src/lib/csv.test.ts src/lib/tag-similarity.test.ts src/lib/ingestion/workbook-parser.test.ts src/lib/open-library-images.test.ts src/lib/book-synopsis.test.ts",
+    "test": "node --import tsx --test src/lib/dashboard.test.ts src/lib/book-search.test.ts src/lib/book-recommendations.test.ts src/lib/book-tags.test.ts src/lib/csv.test.ts src/lib/tag-similarity.test.ts src/lib/isbn.test.ts src/lib/ingestion/workbook-parser.test.ts src/lib/open-library-images.test.ts src/lib/book-synopsis.test.ts",
     "validate:ingestion": "tsx --tsconfig tsconfig.json src/scripts/validate-ingestion.ts",
     "backfill:book-tags": "tsx --tsconfig tsconfig.json src/scripts/backfill-book-tags.ts",
     "backup:postgresql": "bash scripts/backup-to-postgresql.sh",
@@ -21,6 +21,8 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
+    "@zxing/browser": "^0.2.1",
+    "@zxing/library": "^0.23.0",
     "dotenv": "^18.0.8",
     "exceljs": "^4.4.0",
     "next": "16.4.0",
@@ -30,12 +32,12 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
-    "prisma": "^6.19.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
+    "prisma": "^6.19.3",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5"

@@ -487,6 +487,11 @@ export type ReadingBookInput = {
   readingYear: number;
   seriesName?: string | null;
   seriesPosition?: number | null;
+  /** Optional Open Library metadata resolved from an ISBN lookup. */
+  isbn13?: string | null;
+  openLibraryCoverId?: number | null;
+  openLibraryWorkId?: string | null;
+  publicationYear?: number | null;
 };
 
 /** Create a new READING book plus its LIBRARY tags in one transaction. */
@@ -516,6 +521,14 @@ export async function createReadingBookRecord(
         status: "READING",
         seriesName: input.seriesName ?? null,
         seriesPosition: input.seriesPosition ?? null,
+        // The `isbn:` edition key matches the importer's convention, so the
+        // unique key dedupes this edition and `getBookCoverUrl` can fall back
+        // to the ISBN cover when no cover id was saved.
+        editionKey: input.isbn13 ? `isbn:${input.isbn13}` : "",
+        isbn13: input.isbn13 ?? null,
+        openLibraryCoverId: input.openLibraryCoverId ?? null,
+        openLibraryWorkId: input.openLibraryWorkId ?? null,
+        publicationYear: input.publicationYear ?? null,
         authorId: author.id,
         genreId: genre?.id ?? null,
       },

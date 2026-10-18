@@ -15,6 +15,7 @@ import {
   isRecordNotFound,
   isUniqueConstraintViolation,
 } from "@/lib/prisma-errors";
+import { toIsbn13 } from "@/lib/isbn";
 
 export type BookFormState = {
   status: "idle" | "error" | "success";
@@ -251,6 +252,31 @@ export async function createReadingBook(
     totalPagesValue === null || totalPagesValue === ""
       ? null
       : Number(totalPagesValue);
+  const isbn13 = toIsbn13(formString(formData, "isbn13") ?? "");
+  const openLibraryCoverIdValue = optionalNumber(
+    formString(formData, "openLibraryCoverId"),
+  );
+  const openLibraryCoverId =
+    openLibraryCoverIdValue !== null &&
+    Number.isSafeInteger(openLibraryCoverIdValue) &&
+    openLibraryCoverIdValue > 0
+      ? openLibraryCoverIdValue
+      : null;
+  const openLibraryWorkId = formString(formData, "openLibraryWorkId");
+  if (openLibraryWorkId && !/^OL\d+W$/.test(openLibraryWorkId)) {
+    return { status: "error", message: "Invalid Open Library work reference." };
+  }
+  const publicationYearValue = optionalNumber(
+    formString(formData, "publicationYear"),
+  );
+  if (
+    publicationYearValue !== null &&
+    (!Number.isInteger(publicationYearValue) ||
+      publicationYearValue < 1 ||
+      publicationYearValue > 9999)
+  ) {
+    return { status: "error", message: "Publication year must be a whole year." };
+  }
 
   if (!title || title.length > 191) {
     return { status: "error", message: "Enter a title (up to 191 characters)." };
@@ -293,6 +319,10 @@ export async function createReadingBook(
       readingYear,
       seriesName: seriesName || null,
       seriesPosition,
+      isbn13,
+      openLibraryCoverId,
+      openLibraryWorkId: openLibraryWorkId || null,
+      publicationYear: publicationYearValue,
     });
   } catch (error) {
     if (isUniqueConstraintViolation(error)) {

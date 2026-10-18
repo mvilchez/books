@@ -26,14 +26,17 @@ import {
   getOpenLibraryAuthorPhotoUrl,
   getOpenLibraryAuthorUrl,
   getOpenLibraryWorkUrl,
+  lookupOpenLibraryBookByIsbn,
   searchOpenLibraryBookLookup,
   searchOpenLibraryAuthorPhotos,
   searchOpenLibraryBooks,
   searchOpenLibraryRecommendations,
   type OpenLibraryAuthorPhotoCandidate,
   type OpenLibraryBookCandidate,
+  type OpenLibraryIsbnLookup,
   type OpenLibraryRecommendationResult,
 } from "@/lib/open-library-images";
+import { toIsbn13 } from "@/lib/isbn";
 
 type ActionResult<T> =
   | { status: "success"; data: T; message?: string }
@@ -116,6 +119,70 @@ export async function searchBookCoverCandidates(
   } catch (error) {
     return { status: "error", message: actionError(error) };
   }
+}
+
+export type IsbnLookupData = {
+  isbn13: string;
+  title: string;
+  author: string;
+  pageCount: number | null;
+  publicationYear: number | null;
+  coverId: number | null;
+  workId: string | null;
+};
+
+/**
+ * Resolve a typed or scanned ISBN-10/ISBN-13 (or book barcode) into Open
+ * Library metadata so the new-book form can be prefilled. The ISBN is
+ * validated and canonicalized to ISBN-13 before contacting Open Library.
+ */
+export async function lookupBookByIsbn(
+  rawIsbn: string,
+): Promise<ActionResult<IsbnLookupData>> {
+  if (typeof rawIsbn !== "string" || rawIsbn.length > 50) {
+    return { status: "error", message: "Enter an ISBN to look up." };
+  }
+  const isbn13 = toIsbn13(rawIsbn);
+  if (!isbn13) {
+    return {
+      status: "error",
+      message:
+        "Enter a valid ISBN-10 or ISBN-13, or scan the book's barcode.",
+    };
+  }
+
+  let lookup: OpenLibraryIsbnLookup | null;
+  try {
+    lookup = await lookupOpenLibraryBookByIsbn(isbn13);
+  } catch (error) {
+    return { status: "error", message: actionError(error) };
+  }
+  if (!lookup) {
+    return {
+      status: "error",
+      message: `No Open Library record was found for ISBN ${isbn13}. Fill in the details manually.`,
+    };
+  }
+  const author = lookup.authors[0];
+  if (!author) {
+    return {
+      status: "error",
+      message: `ISBN ${isbn13} was found, but Open Library has no author for it. Fill in the details manually.`,
+    };
+  }
+
+  return {
+    status: "success",
+    data: {
+      isbn13,
+      title: lookup.title.slice(0, 191),
+      author: author.slice(0, 191),
+      pageCount: lookup.pageCount,
+      publicationYear: lookup.publicationYear,
+      coverId: lookup.coverId,
+      workId: lookup.workId,
+    },
+  };
 }
 
 export async function searchAuthorCandidates(

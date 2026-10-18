@@ -15,6 +15,7 @@ import {
   parseOpenLibraryAuthorProfile,
   parseOpenLibraryBookCandidates,
   parseOpenLibraryBookMetadata,
+  parseOpenLibraryIsbnLookup,
   parseOpenLibraryPossibleMatches,
   parseOpenLibraryRecommendationCandidates,
   prioritizeOpenLibraryAuthorCandidates,
@@ -60,6 +61,41 @@ test("book search only returns usable Open Library works with covers", () => {
   assert.throws(
     () => parseOpenLibraryBookCandidates({ docs: {} }),
     /malformed book search/,
+  );
+});
+
+test("ISBN lookup parses the keyed books-API entry and reports misses as null", () => {
+  const response = {
+    "ISBN:9780316206853": {
+      title: "The Cuckoo's Calling",
+      authors: [{ name: "J. K. Rowling" }],
+      number_of_pages: 449,
+      publish_date: "April 2013",
+      url: "https://openlibrary.org/works/OL16806416W/The_Cuckoo%27s_Calling",
+      cover: {
+        small: "https://covers.openlibrary.org/b/id/7261207-S.jpg",
+        medium: "https://covers.openlibrary.org/b/id/7261207-M.jpg",
+        large: "https://covers.openlibrary.org/b/id/7261207-L.jpg",
+      },
+    },
+  };
+  assert.deepEqual(parseOpenLibraryIsbnLookup(response, "9780316206853"), {
+    isbn13: "9780316206853",
+    title: "The Cuckoo's Calling",
+    authors: ["J. K. Rowling"],
+    pageCount: 449,
+    publicationYear: 2013,
+    coverId: 7261207,
+    workId: "OL16806416W",
+  });
+  assert.equal(parseOpenLibraryIsbnLookup({}, "9780316206853"), null);
+  assert.equal(
+    parseOpenLibraryIsbnLookup({ "ISBN:9780316206853": { authors: [] } }, "9780316206853"),
+    null,
+  );
+  assert.throws(
+    () => parseOpenLibraryIsbnLookup("not an object", "9780316206853"),
+    /malformed ISBN lookup/,
   );
 });
 
