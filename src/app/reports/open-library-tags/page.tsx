@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import ManualTagCsvImport from "@/components/ManualTagCsvImport";
-import { getBooksWithoutOpenLibraryTags } from "@/lib/books";
+import {
+  RetryMetadataButton,
+  RetryTagGapsButton,
+} from "@/components/MetadataRetryButtons";
+import {
+  getBooksWithoutOpenLibraryTags,
+  getOpenLibraryCreationGaps,
+} from "@/lib/books";
 
 export default function OpenLibraryTagReportPage() {
   return (
@@ -12,7 +19,10 @@ export default function OpenLibraryTagReportPage() {
 }
 
 async function OpenLibraryTagReportContent() {
-  const books = await getBooksWithoutOpenLibraryTags();
+  const [books, creationGaps] = await Promise.all([
+    getBooksWithoutOpenLibraryTags(),
+    getOpenLibraryCreationGaps(),
+  ]);
   const uncheckedCount = books.filter((book) => book.metadataCheckedAt === null).length;
 
   return (
@@ -30,28 +40,63 @@ async function OpenLibraryTagReportContent() {
               Open Library tag gaps
             </h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-400">
-              Books without saved Open Library tags. This report reads your database
-              only and does not send bulk requests to Open Library. Opening a book
-              detail page performs its individual metadata lookup.
+              Books without saved Open Library tags. Manual lookups here and on
+              book pages are on demand; opening a book detail page performs its
+              individual metadata lookup.
             </p>
           </div>
-          <a
-            href="/api/v1/reports/open-library-tags"
-            className="rounded-full border border-emerald-500/40 px-4 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/10"
-          >
-            Download CSV
-          </a>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href="/api/v1/reports/open-library-tags"
+              className="rounded-full border border-emerald-500/40 px-4 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/10"
+            >
+              Download CSV
+            </a>
+            <a
+              href="/api/v1/reports/open-library-create-gaps"
+              className="rounded-full border border-emerald-500/40 px-4 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/10"
+              title="Books confirmed missing from Open Library, with links and suggested subjects for creating them manually"
+            >
+              Download creation report
+            </a>
+            <RetryTagGapsButton limit={10} />
+          </div>
         </header>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <ReportCount label="Books missing Open Library tags" value={books.length} />
           <ReportCount label="Not checked yet" value={uncheckedCount} />
+          <ReportCount
+            label="Confirmed Open Library creation gaps"
+            value={creationGaps.length}
+          />
         </div>
 
-        <p className="text-sm text-slate-400">
-          To fill gaps manually, open a book and use <strong className="text-slate-300">Add or edit manual subject tags</strong>.
-          Tags are saved to the database and appear in the cloud and search.
-        </p>
+        <div className="space-y-2 text-sm text-slate-400">
+          <p>
+            <strong className="text-slate-300">Retry</strong> re-runs the Open
+            Library search for a book, ignoring the one-day search cache. Use it
+            after adding a missing book to Open Library manually — the retry
+            links the new record and saves its tags automatically. The header
+            button retries up to ten of the oldest checked books, oldest first,
+            with a short pause between requests; run it repeatedly to work
+            through the backlog.
+          </p>
+          <p>
+            The <strong className="text-slate-300">creation report</strong>{" "}
+            lists books already checked (so they were searched for) that still
+            have no Open Library record. Each row includes a search link to
+            double-check, a direct link to Open Library&apos;s add-book form,
+            and suggested subjects prefilled from the book&apos;s genre and
+            manual tags. After creating a record, hit <strong>Retry</strong> on
+            that book to link it.
+          </p>
+          <p>
+            To fill tags by hand instead, open a book and use{" "}
+            <strong className="text-slate-300">Add or edit manual subject tags</strong>.
+            Tags are saved to the database and appear in the cloud and search.
+          </p>
+        </div>
         <ManualTagCsvImport />
 
         {books.length > 0 ? (
@@ -65,6 +110,7 @@ async function OpenLibraryTagReportContent() {
                   <th scope="col" className="px-4 py-3">Genre</th>
                   <th scope="col" className="px-4 py-3">Manual tags</th>
                   <th scope="col" className="px-4 py-3">Metadata</th>
+                  <th scope="col" className="px-4 py-3">Retry</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 bg-slate-900/60">
@@ -100,6 +146,9 @@ async function OpenLibraryTagReportContent() {
                       {[book.publicationYear, book.totalPages ? `${book.totalPages} pages` : null]
                         .filter(Boolean)
                         .join(" · ") || "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <RetryMetadataButton bookId={book.id} />
                     </td>
                   </tr>
                 ))}

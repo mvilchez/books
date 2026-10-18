@@ -86,14 +86,23 @@ function stringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === "string");
 }
 
-async function fetchJson(url: URL): Promise<unknown> {
+type FetchJsonOptions = {
+  /** Skip the one-day cache — used by explicit retry actions. */
+  fresh?: boolean;
+};
+
+async function fetchJson(
+  url: URL,
+  options: FetchJsonOptions = {},
+): Promise<unknown> {
   const response = await fetch(url, {
     headers: {
       Accept: "application/json",
       "User-Agent": USER_AGENT,
     },
-    cache: "force-cache",
-    next: { revalidate: 86_400 },
+    ...(options.fresh
+      ? { cache: "no-store" as const }
+      : { cache: "force-cache" as const, next: { revalidate: 86_400 } }),
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) {
@@ -759,6 +768,7 @@ export async function searchOpenLibraryBookLookup(
   author: string,
   knownPageCount: number | null,
   knownPublicationYear: number | null,
+  options: { fresh?: boolean } = {},
 ): Promise<OpenLibraryBookLookup> {
   const url = new URL("/search.json", OPEN_LIBRARY_ORIGIN);
   url.search = new URLSearchParams({
@@ -768,7 +778,7 @@ export async function searchOpenLibraryBookLookup(
     fields:
       "key,title,author_name,cover_i,first_publish_year,subject,language,editions,editions.key,editions.title,editions.number_of_pages,editions.physical_format,editions.isbn_13,editions.publish_date",
   }).toString();
-  const response = await fetchJson(url);
+  const response = await fetchJson(url, { fresh: options.fresh });
   return {
    metadata: parseOpenLibraryBookMetadata(
      response,

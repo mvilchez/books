@@ -1,10 +1,5 @@
 import { getBooksWithoutOpenLibraryTags } from "@/lib/books";
-
-function csvCell(value: string | number | null): string {
-  const rawText = value === null ? "" : String(value);
-  const text = /^[\s]*[=+\-@]/u.test(rawText) ? `'${rawText}` : rawText;
-  return `"${text.replaceAll('"', '""')}"`;
-}
+import { buildCsvDocument } from "@/lib/csv";
 
 export async function GET(): Promise<Response> {
   const books = await getBooksWithoutOpenLibraryTags();
@@ -35,7 +30,7 @@ export async function GET(): Promise<Response> {
       `/books/${book.id}`,
     ]),
   ];
-  const csv = `\uFEFF${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
+  const csv = buildCsvDocument(rows);
 
   return new Response(csv, {
     headers: {

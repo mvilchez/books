@@ -277,6 +277,65 @@ export async function getBooksWithoutOpenLibraryTags() {
   });
 }
 
+/**
+ * A batch of already-checked tag-gap books eligible for a fresh retry,
+ * oldest checks first so the stalest results are re-queried first.
+ */
+export async function getOpenLibraryTagGapsForRetry(limit: number) {
+  return prisma.book.findMany({
+    where: {
+      metadataCheckedAt: { not: null },
+      tags: { none: { source: "OPEN_LIBRARY" } },
+    },
+    select: {
+      id: true,
+      title: true,
+      totalPages: true,
+      publicationYear: true,
+      metadataCheckedAt: true,
+      openLibraryWorkId: true,
+      openLibraryCoverId: true,
+      isbn13: true,
+      bookFormat: true,
+      seriesName: true,
+      seriesPosition: true,
+      currentPages: true,
+      author: { select: { name: true } },
+    },
+    orderBy: [{ metadataCheckedAt: "asc" }, { author: { name: "asc" } }],
+    take: limit,
+  });
+}
+
+/**
+ * Confirmed Open Library creation gaps: books whose metadata lookup already
+ * ran (so they were searched for) but that still have no Open Library work
+ * linked — the manual-creation report. Manual subject tags and genre are
+ * included so the user can reuse them as subjects when creating the record.
+ */
+export async function getOpenLibraryCreationGaps() {
+  return prisma.book.findMany({
+    where: {
+      metadataCheckedAt: { not: null },
+      openLibraryWorkId: null,
+    },
+    select: {
+      id: true,
+      title: true,
+      author: { select: { name: true } },
+      publicationYear: true,
+      totalPages: true,
+      metadataCheckedAt: true,
+      genre: { select: { name: true } },
+      tags: {
+        where: { source: "LIBRARY", tag: { category: "SUBJECT" } },
+        include: { tag: true },
+      },
+    },
+    orderBy: [{ author: { name: "asc" } }, { title: "asc" }],
+  });
+}
+
 /** Checked books that still have possible Open Library matches to review. */
 export async function getBooksWithMetadataCandidates() {
   return prisma.book.findMany({

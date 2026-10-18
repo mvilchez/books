@@ -384,13 +384,12 @@ export default function NewReadingBookForm({
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
           <label htmlFor="startDate" className="mb-1 block text-sm font-medium text-slate-300">
-            Start date
+            Start date <span className="text-slate-500">(defaults to today)</span>
           </label>
           <input
             id="startDate"
             name="startDate"
             type="date"
-            required
             value={startDate}
             onChange={(event) => setStartDate(event.target.value)}
             className={inputClass}

@@ -36,6 +36,14 @@ function parseDate(value: string | null): Date | null {
     : date;
 }
 
+/** Today at UTC midnight — the same convention used for imported dates. */
+function todayUtcDate(): Date {
+  const now = new Date();
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+}
+
 const readingStatuses = ["PENDING", "READING", "COMPLETED", "WISH_LIST"] as const;
 type ReadingStatus = (typeof readingStatuses)[number];
 
@@ -246,7 +254,10 @@ export async function createReadingBook(
     seriesPositionValue === null || seriesPositionValue === ""
       ? null
       : Number(seriesPositionValue);
-  const startDate = parseDate(formString(formData, "startDate"));
+  const startDateRaw = formString(formData, "startDate");
+  // An empty start date means "start today" (UTC midnight, the project's
+  // convention); a non-empty value must still parse to a real date.
+  const startDate = startDateRaw ? parseDate(startDateRaw) : todayUtcDate();
   const totalPagesValue = formString(formData, "totalPages");
   const totalPages =
     totalPagesValue === null || totalPagesValue === ""

@@ -8,6 +8,7 @@ import {
   getBookEnrichmentSnapshot,
   getBookForRecommendation,
   getCompletedBookSummaries,
+  getOpenLibraryTagGapsForRetry,
   saveBookCoverSelection,
   updateAuthorPortrait,
 } from "@/lib/books";
@@ -255,6 +256,23 @@ export async function enrichBookMetadata(
     };
   }
 
+  return runBookMetadataEnrichment(book, { fresh: false });
+}
+
+type EnrichmentSnapshot = NonNullable<
+  Awaited<ReturnType<typeof getBookEnrichmentSnapshot>>
+>;
+
+/**
+ * Shared lookup-and-save core for the one-shot auto-enrichment and the
+ * explicit retries. `fresh: true` bypasses the one-day search cache so a
+ * retry can pick up records that appeared on Open Library after the first
+ * (cached) check.
+ */
+async function runBookMetadataEnrichment(
+  book: EnrichmentSnapshot,
+  options: { fresh: boolean },
+): Promise<ActionResult<BookMetadataEnrichmentResult>> {
   let lookup: Awaited<ReturnType<typeof searchOpenLibraryBookLookup>>;
   try {
     lookup = await searchOpenLibraryBookLookup(
@@ -262,6 +280,7 @@ export async function enrichBookMetadata(
       book.author.name,
       book.totalPages,
       book.publicationYear,
+      { fresh: options.fresh },
     );
   } catch (error) {
     return { status: "error", message: actionError(error) };
@@ -292,7 +311,9 @@ export async function enrichBookMetadata(
 
   revalidatePath("/");
   revalidatePath("/stats");
-  revalidatePath(`/books/${bookId}`);
+  revalidatePath(`/books/${book.id}`);
+  revalidatePath("/reports/open-library-tags");
+  revalidatePath("/reports/open-library-matches");
   return {
     status: "success",
     data: {
@@ -301,6 +322,120 @@ export async function enrichBookMetadata(
         ? "Book metadata was matched and saved from Open Library."
         : "No exact title-and-author match was found; no external metadata was applied.",
     },
+  };
+}
+
+/**
+ * Explicitly re-run the Open Library metadata lookup for one book, bypassing
+ * the one-day search cache. Used by the tag-gaps report's Retry buttons; it
+ * works for both already-checked books (the normal retry case) and unchecked
+ * ones.
+ */
+export async function retryBookMetadataLookup(
+  bookId: string,
+): Promise<ActionResult<BookMetadataEnrichmentResult>> {
+  if (typeof bookId !== "string" || bookId.length === 0) {
+    return { status: "error", message: "Invalid book." };
+  }
+
+  let book: EnrichmentSnapshot | null;
+  try {
+    book = await getBookEnrichmentSnapshot(bookId);
+  } catch (error) {
+    return { status: "error", message: actionError(error) };
+  }
+  if (!book) return { status: "error", message: "Book not found." };
+
+  const result = await runBookMetadataEnrichment(book, { fresh: true });
+  if (result.status === "error") {
+    return {
+      status: "error",
+      message: `Retry failed for “${book.title}”: ${result.message}`,
+    };
+  }
+  return {
+    status: "success",
+    data: {
+      matched: result.data.matched,
+      message: result.data.matched
+        ? `Retry matched “${book.title}” and saved its Open Library metadata.`
+        : `Retry still found no exact match for “${book.title}”; it remains a creation gap.`,
+    },
+  };
+}
+
+export type TagGapsRetrySummary = {
+  processed: number;
+  matched: number;
+  unmatched: number;
+  failed: number;
+  stoppedEarly: boolean;
+};
+
+/** Pause between batched Open Library requests (keeps the API crawl gentle). */
+function retryDelay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+const TAG_GAPS_RETRY_BATCH_LIMIT = 10;
+const TAG_GAPS_RETRY_DELAY_MS = 750;
+
+/**
+ * Re-run fresh Open Library lookups for up to ten already-checked tag-gap
+ * books, oldest check first, with a short pause between requests. Processing
+ * stops at the first lookup failure so a transient network problem never
+ * burns through the whole batch; rerun the action to continue.
+ */
+export async function retryOpenLibraryTagGaps(
+  limit: number,
+): Promise<ActionResult<TagGapsRetrySummary>> {
+  const batchSize =
+    Number.isSafeInteger(limit) && limit > 0
+      ? Math.min(limit, TAG_GAPS_RETRY_BATCH_LIMIT)
+      : TAG_GAPS_RETRY_BATCH_LIMIT;
+
+  let books: Awaited<ReturnType<typeof getOpenLibraryTagGapsForRetry>>;
+  try {
+    books = await getOpenLibraryTagGapsForRetry(batchSize);
+  } catch (error) {
+    return { status: "error", message: actionError(error) };
+  }
+  const emptySummary: TagGapsRetrySummary = {
+    processed: 0,
+    matched: 0,
+    unmatched: 0,
+    failed: 0,
+    stoppedEarly: false,
+  };
+  if (books.length === 0) {
+    return {
+      status: "success",
+      data: emptySummary,
+      message: "No checked tag-gap books are waiting for a retry.",
+    };
+  }
+
+  const summary: TagGapsRetrySummary = { ...emptySummary };
+  for (const [index, book] of books.entries()) {
+    if (index > 0) await retryDelay(TAG_GAPS_RETRY_DELAY_MS);
+    const result = await runBookMetadataEnrichment(book, { fresh: true });
+    if (result.status === "error") {
+      summary.failed = 1;
+      summary.stoppedEarly = true;
+      break;
+    }
+    if (result.data.matched) summary.matched++;
+    else summary.unmatched++;
+    summary.processed++;
+  }
+
+  revalidatePath("/reports/open-library-tags");
+  return {
+    status: "success",
+    data: summary,
+    message: summary.stoppedEarly
+      ? `Stopped after ${summary.processed} retried book(s) (${summary.matched} matched) because one lookup failed; run the retry again to continue.`
+      : `Retried ${summary.processed} book(s): ${summary.matched} matched Open Library, ${summary.unmatched} still have no exact match.`,
   };
 }
 

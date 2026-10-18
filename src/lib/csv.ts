@@ -42,3 +42,19 @@ export function parseCsv(text: string): string[][] {
   if (row.some((value) => value.trim() !== "")) rows.push(row);
   return rows;
 }
+
+/**
+ * Quote one CSV cell: doubles embedded quotes and prefixes a leading
+ * spreadsheet formula trigger (`=`, `+`, `-`, `@`) with a tick so downloaded
+ * reports stay inert when opened in Excel/LibreOffice.
+ */
+export function csvCell(value: string | number | null): string {
+  const rawText = value === null ? "" : String(value);
+  const text = /^[\s]*[=+\-@]/u.test(rawText) ? `'${rawText}` : rawText;
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+/** Build a UTF-8 BOM-prefixed, CRLF-delimited CSV document. */
+export function buildCsvDocument(rows: readonly (readonly (string | number | null)[])[]): string {
+  return `\uFEFF${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
+}
