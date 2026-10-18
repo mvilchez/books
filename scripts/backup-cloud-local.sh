@@ -10,7 +10,7 @@
 # against the source. Writes a timestamped (optionally gzipped) dump under
 # db/backups/.
 #
-# Prerequisites: mysqldump (or mariadb-dump), gzip (optional)
+# Prerequisites: mariadb-dump (or mysqldump), mariadb/mysql client, gzip (optional)
 #
 # Connection (any of these):
 #   CLOUD_DB_URL="mysql://USER:PASS@HOST:PORT/DB?sslaccept=strict"   (preferred)
@@ -92,12 +92,19 @@ have() { command -v "$1" >/dev/null 2>&1; }
 ###############################################################################
 echo "==> Checking prerequisites"
 DUMP_TOOL=""
-if have mysqldump; then DUMP_TOOL="mysqldump"; elif have mariadb-dump; then DUMP_TOOL="mariadb-dump"; fi
+if have mariadb-dump; then DUMP_TOOL="mariadb-dump"; elif have mysqldump; then DUMP_TOOL="mysqldump"; fi
 if [[ -z "$DUMP_TOOL" ]]; then
-  echo "Error: neither mysqldump nor mariadb-dump is installed." >&2
+  echo "Error: neither mariadb-dump nor mysqldump is installed." >&2
+  exit 1
+fi
+CLIENT_TOOL=""
+if have mariadb; then CLIENT_TOOL="mariadb"; elif have mysql; then CLIENT_TOOL="mysql"; fi
+if [[ -z "$CLIENT_TOOL" ]]; then
+  echo "Error: neither mariadb nor mysql client is installed." >&2
   exit 1
 fi
 echo "   dump tool: $DUMP_TOOL"
+echo "   client tool: $CLIENT_TOOL"
 
 export MYSQL_PWD="$CLOUD_DB_PASSWORD"
 
@@ -105,7 +112,9 @@ export MYSQL_PWD="$CLOUD_DB_PASSWORD"
 # Connectivity check
 ###############################################################################
 echo "==> Checking connectivity to MariaDB cloud ($CLOUD_DB_HOST:$CLOUD_DB_PORT)"
-mariadb --host="$CLOUD_DB_HOST" --port="$CLOUD_DB_PORT" --user="$CLOUD_DB_USER" --no-password "$CLOUD_DB_NAME" \
+# Password comes from the exported MYSQL_PWD above; no --password flag is passed
+# so nothing leaks into the process list, and no prompt can block the script.
+"$CLIENT_TOOL" --host="$CLOUD_DB_HOST" --port="$CLOUD_DB_PORT" --user="$CLOUD_DB_USER" "$CLOUD_DB_NAME" \
   -e "SELECT COUNT(*) AS tables FROM information_schema.tables WHERE table_schema = DATABASE();" >/dev/null
 echo "   Cloud database '$CLOUD_DB_NAME' reachable"
 
@@ -122,7 +131,6 @@ echo "==> Dumping cloud database '$CLOUD_DB_NAME' to $SQL_FILE"
   --host="$CLOUD_DB_HOST" \
   --port="$CLOUD_DB_PORT" \
   --user="$CLOUD_DB_USER" \
-  --no-password \
   --single-transaction \
   --routines \
   --triggers \
