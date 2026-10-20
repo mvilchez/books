@@ -18,6 +18,7 @@ import {
   parseOpenLibraryIsbnLookup,
   parseOpenLibraryPossibleMatches,
   parseOpenLibraryRecommendationCandidates,
+  parseOpenLibrarySeriesBooks,
   prioritizeOpenLibraryAuthorCandidates,
   searchOpenLibraryRecommendations,
   searchOpenLibraryAuthorPhotos,
@@ -472,6 +473,64 @@ test("metadata parser accepts a work whose edition title matches", () => {
       "Stefan Zweig",
     )[0]?.workId,
     "OL28375W",
+  );
+});
+
+test("series parser keeps positioned installments ordered and deduplicated", () => {
+  assert.deepEqual(
+    parseOpenLibrarySeriesBooks({
+      docs: [
+        {
+          key: "/works/OL2W",
+          title: "A Clash of Kings",
+          author_name: ["George R. R. Martin"],
+          cover_i: 8231751,
+          first_publish_year: 1998,
+          series_position: ["2"],
+        },
+        {
+          key: "/works/OL1W",
+          title: "A Game of Thrones",
+          author_name: ["George R. R. Martin"],
+          cover_i: 9269962,
+          first_publish_year: 1996,
+          series_position: ["1"],
+        },
+        // Companion without a position is excluded.
+        { key: "/works/OL3W", title: "Companion", author_name: ["George R. R. Martin"] },
+        // Duplicate work id is collapsed.
+        {
+          key: "/works/OL1W",
+          title: "A Game of Thrones",
+          author_name: ["George R. R. Martin"],
+          series_position: ["1"],
+        },
+        // Non-work keys are skipped.
+        { key: "/books/OL1M", title: "Edition", series_position: ["9"] },
+      ],
+    }),
+    [
+      {
+        workId: "OL1W",
+        title: "A Game of Thrones",
+        authors: ["George R. R. Martin"],
+        coverId: 9269962,
+        seriesPosition: 1,
+        firstPublishYear: 1996,
+      },
+      {
+        workId: "OL2W",
+        title: "A Clash of Kings",
+        authors: ["George R. R. Martin"],
+        coverId: 8231751,
+        seriesPosition: 2,
+        firstPublishYear: 1998,
+      },
+    ],
+  );
+  assert.throws(
+    () => parseOpenLibrarySeriesBooks({ docs: null }),
+    /malformed series search/,
   );
 });
 

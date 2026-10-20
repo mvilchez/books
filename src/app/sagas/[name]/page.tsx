@@ -1,11 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { startSagaWishlistBookAction } from "@/app/actions/bookActions";
+import {
+  markSagaBookUnreadAction,
+  startSagaWishlistBookAction,
+} from "@/app/actions/bookActions";
 import AuthorPortrait from "@/components/AuthorPortrait";
 import BookCover from "@/components/BookCover";
 import BookSearch from "@/components/BookSearch";
+import SagaSeriesSection from "@/components/SagaSeriesSection";
 import { getSagaBooks } from "@/lib/books";
+import { getSagaBookAction } from "@/lib/saga-book-action";
+import { decodeSagaRouteName } from "@/lib/saga-route";
+import { getSagaSeriesView } from "@/lib/saga-series";
 
 export default function SagaDetailPage({
   params,
@@ -20,13 +27,18 @@ export default function SagaDetailPage({
 }
 
 async function SagaDetail({ params }: { params: Promise<{ name: string }> }) {
-  const { name } = await params;
+  const { name: rawName } = await params;
+  // Next.js hands the raw (still percent-encoded) segment to the route, while
+  // saga names are stored decoded — decode before the exact lookup.
+  const name = decodeSagaRouteName(rawName);
+  if (name === null) notFound();
+
   const books = await getSagaBooks(name);
   if (books.length === 0) notFound();
 
   const authors = [...new Set(books.map((book) => book.author.name))];
   const wishlistBook = books.find(
-    (book) => book.status === "PENDING" || book.status === "WISH_LIST",
+    (book) => getSagaBookAction(book.status) === "start",
   );
   const maxPosition = books.reduce(
     (max, book) => Math.max(max, book.seriesPosition ?? 0),
@@ -41,6 +53,21 @@ async function SagaDetail({ params }: { params: Promise<{ name: string }> }) {
     initialAuthor: authors.length === 1 ? authors[0] : "",
   });
   const goodreadsUrl = `https://www.goodreads.com/search?q=${encodeURIComponent(`${name} series ${authors.join(" ")}`)}`;
+  const primaryAuthor = authors.length === 1 ? authors[0] : (authors[0] ?? "");
+  const libraryBooks = books.map((book) => ({
+    id: book.id,
+    title: book.title,
+    authorName: book.author.name,
+    seriesPosition: book.seriesPosition,
+    status: book.status,
+    openLibraryCoverId: book.openLibraryCoverId,
+  }));
+  const seriesView = await getSagaSeriesView(
+    name,
+    primaryAuthor,
+    libraryBooks,
+    books[0]?.title ?? null,
+  );
 
   return (
     <main className="min-h-screen bg-slate-900 p-6 text-slate-100 md:p-12">
@@ -106,6 +133,22 @@ async function SagaDetail({ params }: { params: Promise<{ name: string }> }) {
           </p>
         </section>
 
+        <SagaSeriesSection
+          sagaName={name}
+          entries={seriesView.entries}
+          representativeCoverId={seriesView.representativeCoverId}
+          fallbackCoverIds={books
+            .map((book) => book.openLibraryCoverId)
+            .filter(
+              (coverId): coverId is number =>
+                coverId !== null &&
+                Number.isSafeInteger(coverId) &&
+                coverId > 0,
+            )
+            .slice(0, 4)}
+        />
+
+        <h2 className="pt-2 text-xl font-bold text-white">In your library</h2>
         <ol className="space-y-3">
           {books.map((book, index) => (
             <li
@@ -139,7 +182,7 @@ async function SagaDetail({ params }: { params: Promise<{ name: string }> }) {
                 <span className="rounded-full border border-slate-600 px-3 py-1 text-xs text-slate-300">
                   {book.status.replaceAll("_", " ")}
                 </span>
-                {book.status === "PENDING" || book.status === "WISH_LIST" ? (
+                {getSagaBookAction(book.status) === "start" ? (
                   <form action={startSagaWishlistBookAction}>
                     <input type="hidden" name="bookId" value={book.id} />
                     <input type="hidden" name="seriesName" value={name} />
@@ -148,6 +191,17 @@ async function SagaDetail({ params }: { params: Promise<{ name: string }> }) {
                       className="rounded-lg border border-emerald-500/40 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/10"
                     >
                       Start reading
+                    </button>
+                  </form>
+                ) : getSagaBookAction(book.status) === "unread" ? (
+                  <form action={markSagaBookUnreadAction}>
+                    <input type="hidden" name="bookId" value={book.id} />
+                    <input type="hidden" name="seriesName" value={name} />
+                    <button
+                      type="submit"
+                      className="rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/10"
+                    >
+                      Mark unread
                     </button>
                   </form>
                 ) : null}

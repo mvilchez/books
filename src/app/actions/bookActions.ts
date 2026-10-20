@@ -6,6 +6,7 @@ import {
   createPendingBookRecord,
   createReadingBookRecord,
   deleteBookById,
+  markBookUnread,
   saveBookDetails,
   setBookProgressPages,
   setBookStillReadingRecord,
@@ -371,6 +372,29 @@ export async function startSagaWishlistBookAction(
   const started = await startSagaWishlistBook(bookId, seriesName, startDate);
   if (!started) {
     throw new Error("This saga book is no longer available to start.");
+  }
+  revalidatePath("/");
+  revalidatePath("/stats");
+  revalidatePath("/sagas");
+  revalidatePath(`/sagas/${encodeURIComponent(seriesName)}`);
+  revalidatePath(`/books/${bookId}`);
+}
+
+/**
+ * Mark a saga book as not started again ("unread"). Used by the saga detail
+ * page to undo a finished/started book and put it back on the unread list.
+ */
+export async function markSagaBookUnreadAction(
+  formData: FormData,
+): Promise<void> {
+  const bookId = formString(formData, "bookId");
+  const seriesName = formString(formData, "seriesName");
+  if (!bookId || !seriesName) {
+    throw new Error("Invalid saga book.");
+  }
+  const marked = await markBookUnread(bookId);
+  if (!marked) {
+    throw new Error("This saga book is already marked as unread.");
   }
   revalidatePath("/");
   revalidatePath("/stats");

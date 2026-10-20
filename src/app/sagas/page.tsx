@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import BookSearch from "@/components/BookSearch";
+import SagaCardCover from "@/components/SagaCardCover";
 import { getSagaList } from "@/lib/books";
 
 export default function SagasPage() {
@@ -39,16 +40,22 @@ async function SagaList() {
               <li key={saga.name}>
                 <Link
                   href={`/sagas/${encodeURIComponent(saga.name)}`}
-                  className="block h-full rounded-xl border border-slate-700/60 bg-slate-800/60 p-5 transition hover:border-emerald-500/50 hover:bg-slate-800"
+                  className="block h-full overflow-hidden rounded-xl border border-slate-700/60 bg-slate-800/60 transition hover:border-emerald-500/50 hover:bg-slate-800"
                 >
-                  <h2 className="text-lg font-bold text-white">{saga.name}</h2>
-                  <p className="mt-1 text-sm text-slate-400">
-                    {saga.authors.join(", ") || "Author unknown"}
-                  </p>
-                  <p className="mt-3 text-xs text-emerald-300">
-                    {saga.bookCount} {saga.bookCount === 1 ? "book" : "books"} in
-                    your library
-                  </p>
+                  <SagaCardCover
+                    sagaName={saga.name}
+                    coverIds={saga.coverIds}
+                  />
+                  <div className="p-5">
+                    <h2 className="text-lg font-bold text-white">{saga.name}</h2>
+                    <p className="mt-1 text-sm text-slate-400">
+                      {saga.authors.join(", ") || "Author unknown"}
+                    </p>
+                    <p className="mt-3 text-xs text-emerald-300">
+                      {saga.bookCount} {saga.bookCount === 1 ? "book" : "books"}{" "}
+                      in your library
+                    </p>
+                  </div>
                 </Link>
               </li>
             ))}

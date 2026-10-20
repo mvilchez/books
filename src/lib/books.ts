@@ -59,23 +59,45 @@ export async function getBookDetail(id: string) {
 
 /** Series/saga names represented by at least one library book. */
 export async function getSagaList(): Promise<
-  { name: string; bookCount: number; authors: string[] }[]
+  {
+    name: string;
+    bookCount: number;
+    authors: string[];
+    /** Saved Open Library cover ids — the list page renders a collage. */
+    coverIds: number[];
+  }[]
 > {
   const books = await prisma.book.findMany({
     where: { seriesName: { not: null } },
     select: {
       seriesName: true,
+      openLibraryCoverId: true,
       author: { select: { name: true } },
     },
     orderBy: [{ seriesName: "asc" }, { author: { name: "asc" } }],
   });
-  const sagas = new Map<string, { authors: Set<string>; bookCount: number }>();
+  const sagas = new Map<
+    string,
+    { authors: Set<string>; bookCount: number; coverIds: number[] }
+  >();
   for (const book of books) {
     const name = book.seriesName?.trim();
     if (!name) continue;
-    const saga = sagas.get(name) ?? { authors: new Set<string>(), bookCount: 0 };
+    const saga = sagas.get(name) ?? {
+      authors: new Set<string>(),
+      bookCount: 0,
+      coverIds: [],
+    };
     saga.authors.add(book.author.name);
     saga.bookCount++;
+    if (
+      book.openLibraryCoverId !== null &&
+      Number.isSafeInteger(book.openLibraryCoverId) &&
+      book.openLibraryCoverId > 0 &&
+      !saga.coverIds.includes(book.openLibraryCoverId)
+    ) {
+      saga.coverIds.push(book.openLibraryCoverId);
+    }
     sagas.set(name, saga);
   }
   return [...sagas]
@@ -85,6 +107,7 @@ export async function getSagaList(): Promise<
       authors: [...saga.authors].sort((left, right) =>
         left.localeCompare(right),
       ),
+      coverIds: saga.coverIds.slice(0, 4),
     }))
     .sort((left, right) => left.name.localeCompare(right.name));
 }
@@ -621,6 +644,28 @@ export async function startSagaWishlistBook(
       readingYear: startDate.getUTCFullYear(),
       currentPages: 0,
       rating: null,
+    },
+  });
+  return result.count > 0;
+}
+
+/**
+ * Mark a book as not started again ("unread").
+ *
+ * The reading status becomes PENDING and the reading progress is reset:
+ * pages read, rating, finish date and start date are cleared, because they
+ * described the previous read. The reading year is kept so the row keeps
+ * its place in the library (the row itself is the reading event).
+ */
+export async function markBookUnread(bookId: string): Promise<boolean> {
+  const result = await prisma.book.updateMany({
+    where: { id: bookId, status: { not: "PENDING" } },
+    data: {
+      status: "PENDING",
+      currentPages: 0,
+      rating: null,
+      finishDate: null,
+      startDate: null,
     },
   });
   return result.count > 0;

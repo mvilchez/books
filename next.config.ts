@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "covers.openlibrary.org",
+        pathname: "/b/id/**",
+        search: "?default=false",
+      },
+      {
+        protocol: "https",
+        hostname: "covers.openlibrary.org",
         pathname: "/b/isbn/**",
         search: "?default=false",
       },

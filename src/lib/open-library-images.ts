@@ -658,6 +658,103 @@ export function parseOpenLibraryRecommendationCandidates(
   return candidates;
 }
 
+export type OpenLibrarySeriesBook = {
+  workId: string;
+  title: string;
+  authors: string[];
+  coverId: number | null;
+  seriesPosition: number;
+  firstPublishYear: number | null;
+};
+
+function seriesPosition(value: unknown): number | null {
+  const raw = values(value)[0];
+  if (raw === undefined) return null;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+/**
+ * Parse an Open Library full-text series search into ordered series books.
+ * Only docs carrying a numeric `series_position` are kept (this filters
+ * companions, box sets, and study guides out of the listing); results are
+ * sorted by position and deduplicated by work id.
+ */
+export function parseOpenLibrarySeriesBooks(
+  value: unknown,
+): OpenLibrarySeriesBook[] {
+  const root = record(value);
+  if (!Array.isArray(root?.docs)) {
+    throw new Error("Open Library returned malformed series search results.");
+  }
+  const seen = new Set<string>();
+  const books: OpenLibrarySeriesBook[] = [];
+  for (const rawDoc of root.docs) {
+    const doc = record(rawDoc);
+    if (!doc) continue;
+    const { key, title } = doc;
+    if (
+      typeof key !== "string" ||
+      !/^\/works\/OL\d+W$/.test(key) ||
+      typeof title !== "string" ||
+      !title.trim()
+    ) {
+      continue;
+    }
+    const position = seriesPosition(doc.series_position);
+    if (position === null) continue;
+    const workId = key.slice("/works/".length);
+    if (seen.has(workId)) continue;
+    seen.add(workId);
+    books.push({
+      workId,
+      title: title.trim(),
+      authors: stringArray(doc.author_name).slice(0, 5),
+      coverId: positiveInteger(doc.cover_i),
+      seriesPosition: position,
+      firstPublishYear: publicationYear(doc.first_publish_year),
+    });
+  }
+  return books.sort((left, right) => left.seriesPosition - right.seriesPosition);
+}
+
+/**
+ * Full-text series search against Open Library. The fielded `series=` index
+ * is unreliable, so this queries `q=` (saga name + author) and keeps only
+ * docs with a numeric `series_position`, which marks genuine series
+ * installments. Results share the one-day lookup cache.
+ */
+export async function searchOpenLibrarySeriesBooks(
+  seriesName: string,
+  author: string,
+): Promise<OpenLibrarySeriesBook[]> {
+  const query = author.trim() ? `${seriesName} ${author}` : seriesName;
+  const url = new URL("/search.json", OPEN_LIBRARY_ORIGIN);
+  url.search = new URLSearchParams({
+    q: query,
+    limit: "50",
+    fields:
+      "key,title,author_name,cover_i,first_publish_year,series_position",
+  }).toString();
+  return parseOpenLibrarySeriesBooks(await fetchJson(url));
+}
+
+/**
+ * Series lookup with a fallback hint: when the saga name itself is a
+ * translation Open Library does not index (e.g. a Spanish saga title), retry
+ * with the author's name plus the first local book title, which often hits
+ * the English series works and their `series_position` entries.
+ */
+export async function searchOpenLibrarySeriesBooksWithFallback(
+  seriesName: string,
+  author: string,
+  fallbackTitle: string | null,
+): Promise<OpenLibrarySeriesBook[]> {
+  const primary = await searchOpenLibrarySeriesBooks(seriesName, author);
+  if (primary.length > 0 || !fallbackTitle?.trim()) return primary;
+  return searchOpenLibrarySeriesBooks(fallbackTitle.trim(), author);
+}
+
 export function parseOpenLibraryAuthorCandidates(
   value: unknown,
 ): OpenLibraryAuthorCandidate[] {
