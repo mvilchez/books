@@ -52,7 +52,7 @@ export async function getBookDetail(id: string) {
     include: {
       author: true,
       genre: true,
-      tags: { include: { tag: true } },
+      tags: { where: { deleted: false }, include: { tag: true } },
     },
   });
 }
@@ -190,13 +190,13 @@ async function findMatchingTags(
   const tags = await prisma.tag.findMany({
     where: {
       name: { contains: escaped },
-      books: { some: {} },
+      books: { some: { deleted: false } },
     },
     select: {
       id: true,
       name: true,
       category: true,
-      _count: { select: { books: true } },
+      _count: { select: { books: { where: { deleted: false } } } },
     },
     orderBy: [{ books: { _count: "desc" } }, { name: "asc" }],
     ...(take ? { take } : {}),
@@ -275,7 +275,7 @@ function parseSearchDate(value: string): { gte: Date; lt: Date } | null {
 /** Books with saved metadata but no Open Library tags (tag-gap report + CSV). */
 export async function getBooksWithoutOpenLibraryTags() {
   return prisma.book.findMany({
-    where: { tags: { none: { source: "OPEN_LIBRARY" } } },
+    where: { tags: { none: { source: "OPEN_LIBRARY", deleted: false } } },
     select: {
       id: true,
       title: true,
@@ -287,6 +287,7 @@ export async function getBooksWithoutOpenLibraryTags() {
       tags: {
         where: {
           source: "LIBRARY",
+          deleted: false,
           tag: { category: "SUBJECT" },
         },
         include: { tag: true },
@@ -308,7 +309,7 @@ export async function getOpenLibraryTagGapsForRetry(limit: number) {
   return prisma.book.findMany({
     where: {
       metadataCheckedAt: { not: null },
-      tags: { none: { source: "OPEN_LIBRARY" } },
+      tags: { none: { source: "OPEN_LIBRARY", deleted: false } },
     },
     select: {
       id: true,
@@ -351,7 +352,7 @@ export async function getOpenLibraryCreationGaps() {
       metadataCheckedAt: true,
       genre: { select: { name: true } },
       tags: {
-        where: { source: "LIBRARY", tag: { category: "SUBJECT" } },
+        where: { source: "LIBRARY", deleted: false, tag: { category: "SUBJECT" } },
         include: { tag: true },
       },
     },

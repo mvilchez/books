@@ -21,6 +21,7 @@ export async function countOpenLibrarySubjectTags(
     where: {
       bookId,
       source: "OPEN_LIBRARY",
+      deleted: false,
       tag: { category: "SUBJECT" },
     },
   });
@@ -45,6 +46,7 @@ export async function getUsedTags(): Promise<UsedTag[]> {
     SELECT t.id, t.name, t.category, COUNT(DISTINCT bt.book_id) AS count
     FROM "Tag" AS t
     INNER JOIN book_tags AS bt ON bt.tag_id = t.id
+    WHERE bt.deleted = false
     GROUP BY t.id, t.name, t.category
     ORDER BY t.category ASC, t.name ASC
   `;
@@ -76,7 +78,7 @@ export async function getSubjectTagOptions(): Promise<
   return prisma.tag.findMany({
     where: {
       category: "SUBJECT",
-      books: { some: {} },
+      books: { some: { deleted: false } },
     },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
@@ -110,6 +112,25 @@ export async function deleteBookTag(
   tagId: string,
   source: BookTagSource,
 ): Promise<{ deleted: boolean }> {
+  // Retrieved (Open Library) tags are soft-deleted so a later metadata
+  // refresh/retry cannot silently re-add a tag the user removed by hand.
+  // The row is kept (marked deleted) as the "memory" of that decision.
+  if (source === "OPEN_LIBRARY") {
+    const result = await prisma.bookTag.updateMany({
+      where: {
+        bookId,
+        tagId,
+        source,
+        deleted: false,
+      },
+      data: {
+        deleted: true,
+        deletedAt: new Date(),
+      },
+    });
+    return { deleted: result.count > 0 };
+  }
+
   const result = await prisma.bookTag.deleteMany({
     where: {
       bookId,

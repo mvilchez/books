@@ -124,12 +124,15 @@ model BookTag {
   bookId    String        @map("book_id")
   tagId     String        @map("tag_id")
   source    BookTagSource @default(LIBRARY)
+  deleted   Boolean       @default(false) @map("deleted")
+  deletedAt DateTime?     @map("deleted_at")
   book      Book          @relation(fields: [bookId], references: [id], onDelete: Cascade)
   tag       Tag           @relation(fields: [tagId], references: [id], onDelete: Cascade)
   createdAt DateTime      @default(now()) @map("created_at")
 
   @@id([bookId, tagId, source])
   @@index([tagId, source])
+  @@index([deleted])
   @@map("book_tags")
 }
 

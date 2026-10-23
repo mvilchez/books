@@ -53,6 +53,7 @@ export async function replaceManyBookTags(
     where: {
       bookId: { in: bookIds },
       source,
+      deleted: false,
       ...(category ? { tag: { category } } : {}),
     },
   });

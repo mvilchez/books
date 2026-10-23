@@ -7,6 +7,9 @@ const OPEN_LIBRARY_ORIGIN = "https://openlibrary.org";
 const COVERS_ORIGIN = "https://covers.openlibrary.org";
 const USER_AGENT = "BooksTracker/1.0 (https://github.com/mvilchez/books)";
 
+/** Languages retained as Open Library LANGUAGE tags for this library. */
+export const ALLOWED_OPEN_LIBRARY_LANGUAGES = new Set(["Spanish", "English"]);
+
 export type OpenLibraryBookCandidate = {
   workId: string;
   title: string;
@@ -512,7 +515,13 @@ export function parseOpenLibraryBookMetadata(
       .filter(Boolean)
       .slice(0, 20),
     languages: [
-      ...new Set(stringArray(matchedDoc.language).map(languageName)),
+      ...new Set(
+        stringArray(matchedDoc.language)
+          .map(languageName)
+          .filter((language) =>
+            ALLOWED_OPEN_LIBRARY_LANGUAGES.has(language),
+          ),
+      ),
     ].slice(0, 10),
     seriesName: rawSeries?.trim().slice(0, 191) ?? null,
     seriesPosition,
