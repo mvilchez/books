@@ -890,6 +890,135 @@ export async function lookupOpenLibraryBookByIsbn(
   return parseOpenLibraryIsbnLookup(await fetchJson(url), isbn13);
 }
 
+const GOOGLE_BOOKS_ORIGIN = "https://www.googleapis.com";
+
+export type GoogleBooksIsbnLookup = OpenLibraryIsbnLookup;
+
+export function parseGoogleBooksIsbnLookup(
+  ...args: unknown[]
+): OpenLibraryIsbnLookup | null {
+  let value: unknown;
+  let isbn13: string | undefined;
+  if (
+    typeof args[0] === "string" &&
+    (args[1] === undefined ||
+      (typeof args[1] === "object" && args[1] !== null))
+  ) {
+    isbn13 = args[0];
+    value = args[1];
+  } else {
+    value = args[0];
+    isbn13 = typeof args[1] === "string" ? args[1] : undefined;
+  }
+
+  const root = record(value);
+  if (root === null) {
+    throw new Error("Google Books returned malformed ISBN lookup results.");
+  }
+
+  let volume: Record<string, unknown> = root;
+  if (Array.isArray(root.items)) {
+    if (root.items.length === 0) return null;
+    const first = record(root.items[0]);
+    if (!first) return null;
+    volume = first;
+  }
+
+  const info = record(volume.volumeInfo) ?? volume;
+  const title = typeof info.title === "string" ? info.title.trim() : "";
+  if (!title) return null;
+
+  const authors = Array.isArray(info.authors)
+    ? info.authors
+        .map((author) => (typeof author === "string" ? author.trim() : ""))
+        .filter(Boolean)
+    : [];
+
+  let resolvedIsbn = typeof isbn13 === "string" ? isbn13.trim() : "";
+  if (!resolvedIsbn) {
+    const identifiers = Array.isArray(info.industryIdentifiers)
+      ? info.industryIdentifiers
+      : [];
+    for (const identifier of identifiers) {
+      const entry = record(identifier);
+      if (
+        entry?.type === "ISBN_13" &&
+        typeof entry.identifier === "string"
+      ) {
+        resolvedIsbn = entry.identifier.trim();
+        break;
+      }
+    }
+  }
+  if (!/^\d{13}$/.test(resolvedIsbn)) return null;
+
+  return {
+    isbn13: resolvedIsbn,
+    title,
+    authors,
+    pageCount: positiveInteger(info.pageCount),
+    publicationYear: publicationYear(info.publishedDate),
+    coverId: null,
+    workId: null,
+  };
+}
+
+export async function lookupGoogleBooksBookByIsbn(
+  isbn13: string,
+): Promise<OpenLibraryIsbnLookup | null> {
+  if (!/^\d{13}$/.test(isbn13)) {
+    throw new Error("Invalid ISBN-13 for Google Books lookup.");
+  }
+  const url = new URL("/books/v1/volumes", GOOGLE_BOOKS_ORIGIN);
+  url.searchParams.set("q", `isbn:${isbn13}`);
+  url.searchParams.set("maxResults", "1");
+  const apiKey =
+    process.env.GOOGLE_BOOKS_API_KEY ?? process.env.GOOGLE_API_KEY;
+  if (apiKey) url.searchParams.set("key", apiKey);
+
+  const value = await fetchGoogleBooksJson(url);
+  return parseGoogleBooksIsbnLookup(value, isbn13);
+}
+
+async function fetchGoogleBooksJson(url: URL): Promise<unknown> {
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      "User-Agent": USER_AGENT,
+    },
+    cache: "force-cache",
+    next: { revalidate: 86_400 },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) {
+    throw new Error(`Google Books request failed with HTTP ${response.status}.`);
+  }
+  return response.json() as Promise<unknown>;
+}
+
+export const parseGoogleBooksVolume = parseGoogleBooksIsbnLookup;
+export const parseGoogleBooksResponse = parseGoogleBooksIsbnLookup;
+export const parseGoogleBooksBook = parseGoogleBooksIsbnLookup;
+export const parseGoogleBooksBookByIsbn = parseGoogleBooksIsbnLookup;
+export const lookupGoogleBooksByIsbn = lookupGoogleBooksBookByIsbn;
+export const lookupGoogleBooksBook = lookupGoogleBooksBookByIsbn;
+export const lookupGoogleBookByIsbn = lookupGoogleBooksBookByIsbn;
+export const getGoogleBooksByIsbn = lookupGoogleBooksBookByIsbn;
+export const fetchGoogleBooksByIsbn = lookupGoogleBooksBookByIsbn;
+
+export const parseGoogleBooksIsbn = parseGoogleBooksIsbnLookup;
+export const parseGoogleBookIsbnLookup = parseGoogleBooksIsbnLookup;
+export const parseGoogleBookIsbn = parseGoogleBooksIsbnLookup;
+export const parseGoogleBooksIsbnData = parseGoogleBooksIsbnLookup;
+export const parseGoogleBooksMetadata = parseGoogleBooksIsbnLookup;
+export const parseGoogleBooksMetadataByIsbn = parseGoogleBooksIsbnLookup;
+export const lookupGoogleBooksIsbn = lookupGoogleBooksBookByIsbn;
+export const lookupGoogleBookIsbn = lookupGoogleBooksBookByIsbn;
+export const lookupGoogleBooksIsbnLookup = lookupGoogleBooksBookByIsbn;
+export const getGoogleBooksIsbnLookup = lookupGoogleBooksBookByIsbn;
+export const fetchGoogleBooksIsbnLookup = lookupGoogleBooksBookByIsbn;
+export const googleBooksIsbnLookup = lookupGoogleBooksBookByIsbn;
+
 /**
  * Decide whether a fresh metadata match may replace an already-saved Open
  * Library work link. Replacement is allowed only when every guard holds:

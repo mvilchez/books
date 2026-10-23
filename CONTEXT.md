@@ -152,3 +152,7 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * PostgreSQL follow-up: fixed raw SQL in `src/lib/tags.ts` (`getUsedTags` quoted `
 
 * PostgreSQL follow-up: fixed raw SQL in src/lib/tags.ts (getUsedTags quoted Tag table; mergeTags uses ON CONFLICT upsert). Validated with a live Neon query.
+
+**ISBN fallback to Google Books (2026-10-23):**
+* **`src/lib/open-library-images.ts`** — added `lookupGoogleBooksBookByIsbn`/`parseGoogleBooksIsbnLookup` (plus naming aliases) using the Google Books volumes API (`/books/v1/volumes?q=isbn:<isbn13>`). The parser accepts both search (`{ items }`) and single-volume (`{ volumeInfo }`) responses, extracts title, authors, page count, and publication year, and reports missing volumes as `null`. `GOOGLE_BOOKS_API_KEY` (or `GOOGLE_API_KEY`) is appended when present; otherwise the unauthenticated endpoint is used.
+* **`src/app/actions/openLibraryImageActions.ts`** — `lookupBookByIsbn` now tries Open Library first and falls back to Google Books when Open Library has no record, so ISBNs such as 9788410025233 that only exist in Google Books still prefill the new-book form.

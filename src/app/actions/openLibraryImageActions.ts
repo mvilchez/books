@@ -29,6 +29,7 @@ import {
   getOpenLibraryAuthorUrl,
   getOpenLibraryWorkUrl,
   lookupOpenLibraryBookByIsbn,
+  lookupGoogleBooksBookByIsbn,
   searchOpenLibraryBookLookup,
   searchOpenLibraryAuthorPhotos,
   searchOpenLibraryBooks,
@@ -158,6 +159,9 @@ export async function lookupBookByIsbn(
   let lookup: OpenLibraryIsbnLookup | null;
   try {
     lookup = await lookupOpenLibraryBookByIsbn(isbn13);
+    if (!lookup) {
+      lookup = await lookupGoogleBooksBookByIsbn(isbn13);
+    }
   } catch (error) {
     return { status: "error", message: actionError(error) };
   }
