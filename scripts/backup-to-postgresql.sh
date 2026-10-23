@@ -105,7 +105,7 @@ export PGPASSWORD="$PG_PASS"
 # Sanity checks
 ###############################################################################
 echo "==> Checking connectivity"
-mariadb --host="$MYSQL_HOST" --port="$MYSQL_PORT" --user="$MYSQL_USER" --no-password "$MYSQL_NAME" -e "SELECT COUNT(*) AS tables FROM information_schema.tables WHERE table_schema = DATABASE();" >/dev/null
+mariadb --host="$MYSQL_HOST" --port="$MYSQL_PORT" --user="$MYSQL_USER" "$MYSQL_NAME" -e "SELECT COUNT(*) AS tables FROM information_schema.tables WHERE table_schema = DATABASE();" >/dev/null
 echo "   MariaDB $MYSQL_NAME@$MYSQL_HOST:$MYSQL_PORT reachable"
 
 psql "$PG_DATABASE_URL" -t -A -c "SELECT version();" >/dev/null
@@ -126,7 +126,7 @@ DATABASE_URL="$PG_DATABASE_URL" npx prisma db push --schema "$PRISMA_SCHEMA" --s
 ###############################################################################
 # 2. Dump DATA ONLY from MariaDB, in FK-safe dependency order
 ###############################################################################
-TABLES=(Author Genre Tag Book BookTag BookMetadataCandidate)
+TABLES=(Author Genre Tag Book book_tags book_metadata_candidates)
 RAW_DUMP="$(mktemp)"
 PG_DUMP="$(mktemp)"
 cleanup() { [[ "$KEEP_DUMP" == "1" ]] || rm -f "$RAW_DUMP" "$PG_DUMP"; }
@@ -134,11 +134,12 @@ trap cleanup EXIT
 
 echo "==> Dumping data from MariaDB ($DUMP_TOOL --no-create-info --compatible=postgresql)"
 MYSQL_PWD="$MYSQL_PASS" "$DUMP_TOOL" \
+  --default-character-set=utf8mb4 \
   --host="$MYSQL_HOST" \
   --port="$MYSQL_PORT" \
   --user="$MYSQL_USER" \
-  --no-password \
   --no-create-info \
+  --complete-insert \
   --skip-add-locks \
   --skip-add-drop-table \
   --skip-comments \
@@ -176,8 +177,8 @@ echo "   Load complete"
 ###############################################################################
 echo "==> Verifying row counts"
 ALL_OK=1
-for table in Book Author Genre Tag BookTag BookMetadataCandidate; do
-  mariadb_count=$(MYSQL_PWD="$MYSQL_PASS" mariadb --host="$MYSQL_HOST" --port="$MYSQL_PORT" --user="$MYSQL_USER" --no-password -N -B "$MYSQL_NAME" -e "SELECT COUNT(*) FROM \`$table\`;" 2>/dev/null || echo "?")
+for table in Book Author Genre Tag book_tags book_metadata_candidates; do
+  mariadb_count=$(MYSQL_PWD="$MYSQL_PASS" mariadb --host="$MYSQL_HOST" --port="$MYSQL_PORT" --user="$MYSQL_USER" -N -B "$MYSQL_NAME" -e "SELECT COUNT(*) FROM \`$table\`;" 2>/dev/null || echo "?")
   pg_count=$(PGPASSWORD="$PG_PASS" psql "$PG_DATABASE_URL" -t -A -c "SELECT COUNT(*) FROM \"$table\";" 2>/dev/null || echo "?")
   if [[ "$mariadb_count" == "$pg_count" && "$mariadb_count" != "?" ]]; then
     status="OK"

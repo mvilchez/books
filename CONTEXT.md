@@ -142,3 +142,13 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * **Phase 4:** Deployment plan written — Render free tier, SkySQL/Neon/Aiven managed database options, and a MariaDB → PostgreSQL migration script (`scripts/backup-to-postgresql.sh`); not yet executed against production.
 * **Phase 5 stretch goals:** Origin donut, publication-era histogram, CSV export route, and analytics caching with invalidation after imports remain open.
 * **Phase 6 implementation:** Features 6.1 (richer dashboard cards/list and URL-backed sorting) and 6.2 (global title/author autocomplete) are implemented. Feature 6.3 uses explicit, on-demand Open Library searches from a book detail page. Each search returns at most five candidates; no image is saved until its result and preview are manually selected. Successful API responses are cached for one day, and selected cover/portrait images load directly and lazily from Open Library. Selected cover/work IDs are stored additively on `Book`; existing `Author` portrait/source fields store the chosen photo and author profile URL. No bulk lookups or image downloads occur. Existing Commons portraits and title/initial fallbacks remain supported. The new Book image columns were applied to the local database with `npx prisma db push`. See `PLAN.md`.
+
+**PostgreSQL/Neon migration (2026-10-23):**
+* Dev target switched with `npm run switch-db neon`; `prisma/schema.prisma` now uses `provider = "postgresql"` and Prisma client regenerated.
+* `prisma/migrations/migration_lock.toml` removed to avoid P3019; schema applied to Neon with `npx prisma db push`.
+* Local MariaDB data migrated to Neon with `scripts/backup-to-postgresql.sh`; row counts matched for Book (809), Author (432), Genre (25), Tag (937), book_tags (3782), and book_metadata_candidates (1).
+* Migration script fixes: removed unsupported `--no-password`, added `--default-character-set=utf8mb4` and `--complete-insert`, and corrected table names to the actual MySQL/PostgreSQL table names.
+* Validation: `npm test` passed (61/61), `npm run lint` passed (0 errors, 17 pre-existing warnings), and `npm run build` succeeded when `DATABASE_URL` points to Neon. A plain `npm run build` still sees the MariaDB `DATABASE_URL` in `.env.production` because that file is a registry; override `DATABASE_URL` for PostgreSQL builds or deploy with the Neon URL.
+* PostgreSQL follow-up: fixed raw SQL in `src/lib/tags.ts` (`getUsedTags` quoted `
+
+* PostgreSQL follow-up: fixed raw SQL in src/lib/tags.ts (getUsedTags quoted Tag table; mergeTags uses ON CONFLICT upsert). Validated with a live Neon query.

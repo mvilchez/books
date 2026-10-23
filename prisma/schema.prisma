@@ -21,7 +21,7 @@
 // ---------------------------------------------------------------------------
 
 datasource db {
-  provider = "mysql" // MariaDB is driven by Prisma's "mysql" provider
+  provider = "postgresql" // MariaDB is driven by Prisma's "mysql" provider
   url      = env("DATABASE_URL")
 }
 

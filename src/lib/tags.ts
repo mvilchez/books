@@ -43,7 +43,7 @@ export async function getUsedTags(): Promise<UsedTag[]> {
     { id: string; name: string; category: BookTagCategory; count: bigint }[]
   >`
     SELECT t.id, t.name, t.category, COUNT(DISTINCT bt.book_id) AS count
-    FROM Tag AS t
+    FROM "Tag" AS t
     INNER JOIN book_tags AS bt ON bt.tag_id = t.id
     GROUP BY t.id, t.name, t.category
     ORDER BY t.category ASC, t.name ASC
@@ -145,7 +145,7 @@ export async function mergeTags(
       SELECT book_id, ${keepTag.id}, source, created_at
       FROM book_tags
       WHERE tag_id = ${mergeTag.id}
-      ON DUPLICATE KEY UPDATE tag_id = VALUES(tag_id)
+      ON CONFLICT (book_id, tag_id, source) DO NOTHING
     `;
     await transaction.bookTag.deleteMany({ where: { tagId: mergeTag.id } });
     await transaction.tag.delete({ where: { id: mergeTag.id } });
