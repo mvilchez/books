@@ -35,12 +35,14 @@ import {
   searchOpenLibraryBooks,
   searchOpenLibraryMetadata,
   searchOpenLibraryRecommendations,
+  getOpenLibraryWorkMetadata,
   shouldReplaceOpenLibraryWorkLink,
   type OpenLibraryAuthorPhotoCandidate,
   type OpenLibraryBookCandidate,
   type OpenLibraryIsbnLookup,
   type OpenLibraryRecommendationResult,
 } from "@/lib/open-library-images";
+import type { OpenLibraryRecommendation } from "@/lib/book-recommendations";
 import { toIsbn13 } from "@/lib/isbn";
 
 type ActionResult<T> =
@@ -632,3 +634,105 @@ export async function saveAuthorPhoto(
   revalidatePath(`/books/${bookId}`);
   return { status: "success", data: null, message: "Author photo saved." };
 }
+
+export async function markRecommendationAsSameBook(
+  bookId: string,
+  recommendationOrWorkId: string | OpenLibraryRecommendation,
+  title?: string,
+  authors?: string[],
+  firstPublishYear?: number | null,
+): Promise<ActionResult<null>> {
+  let workId: string;
+  let recommendedTitle = title ?? "";
+  let recommendedAuthors = authors ?? [];
+  let recommendedYear = firstPublishYear ?? null;
+  if (typeof recommendationOrWorkId === "string") {
+    workId = recommendationOrWorkId;
+  } else {
+    workId = recommendationOrWorkId.workId;
+    recommendedTitle = recommendationOrWorkId.title;
+    recommendedAuthors = recommendationOrWorkId.authors;
+    recommendedYear = recommendationOrWorkId.firstPublishYear;
+  }
+
+  if (typeof bookId !== "string" || !bookId) {
+    return { status: "error", message: "Invalid book." };
+  }
+  if (typeof workId !== "string" || !/^OL\d+W$/.test(workId)) {
+    return { status: "error", message: "Invalid Open Library work." };
+  }
+
+  let book: Awaited<ReturnType<typeof getBookEnrichmentSnapshot>>;
+  try {
+    const snapshot = await getBookEnrichmentSnapshot(bookId);
+    if (!snapshot) return { status: "error", message: "Book not found." };
+    book = snapshot;
+  } catch (error) {
+    return { status: "error", message: actionError(error) };
+  }
+
+  let metadata: Awaited<ReturnType<typeof getOpenLibraryWorkMetadata>> = null;
+  try {
+    metadata = await getOpenLibraryWorkMetadata(
+      workId,
+      recommendedTitle,
+      recommendedAuthors,
+      recommendedYear,
+    );
+  } catch (error) {
+    return { status: "error", message: actionError(error) };
+  }
+  if (!metadata) {
+    metadata = {
+      workId,
+      title: recommendedTitle.trim() || book.title,
+      coverId: null,
+      firstPublishYear: recommendedYear,
+      pageCount: null,
+      format: null,
+      isbn13: null,
+      subjects: [],
+      languages: [],
+      seriesName: null,
+      seriesPosition: null,
+    };
+  }
+
+  try {
+    await saveOpenLibraryMetadata(
+      book.id,
+      {
+        id: book.id,
+        totalPages: book.totalPages,
+        currentPages: book.currentPages,
+        publicationYear: book.publicationYear,
+        openLibraryWorkId: book.openLibraryWorkId,
+        openLibraryCoverId: book.openLibraryCoverId,
+        isbn13: book.isbn13,
+        bookFormat: book.bookFormat,
+        seriesName: book.seriesName,
+        seriesPosition: book.seriesPosition,
+      },
+      metadata,
+      [],
+      { replaceWorkLink: true },
+    );
+  } catch (error) {
+    return { status: "error", message: actionError(error) };
+  }
+
+  revalidatePath("/");
+  revalidatePath("/stats");
+  revalidatePath(`/books/${bookId}`);
+  revalidatePath("/reports/open-library-tags");
+  revalidatePath("/reports/open-library-matches");
+  return {
+    status: "success",
+    data: null,
+    message: "Matched this recommendation to the current book.",
+  };
+}
+
+export const matchRecommendationToBook = markRecommendationAsSameBook;
+export const useRecommendationAsSameBook = markRecommendationAsSameBook;
+export const matchBookToRecommendation = markRecommendationAsSameBook;

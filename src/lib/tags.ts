@@ -91,19 +91,22 @@ export async function saveManualSubjectTags(
   bookId: string,
   names: readonly string[],
 ): Promise<void> {
-  await prisma.$transaction(async (transaction) => {
-    await transaction.book.findUniqueOrThrow({
-      where: { id: bookId },
-      select: { id: true },
-    });
-    await replaceBookTags(
-      transaction,
-      bookId,
-      "LIBRARY",
-      names.map((name) => ({ category: BookTagCategory.SUBJECT, name })),
-      BookTagCategory.SUBJECT,
-    );
-  });
+  await prisma.$transaction(
+    async (transaction) => {
+      await transaction.book.findUniqueOrThrow({
+        where: { id: bookId },
+        select: { id: true },
+      });
+      await replaceBookTags(
+        transaction,
+        bookId,
+        "LIBRARY",
+        names.map((name) => ({ category: BookTagCategory.SUBJECT, name })),
+        BookTagCategory.SUBJECT,
+      );
+    },
+    { timeout: 30_000 },
+  );
 }
 
 /** Remove one source-specific tag association from a book. */

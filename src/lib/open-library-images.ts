@@ -1214,6 +1214,94 @@ export async function getOpenLibraryAuthorProfile(
   return parseOpenLibraryAuthorProfile(value);
 }
 
+
+/**
+ * Parse an Open Library work record into the same metadata shape used by
+ * the enrichment pipeline.
+ */
+export function parseOpenLibraryWorkMetadata(
+  value: unknown,
+  workId: string,
+  fallbackTitle = "",
+  _fallbackAuthors: readonly string[] = [],
+  fallbackFirstPublishYear: number | null = null,
+): OpenLibraryBookMetadata | null {
+  const root = record(value);
+  if (!root) return null;
+  if (!/^OL\d+W$/.test(workId)) return null;
+
+  const title =
+    typeof root.title === "string" && root.title.trim()
+      ? root.title.trim()
+      : fallbackTitle.trim();
+  if (!title) return null;
+
+  const covers = Array.isArray(root.covers) ? root.covers : [];
+  const coverId = covers.length > 0 ? positiveInteger(covers[0]) : null;
+
+  const firstPublishYear =
+    publicationYear(root.first_publish_date) ??
+    publicationYear(root.first_publish_year) ??
+    fallbackFirstPublishYear;
+
+  const subjects = [
+    ...new Set(
+      stringArray(root.subjects)
+        .map((subject) => subject.trim())
+        .filter(Boolean),
+    ),
+  ];
+
+  const rawLanguages = Array.isArray(root.languages) ? root.languages : [];
+  const languages = [
+    ...new Set(
+      rawLanguages
+        .map((language) => {
+          if (typeof language === "string") return languageName(language);
+          const entry = record(language);
+          const key = typeof entry?.key === "string" ? entry.key : "";
+          return key ? languageName(key) : "";
+        })
+        .filter((language) => ALLOWED_OPEN_LIBRARY_LANGUAGES.has(language)),
+    ),
+  ];
+
+  return {
+    workId,
+    title,
+    coverId,
+    firstPublishYear,
+    pageCount: null,
+    format: null,
+    isbn13: null,
+    subjects,
+    languages,
+    seriesName: null,
+    seriesPosition: null,
+  };
+}
+
+export async function getOpenLibraryWorkMetadata(
+  workId: string,
+  fallbackTitle = "",
+  _fallbackAuthors: readonly string[] = [],
+  fallbackFirstPublishYear: number | null = null,
+): Promise<OpenLibraryBookMetadata | null> {
+  if (!/^OL\d+W$/.test(workId)) {
+    throw new Error("Invalid Open Library work identifier.");
+  }
+  const value = await fetchJson(
+    new URL(`/works/${workId}.json`, OPEN_LIBRARY_ORIGIN),
+  );
+  return parseOpenLibraryWorkMetadata(
+    value,
+    workId,
+    fallbackTitle,
+    _fallbackAuthors,
+    fallbackFirstPublishYear,
+  );
+}
+
 export function getOpenLibraryCoverUrl(
   coverId: number,
   size: "S" | "M" | "L",

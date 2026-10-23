@@ -163,3 +163,18 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 **Language tag filtering (2026-10-23):**
 * **Library cleanup** — removed all `LANGUAGE` tags except Spanish and English from the Neon database (56 tags and 267 book links), because the library only contains Spanish/English reads.
 * **Retrieval filtering** — `parseOpenLibraryBookMetadata` now discards Open Library languages other than Spanish/English (`ALLOWED_OPEN_LIBRARY_LANGUAGES`), so future metadata enrichment cannot re-add them. Existing `saveOpenLibraryMetadata` and enrichment flows inherit the filtered language list.
+
+**Recommendation same-book matching (2026-10-23):**
+* **UI** — `BookRecommendations` now shows a **Same book** button (sparkle icon) on each recommendation. Clicking it tells the app that the retrieved Open Library work is the same book currently being viewed.
+* **Action** — `markRecommendationAsSameBook` (plus aliases) fetches the recommended work's Open Library record, then reuses `saveOpenLibraryMetadata` with `replaceWorkLink: true` to update the current book's Open Library work link, cover, subjects/tags, languages, and publication year without replacing existing book details.
+* **Validation** — `npm test` 61/61, `npm run lint` 0 errors, `npm run build` compiled successfully.
+
+**Recommendation same-book UI polish (2026-10-23):**
+* **Cover** — after a successful **Same book** match, the recommendation card now shows the Open Library cover thumbnail for the matched work.
+* **Related book link** — the same success state now includes a small **Related book →** link to the currently viewed book.
+* **Validation** — `npm test` 61/61, `npm run lint` 0 errors, `npm run build` compiled successfully.
+
+**Transaction timeout hardening (2026-10-23):**
+* **Prisma client** — default interactive transaction timeout raised from 5s to 30s (maxWait 10s) for remote/cloud databases.
+* **Slow transactions** — explicit 30s timeouts added to `saveOpenLibraryMetadata`, `applyOpenLibraryCandidateMatch`, `saveManualSubjectTags`, and `saveBookDetails` (tag-heavy paths).
+* **Validation** — `npm test` 61/61, `npm run build` compiled successfully.

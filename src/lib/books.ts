@@ -558,7 +558,7 @@ export async function saveBookDetails(input: BookDetailsInput): Promise<void> {
       "LIBRARY",
       buildLibraryBookTags(input.genreName, input.origin),
     );
-  });
+  }, { timeout: 30_000 });
 }
 
 export type ReadingBookInput = {

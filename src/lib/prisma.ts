@@ -17,6 +17,10 @@ export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+    // Cloud/remote databases can exceed Prisma's default 5s interactive
+    // transaction timeout, especially when upserting many tags. Give them
+    // more room while keeping the cap bounded.
+    transactionOptions: { maxWait: 10_000, timeout: 30_000 },
   });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

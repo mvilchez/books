@@ -42,8 +42,9 @@ export async function saveOpenLibraryMetadata(
   options: { replaceWorkLink?: boolean } = {},
 ): Promise<void> {
   const checkedAt = new Date();
-  await prisma.$transaction(async (transaction) => {
-    await transaction.book.update({
+  await prisma.$transaction(
+    async (transaction) => {
+      await transaction.book.update({
       where: { id: bookId },
       data: {
         publicationYear: current.publicationYear ?? metadata?.firstPublishYear,
@@ -104,7 +105,7 @@ export async function saveOpenLibraryMetadata(
         });
       }
     }
-  });
+  }, { timeout: 30_000 });
 }
 
 /**
@@ -172,6 +173,6 @@ export async function applyOpenLibraryCandidateMatch(
     await transaction.bookMetadataCandidate.deleteMany({
       where: { bookId },
     });
-  });
+  }, { timeout: 30_000 });
 }
 
