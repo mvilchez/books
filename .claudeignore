@@ -1,0 +1,13 @@
+# AI context ignore patterns for this repo.
+# Keep large/generated/non-source files out of LLM context.
+
+node_modules/
+.next/
+out/
+build/
+coverage/
+db/dump*sql
+db/backups/
+telemetry_sandbox/
+*.tsbuildinfo
+package-lock.json
