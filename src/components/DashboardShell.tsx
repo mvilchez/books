@@ -92,16 +92,18 @@ export default function DashboardShell({
   subtitle,
   search,
   children,
+  userName,
 }: {
   title: string;
   subtitle: string;
   search: ReactNode;
   children: ReactNode;
+  userName: string;
 }) {
   const [explicitPreference, setExplicitPreference] = useState<boolean | null>(
     null,
   );
-const [userPanelOpen, setUserPanelOpen] = useState<boolean>(true);
+const [userPanelOpen, setUserPanelOpen] = useState<boolean>(false);
   const storedPreference = useSyncExternalStore(
     subscribeToMenuPreference,
     readMenuPreference,
@@ -218,12 +220,22 @@ const [userPanelOpen, setUserPanelOpen] = useState<boolean>(true);
         </button>
         </header>
           {userPanelOpen && (
-            <div className="absolute right-0 top-0 w-64 bg-slate-800 rounded-lg p-4 space-y-4 shadow-lg">
-              <div className="flex items-center gap-2 text-slate-300">
-                <div className="h-8 w-8 rounded-full bg-slate-600 flex items-center justify-center text-sm font-medium">
-                  M
+            <div className="absolute right-0 top-0 w-64 bg-slate-800 rounded-lg p-4 space-y-4 shadow-lg z-20">
+              <div className="flex items-center justify-between text-slate-300">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-slate-600 flex items-center justify-center text-sm font-medium">
+                    M
+                  </div>
+                  <span>{userName}</span>
                 </div>
-                <span>marino</span>
+                <button
+                  type="button"
+                  onClick={() => setUserPanelOpen(false)}
+                  aria-label="Close user panel"
+                  className="p-1 rounded-lg hover:bg-slate-700 transition"
+                >
+                  <ChevronsRightIcon />
+                </button>
               </div>
               <a href="/account" className="hover:text-white transition text-sm">Change password</a>
               <LogoutButton />

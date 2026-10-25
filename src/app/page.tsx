@@ -44,6 +44,7 @@ export default function DashboardPage(props: PageProps<"/">) {
       title="Books Tracker Workspace"
       subtitle="Replacing legacy spreadsheets with clean engineering metrics."
       search={<BookSearch />}
+      userName="marino"
     >
       {/*
         cacheComponents (next.config.ts): the uncached Prisma read must sit
