@@ -196,3 +196,12 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * **App config** — switched dev `.env` to `local-postgres`; Prisma client regenerated.
 * **Validation** — `npm test` 61/61, `npm run lint` 0 errors.
 
+
+
+**Stats expansion (2026-10-25):**
+* **Analytics** — added origin shares, publication-era buckets, all-time KPIs, cumulative trend, most-valuable-books ranking, top authors by pages/rating, series progress, top subjects, metadata coverage, average rating by year, and rereads; plus `getSimilarBooks` internal recommender.
+* **Pure modules** — `src/lib/book-value.ts` and `src/lib/similar-books.ts` with unit tests (67 tests total).
+* **Charts** — `OriginChart`, `PublicationEraChart`, `CumulativeTrendChart`.
+* **UI** — `/stats` now renders all-time KPIs, new charts, top-10 most valuable books, and expanded rankings; book detail shows similar books.
+* **Export** — `GET /api/v1/stats/export` CSV download (optional `?year=`).
+* **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.

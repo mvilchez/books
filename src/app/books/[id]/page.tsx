@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBookDetail } from "@/lib/books";
+import { getSimilarBooks } from "@/lib/analytics";
 import { getSubjectTagOptions } from "@/lib/tags";
 import BookCover from "@/components/BookCover";
 import BookDetailsForm from "@/components/BookDetailsForm";
@@ -17,9 +18,10 @@ export default async function BookDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [book, existingSubjectTags] = await Promise.all([
+  const [book, existingSubjectTags, similarBooks] = await Promise.all([
     getBookDetail(id),
     getSubjectTagOptions(),
+    getSimilarBooks(id, 5),
   ]);
 
   if (!book) notFound();
@@ -150,6 +152,26 @@ export default async function BookDetailPage({
           ) : null}
 
           <OpenLibraryImagePicker bookId={book.id} />
+
+          <section className="mt-6 rounded-xl border border-slate-700/60 bg-slate-900/50 p-5">
+            <h2 className="text-lg font-bold text-white">Similar books in your library</h2>
+            {similarBooks.length === 0 ? (
+              <p className="mt-2 text-sm text-slate-400">No strong matches found yet.</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {similarBooks.map((b) => (
+                  <li key={b.id} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                    <Link href={`/books/${b.id}`} className="text-slate-200 hover:text-emerald-300 font-semibold">
+                      {b.title}
+                    </Link>
+                    <span className="text-xs text-slate-400">
+                      {b.author} · {b.score.toFixed(1)} · {b.reasons.join(", ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
           <BookRecommendations
             bookId={book.id}

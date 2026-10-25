@@ -72,3 +72,54 @@ export interface DiscoveryMetrics {
   topGenres: GenreShare[];   // top 5, names resolved
   suggestions: Suggestion[]; // up to 3
 }
+
+
+export interface OriginShare { origin: string; books: number }
+
+export interface PublicationEraBucket { era: string; books: number }
+
+export interface AllTimeKpis {
+  totalBooks: number;
+  completedBooks: number;
+  activeReads: number;
+  uniqueAuthors: number;
+  totalPages: number;
+  avgRating: number | null;
+  unratedBooks: number;
+  longestBookPages: number | null;
+  shortestBookPages: number | null;
+  mostProlificAuthor: string | null;
+  mostProlificAuthorBooks: number;
+}
+
+export interface BookRankItem {
+  id: string;
+  title: string;
+  author: string;
+  rating: number | null;
+  pages: number | null;
+  readingYear: number;
+  valueScore: number;
+  rereadCount: number;
+}
+
+export interface SimilarBook {
+  id: string;
+  title: string;
+  author: string;
+  genre: string | null;
+  rating: number | null;
+  pages: number | null;
+  score: number;
+  reasons: string[];
+}
+
+export interface CumulativePoint { readingYear: number; books: number; pages: number; cumulativeBooks: number; cumulativePages: number }
+
+export interface AuthorMetric { id: string; name: string; books: number; pages: number; avgRating: number | null }
+
+export interface SeriesProgress { seriesName: string; books: number; firstYear: number; lastYear: number; avgRating: number | null }
+
+export interface SubjectShare { subject: string; books: number }
+
+export interface MetadataCoverage { total: number; withOpenLibraryWork: number; withCover: number; withPublicationYear: number; withPages: number }

@@ -1,7 +1,12 @@
 // src/lib/analytics.ts
 import { prisma } from '@/lib/prisma'; // Step 2.3 singleton — NEVER `new PrismaClient()`
+import { computeValueScore } from '@/lib/book-value';
+import { rankSimilar } from '@/lib/similar-books';
+import type { SimilarCandidate } from '@/lib/similar-books';
 import type {
-  AuthorRank, DiscoveryMetrics, GenreShare, MonthPacePoint,
+  AllTimeKpis, AuthorMetric, AuthorRank, BookRankItem, CumulativePoint,
+  DiscoveryMetrics, GenreShare, MetadataCoverage, MonthPacePoint,
+  OriginShare, PublicationEraBucket, SeriesProgress, SimilarBook, SubjectShare,
   RatingDistribution, Suggestion, YearKpis, YearlyTrendPoint,
 } from '@/lib/analytics-types';
 
@@ -243,4 +248,435 @@ export async function getDiscoveryMetrics(
       genre: b.genre?.name ?? null,
     })),
   };
+}
+
+export type RatingTrendPoint = { readingYear: number; avgRating: number | null; ratedBooks: number };
+
+export async function getOriginShares(): Promise<OriginShare[]> {
+  const rows = await prisma.book.groupBy({
+    by: ["origin"],
+    where: { status: "COMPLETED" },
+    _count: { _all: true },
+  });
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    const raw = r.origin?.trim() || "Sin origen";
+    const key = ["ebook", "Propio", "Prestado", "Revista"].includes(raw)
+      ? raw
+      : /^(\d|N )/.test(raw)
+        ? "Biblioteca"
+        : raw;
+    map.set(key, (map.get(key) ?? 0) + r._count._all);
+  }
+  return [...map.entries()]
+    .map(([origin, books]) => ({ origin, books }))
+    .sort((a, b) => b.books - a.books);
+}
+
+export async function getPublicationEraBuckets(): Promise<PublicationEraBucket[]> {
+  const rows = await prisma.book.findMany({
+    where: { status: "COMPLETED", publicationYear: { not: null } },
+    select: { publicationYear: true },
+  });
+  const buckets = new Map<string, number>();
+  for (const { publicationYear } of rows) {
+    const y = publicationYear!;
+    const era =
+      y < 0
+        ? "Antigua"
+        : y < 1500
+          ? "Medieval"
+          : y < 1800
+            ? "Moderna temprana"
+            : y < 1900
+              ? "Siglo XIX"
+              : y < 2000
+                ? "Siglo XX"
+                : "Siglo XXI";
+    buckets.set(era, (buckets.get(era) ?? 0) + 1);
+  }
+  const unknown = await prisma.book.count({
+    where: { status: "COMPLETED", publicationYear: null },
+  });
+  if (unknown > 0) buckets.set("Desconocido", unknown);
+  const order = [
+    "Antigua",
+    "Medieval",
+    "Moderna temprana",
+    "Siglo XIX",
+    "Siglo XX",
+    "Siglo XXI",
+    "Desconocido",
+  ];
+  return order
+    .filter((e) => buckets.has(e))
+    .map((e) => ({ era: e, books: buckets.get(e)! }));
+}
+
+export async function getAllTimeKpis(): Promise<AllTimeKpis> {
+  const [
+    totalBooks,
+    completedBooks,
+    activeReads,
+    uniqueAuthors,
+    pagesAgg,
+    ratedAgg,
+    unratedBooks,
+    longestAgg,
+    shortestAgg,
+    topAuthor,
+  ] = await Promise.all([
+    prisma.book.count(),
+    prisma.book.count({ where: { status: "COMPLETED" } }),
+    prisma.book.count({ where: { status: "READING" } }),
+    prisma.author.count(),
+    prisma.book.aggregate({
+      where: { status: "COMPLETED" },
+      _sum: { totalPages: true },
+    }),
+    prisma.book.aggregate({
+      where: { status: "COMPLETED", rating: { not: null } },
+      _avg: { rating: true },
+    }),
+    prisma.book.count({ where: { status: "COMPLETED", rating: null } }),
+    prisma.book.aggregate({
+      where: { status: "COMPLETED", totalPages: { not: null } },
+      _max: { totalPages: true },
+    }),
+    prisma.book.aggregate({
+      where: { status: "COMPLETED", totalPages: { not: null } },
+      _min: { totalPages: true },
+    }),
+    getTopAuthors(1),
+  ]);
+  return {
+    totalBooks,
+    completedBooks,
+    activeReads,
+    uniqueAuthors,
+    totalPages: pagesAgg._sum.totalPages ?? 0,
+    avgRating: ratedAgg._avg.rating ?? null,
+    unratedBooks,
+    longestBookPages: longestAgg._max.totalPages ?? null,
+    shortestBookPages: shortestAgg._min.totalPages ?? null,
+    mostProlificAuthor: topAuthor[0]?.name ?? null,
+    mostProlificAuthorBooks: topAuthor[0]?.books ?? 0,
+  };
+}
+
+export async function getCumulativeTrend(): Promise<CumulativePoint[]> {
+  const trend = await getYearlyTrend();
+  let cb = 0;
+  let cp = 0;
+  return trend.map((p) => {
+    cb += p.books;
+    cp += p.pages;
+    return {
+      readingYear: p.readingYear,
+      books: p.books,
+      pages: p.pages,
+      cumulativeBooks: cb,
+      cumulativePages: cp,
+    };
+  });
+}
+
+export async function getMostValuableBooks(
+  limit = 10,
+  mode: "value" | "rating" | "pages" | "ratingPerPage" | "rereads" = "value",
+): Promise<BookRankItem[]> {
+  const rows = await prisma.book.findMany({
+    where: { status: "COMPLETED" },
+    select: {
+      id: true,
+      title: true,
+      readingYear: true,
+      rating: true,
+      totalPages: true,
+      authorId: true,
+      author: { select: { name: true } },
+    },
+  });
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    const key = `${r.title}::${r.authorId}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const items: BookRankItem[] = rows.map((r) => {
+    const rereadCount = counts.get(`${r.title}::${r.authorId}`) ?? 1;
+    const valueScore =
+      mode === "value"
+        ? computeValueScore({
+            rating: r.rating,
+            pages: r.totalPages,
+            rereadCount,
+          })
+        : mode === "rating"
+          ? r.rating ?? 0
+          : mode === "pages"
+            ? r.totalPages ?? 0
+            : mode === "ratingPerPage"
+              ? (r.rating ?? 0) / Math.max(1, r.totalPages ?? 1)
+              : rereadCount;
+    return {
+      id: r.id,
+      title: r.title,
+      author: r.author.name,
+      rating: r.rating,
+      pages: r.totalPages,
+      readingYear: r.readingYear,
+      valueScore,
+      rereadCount,
+    };
+  });
+
+  if (mode === "value")
+    items.sort(
+      (a, b) =>
+        b.valueScore - a.valueScore ||
+        (b.rating ?? 0) - (a.rating ?? 0),
+    );
+  else if (mode === "rating")
+    items.sort(
+      (a, b) =>
+        (b.rating ?? 0) - (a.rating ?? 0) || (b.pages ?? 0) - (a.pages ?? 0),
+    );
+  else if (mode === "pages")
+    items.sort((a, b) => (b.pages ?? 0) - (a.pages ?? 0));
+  else if (mode === "ratingPerPage")
+    items.sort(
+      (a, b) =>
+        b.valueScore - a.valueScore || (b.rating ?? 0) - (a.rating ?? 0),
+    );
+  else items.sort((a, b) => b.rereadCount - a.rereadCount);
+
+  return items.slice(0, limit);
+}
+
+export async function getTopAuthorsByPages(limit = 10): Promise<AuthorMetric[]> {
+  const authors = await prisma.author.findMany({
+    include: {
+      books: {
+        where: { status: "COMPLETED" },
+        select: { totalPages: true, rating: true },
+      },
+    },
+  });
+  return authors
+    .map((a) => {
+      const rated = a.books.filter((b) => b.rating != null);
+      return {
+        id: a.id,
+        name: a.name,
+        books: a.books.length,
+        pages: a.books.reduce((s, b) => s + (b.totalPages ?? 0), 0),
+        avgRating:
+          rated.length > 0
+            ? rated.reduce((s, b) => s + (b.rating ?? 0), 0) / rated.length
+            : null,
+      };
+    })
+    .filter((a) => a.books > 0)
+    .sort((a, b) => b.pages - a.pages)
+    .slice(0, limit);
+}
+
+export async function getTopAuthorsByRating(limit = 10): Promise<AuthorMetric[]> {
+  const authors = await prisma.author.findMany({
+    include: {
+      books: {
+        where: { status: "COMPLETED" },
+        select: { totalPages: true, rating: true },
+      },
+    },
+  });
+  return authors
+    .map((a) => {
+      const rated = a.books.filter((b) => b.rating != null);
+      return {
+        id: a.id,
+        name: a.name,
+        books: a.books.length,
+        pages: a.books.reduce((s, b) => s + (b.totalPages ?? 0), 0),
+        avgRating:
+          rated.length > 0
+            ? rated.reduce((s, b) => s + (b.rating ?? 0), 0) / rated.length
+            : null,
+      };
+    })
+    .filter((a) => a.books >= 3 && a.avgRating != null)
+    .sort((a, b) => (b.avgRating ?? 0) - (a.avgRating ?? 0))
+    .slice(0, limit);
+}
+
+export async function getSeriesProgress(limit = 20): Promise<SeriesProgress[]> {
+  const rows = await prisma.book.findMany({
+    where: { status: "COMPLETED", seriesName: { not: null } },
+    select: { seriesName: true, readingYear: true, rating: true },
+  });
+  const map = new Map<
+    string,
+    { books: number; first: number; last: number; sum: number; rated: number }
+  >();
+  for (const r of rows) {
+    const key = r.seriesName!;
+    const e = map.get(key) ?? {
+      books: 0,
+      first: r.readingYear,
+      last: r.readingYear,
+      sum: 0,
+      rated: 0,
+    };
+    e.books += 1;
+    e.first = Math.min(e.first, r.readingYear);
+    e.last = Math.max(e.last, r.readingYear);
+    if (r.rating != null) {
+      e.sum += r.rating;
+      e.rated += 1;
+    }
+    map.set(key, e);
+  }
+  return [...map.entries()]
+    .map(([seriesName, e]) => ({
+      seriesName,
+      books: e.books,
+      firstYear: e.first,
+      lastYear: e.last,
+      avgRating: e.rated > 0 ? e.sum / e.rated : null,
+    }))
+    .sort((a, b) => b.books - a.books)
+    .slice(0, limit);
+}
+
+export async function getTopSubjects(limit = 20): Promise<SubjectShare[]> {
+  const rows = await prisma.bookTag.findMany({
+    where: { deleted: false, tag: { category: "SUBJECT" } },
+    include: { tag: true },
+  });
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    map.set(r.tag.name, (map.get(r.tag.name) ?? 0) + 1);
+  }
+  return [...map.entries()]
+    .map(([subject, books]) => ({ subject, books }))
+    .sort((a, b) => b.books - a.books)
+    .slice(0, limit);
+}
+
+export async function getMetadataCoverage(): Promise<MetadataCoverage> {
+  const [total, withOpenLibraryWork, withCover, withPublicationYear, withPages] =
+    await Promise.all([
+      prisma.book.count(),
+      prisma.book.count({ where: { openLibraryWorkId: { not: null } } }),
+      prisma.book.count({ where: { openLibraryCoverId: { not: null } } }),
+      prisma.book.count({ where: { publicationYear: { not: null } } }),
+      prisma.book.count({ where: { totalPages: { not: null } } }),
+    ]);
+  return {
+    total,
+    withOpenLibraryWork,
+    withCover,
+    withPublicationYear,
+    withPages,
+  };
+}
+
+export async function getAverageRatingByYear(): Promise<RatingTrendPoint[]> {
+  const rows = await prisma.book.groupBy({
+    by: ["readingYear"],
+    where: { status: "COMPLETED", rating: { not: null } },
+    _avg: { rating: true },
+    _count: { _all: true },
+  });
+  return rows
+    .map((r) => ({
+      readingYear: r.readingYear,
+      avgRating: r._avg.rating ?? null,
+      ratedBooks: r._count._all,
+    }))
+    .sort((a, b) => a.readingYear - b.readingYear);
+}
+
+export async function getRereads(limit = 20) {
+  const rows = await prisma.book.findMany({
+    where: { status: "COMPLETED" },
+    select: {
+      title: true,
+      readingYear: true,
+      author: { select: { name: true } },
+    },
+    orderBy: [{ title: "asc" }, { readingYear: "asc" }],
+  });
+  const map = new Map<string, { title: string; author: string; years: number[] }>();
+  for (const r of rows) {
+    const key = `${r.title}::${r.author.name}`;
+    const e = map.get(key) ?? { title: r.title, author: r.author.name, years: [] };
+    e.years.push(r.readingYear);
+    map.set(key, e);
+  }
+  return [...map.values()]
+    .filter((e) => e.years.length > 1)
+    .map((e) => ({
+      title: e.title,
+      author: e.author,
+      years: [...e.years].sort((a, b) => a - b),
+      count: e.years.length,
+    }))
+    .sort((a, b) => b.count - a.count || a.title.localeCompare(b.title))
+    .slice(0, limit);
+}
+
+export async function getSimilarBooks(seedId: string, limit = 5): Promise<SimilarBook[]> {
+  const seed = await prisma.book.findUnique({
+    where: { id: seedId },
+    include: {
+      author: true,
+      genre: true,
+      tags: { where: { deleted: false }, include: { tag: true } },
+    },
+  });
+  if (!seed) return [];
+
+  const candidates = await prisma.book.findMany({
+    where: { id: { not: seedId } },
+    include: {
+      author: true,
+      genre: true,
+      tags: { where: { deleted: false }, include: { tag: true } },
+    },
+    take: 500,
+  });
+
+  const toCandidate = (b: typeof seed): SimilarCandidate => ({
+    id: b.id,
+    title: b.title,
+    author: b.author.name,
+    genre: b.genre?.name ?? null,
+    rating: b.rating,
+    pages: b.totalPages,
+    publicationYear: b.publicationYear,
+    subjects: b.tags
+      .filter((t) => t.tag.category === "SUBJECT")
+      .map((t) => t.tag.name),
+  });
+
+  const seedCand = toCandidate(seed);
+  const ranked = rankSimilar(
+    seedCand,
+    candidates.map(toCandidate),
+    limit,
+  );
+
+  return ranked.map((c) => {
+    return {
+      id: c.id,
+      title: c.title,
+      author: c.author,
+      genre: c.genre,
+      rating: c.rating,
+      pages: c.pages,
+      score: c.score,
+      reasons: c.reasons,
+    };
+  });
 }
