@@ -76,6 +76,8 @@ model Book {
   finishDate         DateTime?               @map("fecha_fin")
   authorId           String
   author             Author                  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  userId             String              @default("marino")
+  user               User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
   genreId            String?
   genre              Genre?                  @relation(fields: [genreId], references: [id], onDelete: SetNull)
   tags               BookTag[]
@@ -87,6 +89,7 @@ model Book {
   // while the same edition read in one year upserts idempotently.
   @@unique([title, authorId, readingYear, editionKey])
   @@index([readingYear, status])
+  @@index([userId])
 }
 
 model BookMetadataCandidate {
@@ -154,4 +157,35 @@ model Genre {
   name      String   @unique
   books     Book[]
   createdAt DateTime @default(now())
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  name         String?
+  passwordHash String    @map("password_hash")
+  role         UserRole  @default(USER)
+  books        Book[]
+  sessions     Session[]
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique @map("token_hash") @db.VarChar(64)
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+enum UserRole {
+  USER
+  ADMIN
 }

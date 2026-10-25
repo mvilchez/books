@@ -1,5 +1,6 @@
 // src/lib/analytics.ts
 import { prisma } from '@/lib/prisma'; // Step 2.3 singleton — NEVER `new PrismaClient()`
+import { getCurrentUser } from '@/lib/auth';
 import { computeValueScore } from '@/lib/book-value';
 import { rankSimilar } from '@/lib/similar-books';
 import type { SimilarCandidate } from '@/lib/similar-books';
@@ -16,16 +17,21 @@ import type {
  * so month bucketing MUST use the UTC getters, never the local ones.
  */
 
-/** CONTEXT.md §4 leap-year rule. */
+async function currentUserId(): Promise<string | null> {
+  const user = await getCurrentUser();
+  return user?.id ?? null;
+}
 function daysInReadingYear(year: number): 366 | 365 {
   return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0 ? 366 : 365;
 }
 
 /** Books per year + pages per year in one grouped query. */
 export async function getYearlyTrend(): Promise<YearlyTrendPoint[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
   const rows = await prisma.book.groupBy({
     by: ['readingYear'],
-    where: { status: 'COMPLETED' },
+    where: { userId, status: 'COMPLETED' },
     _count: { _all: true },
     _sum: { totalPages: true },
     orderBy: { readingYear: 'asc' },
@@ -39,16 +45,30 @@ export async function getYearlyTrend(): Promise<YearlyTrendPoint[]> {
 
 /** KPI block for one reading year. */
 export async function getYearKpis(year: number): Promise<YearKpis> {
+  const userId = await currentUserId();
+  if (!userId) {
+    return {
+      year,
+      booksCompleted: 0,
+      pagesRead: 0,
+      avgPagesPerBook: 0,
+      avgPagesPerDay: 0,
+      avgRating: null,
+      ratedBooks: 0,
+      unratedBooks: 0,
+      activeReads: 0,
+    };
+  }
   const [completed, unrated, active] = await Promise.all([
     prisma.book.aggregate({
-      where: { readingYear: year, status: 'COMPLETED' },
+      where: { userId, readingYear: year, status: 'COMPLETED' },
       _count: { _all: true },
       _sum: { totalPages: true },
       _avg: { rating: true }, // Prisma's _avg skips NULLs = rated-only mean
     }),
-    prisma.book.count({ where: { readingYear: year, status: 'COMPLETED', rating: null } }),
+    prisma.book.count({ where: { userId, readingYear: year, status: 'COMPLETED', rating: null } }),
     prisma.book.aggregate({
-      where: { readingYear: year, status: 'READING' },
+      where: { userId, readingYear: year, status: 'READING' },
       _count: { _all: true },
       _sum: { currentPages: true },
     }),
@@ -76,12 +96,14 @@ export async function getYearKpis(year: number): Promise<YearKpis> {
  * fully type-safe (no raw SQL).
  */
 export async function getRatingDistribution(): Promise<RatingDistribution> {
+  const userId = await currentUserId();
+  if (!userId) return { unrated: 0, buckets: [] };
   const [rows, unrated] = await Promise.all([
     prisma.book.findMany({
-      where: { status: 'COMPLETED', rating: { not: null } },
+      where: { userId, status: 'COMPLETED', rating: { not: null } },
       select: { rating: true },
     }),
-    prisma.book.count({ where: { status: 'COMPLETED', rating: null } }),
+    prisma.book.count({ where: { userId, status: 'COMPLETED', rating: null } }),
   ]);
 
   const buckets = new Map<number, number>();
@@ -105,21 +127,23 @@ export async function getRatingDistribution(): Promise<RatingDistribution> {
  * `null` bucket — the chart labels it "Sin género" instead of dropping it.
  */
 export async function getGenreShares(): Promise<GenreShare[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
   const [genres, ungenred] = await Promise.all([
-    getCompletedGenreRanks(),
-    prisma.book.count({ where: { status: 'COMPLETED', genreId: null } }),
+    getCompletedGenreRanks(userId),
+    prisma.book.count({ where: { userId, status: 'COMPLETED', genreId: null } }),
   ]);
 
   return toGenreShares(genres, ungenred);
 }
 
-async function getCompletedGenreRanks() {
+async function getCompletedGenreRanks(userId: string) {
   return prisma.genre.findMany({
-    where: { books: { some: { status: 'COMPLETED' } } },
+    where: { books: { some: { userId, status: 'COMPLETED' } } },
     select: {
       id: true,
       name: true,
-      _count: { select: { books: { where: { status: 'COMPLETED' } } } },
+      _count: { select: { books: { where: { userId, status: 'COMPLETED' } } } },
     },
   });
 }
@@ -138,8 +162,10 @@ function toGenreShares(
 
 /** Top-N authors by completed books (accent-insensitive names already unified on Author.name). */
 export async function getTopAuthors(limit = 10): Promise<AuthorRank[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
   const authors = await prisma.author.findMany({
-    where: { books: { some: { status: 'COMPLETED' } } },
+    where: { books: { some: { userId, status: 'COMPLETED' } } },
     select: {
       id: true,
       name: true,
@@ -148,7 +174,7 @@ export async function getTopAuthors(limit = 10): Promise<AuthorRank[]> {
       portraitArtist: true,
       portraitLicense: true,
       portraitLicenseUrl: true,
-      _count: { select: { books: { where: { status: 'COMPLETED' } } } },
+      _count: { select: { books: { where: { userId, status: 'COMPLETED' } } } },
     },
     orderBy: [{ books: { _count: 'desc' } }, { name: 'asc' }],
     take: limit,
@@ -174,12 +200,14 @@ export async function getTopAuthors(limit = 10): Promise<AuthorRank[]> {
  * `withoutDates` lets the UI say so instead of silently lying.
  */
 export async function getMonthlyPace(year: number): Promise<{ points: MonthPacePoint[]; withoutDates: number }> {
+  const userId = await currentUserId();
+  if (!userId) return { points: Array.from({ length: 12 }, (_, i) => ({ month: i + 1, books: 0 })), withoutDates: 0 };
   const [rows, withoutDates] = await Promise.all([
     prisma.book.findMany({
-      where: { readingYear: year, status: 'COMPLETED', finishDate: { not: null } },
+      where: { userId, readingYear: year, status: 'COMPLETED', finishDate: { not: null } },
       select: { finishDate: true },
     }),
-    prisma.book.count({ where: { readingYear: year, status: 'COMPLETED', finishDate: null } }),
+    prisma.book.count({ where: { userId, readingYear: year, status: 'COMPLETED', finishDate: null } }),
   ]);
 
   const byMonth = new Map<number, number>();
@@ -199,16 +227,27 @@ export async function getMonthlyPace(year: number): Promise<{ points: MonthPaceP
 export async function getDiscoveryMetrics(
   authorRanks?: AuthorRank[],
 ): Promise<DiscoveryMetrics> {
+  const userId = await currentUserId();
+  if (!userId) {
+    return {
+      topAuthors: [],
+      topAuthorBooks: [],
+      genreShares: [],
+      topGenres: [],
+      suggestions: [],
+    };
+  }
   const [rankedAuthors, genreRows, ungenred] = await Promise.all([
     authorRanks ? Promise.resolve(authorRanks) : getTopAuthors(5),
-    getCompletedGenreRanks(),
-    prisma.book.count({ where: { status: 'COMPLETED', genreId: null } }),
+    getCompletedGenreRanks(userId),
+    prisma.book.count({ where: { userId, status: 'COMPLETED', genreId: null } }),
   ]);
   const topAuthors = rankedAuthors.slice(0, 5);
   const genreShares = toGenreShares(genreRows, ungenred);
   const authorBooks = topAuthors.length
     ? await prisma.book.findMany({
         where: {
+          userId,
           status: 'COMPLETED',
           authorId: { in: topAuthors.map((author) => author.id) },
         },
@@ -228,7 +267,7 @@ export async function getDiscoveryMetrics(
     .map((genre) => genre.id);
 
   const rows = await prisma.book.findMany({
-    where: { status: 'WISH_LIST', genreId: { in: topGenreIds } },
+    where: { userId, status: 'WISH_LIST', genreId: { in: topGenreIds } },
     include: { author: true, genre: true },
     take: 3,
   });
@@ -253,9 +292,11 @@ export async function getDiscoveryMetrics(
 export type RatingTrendPoint = { readingYear: number; avgRating: number | null; ratedBooks: number };
 
 export async function getOriginShares(): Promise<OriginShare[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
   const rows = await prisma.book.groupBy({
     by: ["origin"],
-    where: { status: "COMPLETED" },
+    where: { userId, status: "COMPLETED" },
     _count: { _all: true },
   });
   const map = new Map<string, number>();
@@ -274,8 +315,10 @@ export async function getOriginShares(): Promise<OriginShare[]> {
 }
 
 export async function getPublicationEraBuckets(): Promise<PublicationEraBucket[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
   const rows = await prisma.book.findMany({
-    where: { status: "COMPLETED", publicationYear: { not: null } },
+    where: { userId, status: "COMPLETED", publicationYear: { not: null } },
     select: { publicationYear: true },
   });
   const buckets = new Map<string, number>();
@@ -296,7 +339,7 @@ export async function getPublicationEraBuckets(): Promise<PublicationEraBucket[]
     buckets.set(era, (buckets.get(era) ?? 0) + 1);
   }
   const unknown = await prisma.book.count({
-    where: { status: "COMPLETED", publicationYear: null },
+    where: { userId, status: "COMPLETED", publicationYear: null },
   });
   if (unknown > 0) buckets.set("Desconocido", unknown);
   const order = [
@@ -314,6 +357,22 @@ export async function getPublicationEraBuckets(): Promise<PublicationEraBucket[]
 }
 
 export async function getAllTimeKpis(): Promise<AllTimeKpis> {
+  const userId = await currentUserId();
+  if (!userId) {
+    return {
+      totalBooks: 0,
+      completedBooks: 0,
+      activeReads: 0,
+      uniqueAuthors: 0,
+      totalPages: 0,
+      avgRating: null,
+      unratedBooks: 0,
+      longestBookPages: null,
+      shortestBookPages: null,
+      mostProlificAuthor: null,
+      mostProlificAuthorBooks: 0,
+    };
+  }
   const [
     totalBooks,
     completedBooks,
@@ -326,25 +385,25 @@ export async function getAllTimeKpis(): Promise<AllTimeKpis> {
     shortestAgg,
     topAuthor,
   ] = await Promise.all([
-    prisma.book.count(),
-    prisma.book.count({ where: { status: "COMPLETED" } }),
-    prisma.book.count({ where: { status: "READING" } }),
-    prisma.author.count(),
+    prisma.book.count({ where: { userId } }),
+    prisma.book.count({ where: { userId, status: "COMPLETED" } }),
+    prisma.book.count({ where: { userId, status: "READING" } }),
+    prisma.author.count({ where: { books: { some: { userId } } } }),
     prisma.book.aggregate({
-      where: { status: "COMPLETED" },
+      where: { userId, status: "COMPLETED" },
       _sum: { totalPages: true },
     }),
     prisma.book.aggregate({
-      where: { status: "COMPLETED", rating: { not: null } },
+      where: { userId, status: "COMPLETED", rating: { not: null } },
       _avg: { rating: true },
     }),
-    prisma.book.count({ where: { status: "COMPLETED", rating: null } }),
+    prisma.book.count({ where: { userId, status: "COMPLETED", rating: null } }),
     prisma.book.aggregate({
-      where: { status: "COMPLETED", totalPages: { not: null } },
+      where: { userId, status: "COMPLETED", totalPages: { not: null } },
       _max: { totalPages: true },
     }),
     prisma.book.aggregate({
-      where: { status: "COMPLETED", totalPages: { not: null } },
+      where: { userId, status: "COMPLETED", totalPages: { not: null } },
       _min: { totalPages: true },
     }),
     getTopAuthors(1),
@@ -385,8 +444,10 @@ export async function getMostValuableBooks(
   limit = 10,
   mode: "value" | "rating" | "pages" | "ratingPerPage" | "rereads" = "value",
 ): Promise<BookRankItem[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
   const rows = await prisma.book.findMany({
-    where: { status: "COMPLETED" },
+    where: { userId, status: "COMPLETED" },
     select: {
       id: true,
       title: true,
@@ -454,10 +515,13 @@ export async function getMostValuableBooks(
 }
 
 export async function getTopAuthorsByPages(limit = 10): Promise<AuthorMetric[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
   const authors = await prisma.author.findMany({
+    where: { books: { some: { userId, status: "COMPLETED" } } },
     include: {
       books: {
-        where: { status: "COMPLETED" },
+        where: { userId, status: "COMPLETED" },
         select: { totalPages: true, rating: true },
       },
     },
@@ -482,10 +546,13 @@ export async function getTopAuthorsByPages(limit = 10): Promise<AuthorMetric[]> 
 }
 
 export async function getTopAuthorsByRating(limit = 10): Promise<AuthorMetric[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
   const authors = await prisma.author.findMany({
+    where: { books: { some: { userId, status: "COMPLETED" } } },
     include: {
       books: {
-        where: { status: "COMPLETED" },
+        where: { userId, status: "COMPLETED" },
         select: { totalPages: true, rating: true },
       },
     },
@@ -510,8 +577,10 @@ export async function getTopAuthorsByRating(limit = 10): Promise<AuthorMetric[]>
 }
 
 export async function getSeriesProgress(limit = 20): Promise<SeriesProgress[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
   const rows = await prisma.book.findMany({
-    where: { status: "COMPLETED", seriesName: { not: null } },
+    where: { userId, status: "COMPLETED", seriesName: { not: null } },
     select: { seriesName: true, readingYear: true, rating: true },
   });
   const map = new Map<
@@ -549,8 +618,10 @@ export async function getSeriesProgress(limit = 20): Promise<SeriesProgress[]> {
 }
 
 export async function getTopSubjects(limit = 20): Promise<SubjectShare[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
   const rows = await prisma.bookTag.findMany({
-    where: { deleted: false, tag: { category: "SUBJECT" } },
+    where: { deleted: false, tag: { category: "SUBJECT" }, book: { userId } },
     include: { tag: true },
   });
   const map = new Map<string, number>();
@@ -564,13 +635,15 @@ export async function getTopSubjects(limit = 20): Promise<SubjectShare[]> {
 }
 
 export async function getMetadataCoverage(): Promise<MetadataCoverage> {
+  const userId = await currentUserId();
+  if (!userId) return { total: 0, withOpenLibraryWork: 0, withCover: 0, withPublicationYear: 0, withPages: 0 };
   const [total, withOpenLibraryWork, withCover, withPublicationYear, withPages] =
     await Promise.all([
-      prisma.book.count(),
-      prisma.book.count({ where: { openLibraryWorkId: { not: null } } }),
-      prisma.book.count({ where: { openLibraryCoverId: { not: null } } }),
-      prisma.book.count({ where: { publicationYear: { not: null } } }),
-      prisma.book.count({ where: { totalPages: { not: null } } }),
+      prisma.book.count({ where: { userId } }),
+      prisma.book.count({ where: { userId, openLibraryWorkId: { not: null } } }),
+      prisma.book.count({ where: { userId, openLibraryCoverId: { not: null } } }),
+      prisma.book.count({ where: { userId, publicationYear: { not: null } } }),
+      prisma.book.count({ where: { userId, totalPages: { not: null } } }),
     ]);
   return {
     total,
@@ -582,9 +655,11 @@ export async function getMetadataCoverage(): Promise<MetadataCoverage> {
 }
 
 export async function getAverageRatingByYear(): Promise<RatingTrendPoint[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
   const rows = await prisma.book.groupBy({
     by: ["readingYear"],
-    where: { status: "COMPLETED", rating: { not: null } },
+    where: { userId, status: "COMPLETED", rating: { not: null } },
     _avg: { rating: true },
     _count: { _all: true },
   });
@@ -598,8 +673,10 @@ export async function getAverageRatingByYear(): Promise<RatingTrendPoint[]> {
 }
 
 export async function getRereads(limit = 20) {
+  const userId = await currentUserId();
+  if (!userId) return [];
   const rows = await prisma.book.findMany({
-    where: { status: "COMPLETED" },
+    where: { userId, status: "COMPLETED" },
     select: {
       title: true,
       readingYear: true,
@@ -627,8 +704,10 @@ export async function getRereads(limit = 20) {
 }
 
 export async function getSimilarBooks(seedId: string, limit = 5): Promise<SimilarBook[]> {
-  const seed = await prisma.book.findUnique({
-    where: { id: seedId },
+  const userId = await currentUserId();
+  if (!userId) return [];
+  const seed = await prisma.book.findFirst({
+    where: { id: seedId, userId },
     include: {
       author: true,
       genre: true,
@@ -638,7 +717,7 @@ export async function getSimilarBooks(seedId: string, limit = 5): Promise<Simila
   if (!seed) return [];
 
   const candidates = await prisma.book.findMany({
-    where: { id: { not: seedId } },
+    where: { userId, id: { not: seedId } },
     include: {
       author: true,
       genre: true,

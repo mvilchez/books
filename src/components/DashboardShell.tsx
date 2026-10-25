@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import LogoutButton from "@/components/LogoutButton";
 import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import IngestionWidget from "@/components/IngestionWidget";
@@ -168,7 +169,14 @@ export default function DashboardShell({
           <div className="mt-2 border-t border-slate-800 pt-4">
             <IngestionWidget />
           </div>
-          <div className="mt-auto border-t border-slate-800 pt-4">
+          <div className="mt-auto flex flex-col gap-2 border-t border-slate-800 pt-4">
+            <Link
+              href="/account"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+            >
+              Change password
+            </Link>
+            <LogoutButton className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-red-500/50 hover:text-red-300" />
             <button
               type="button"
               onClick={toggleMenu}

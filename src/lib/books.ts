@@ -8,6 +8,7 @@
 import { Prisma, ReadingStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { buildLibraryBookTags, replaceBookTags } from "@/lib/book-tags";
+import { getCurrentUser } from "@/lib/auth";
 import {
   BOOK_SEARCH_RESULT_LIMIT,
   escapeBookSearchWildcards,
@@ -20,15 +21,27 @@ export type DashboardBook = Prisma.BookGetPayload<{
   include: { author: true; genre: true };
 }>;
 
-// ---------------------------------------------------------------------------
-// Reads
-// ---------------------------------------------------------------------------
+/** Resolve the current user id, or null when unauthenticated. */
+async function currentUserId(): Promise<string | null> {
+  const user = await getCurrentUser();
+  return user?.id ?? null;
+}
+
+/** Resolve the current user id, throwing when unauthenticated. */
+async function requireCurrentUserId(): Promise<string> {
+  const id = await currentUserId();
+  if (!id) throw new Error("Unauthorized");
+  return id;
+}
 
 /** Distinct reading years present in the ledger, ascending. */
 export async function getAvailableReadingYears(): Promise<
   { readingYear: number }[]
 > {
+  const userId = await currentUserId();
+  if (!userId) return [];
   return prisma.book.findMany({
+    where: { userId },
     select: { readingYear: true },
     distinct: ["readingYear"],
     orderBy: { readingYear: "asc" },
@@ -39,16 +52,20 @@ export async function getAvailableReadingYears(): Promise<
 export async function getBooksByReadingYear(year: number): Promise<
   DashboardBook[]
 > {
+  const userId = await currentUserId();
+  if (!userId) return [];
   return prisma.book.findMany({
-    where: { readingYear: year },
+    where: { readingYear: year, userId },
     include: { author: true, genre: true },
   });
 }
 
 /** A single book with author, genre, and attached tags — or `null`. */
 export async function getBookDetail(id: string) {
-  return prisma.book.findUnique({
-    where: { id },
+  const userId = await currentUserId();
+  if (!userId) return null;
+  return prisma.book.findFirst({
+    where: { id, userId },
     include: {
       author: true,
       genre: true,
@@ -67,8 +84,10 @@ export async function getSagaList(): Promise<
     coverIds: number[];
   }[]
 > {
+  const userId = await currentUserId();
+  if (!userId) return [];
   const books = await prisma.book.findMany({
-    where: { seriesName: { not: null } },
+    where: { seriesName: { not: null }, userId },
     select: {
       seriesName: true,
       openLibraryCoverId: true,
@@ -114,8 +133,10 @@ export async function getSagaList(): Promise<
 
 /** All books assigned to a saga, with author and genre. */
 export async function getSagaBooks(seriesName: string) {
+  const userId = await currentUserId();
+  if (!userId) return [];
   const books = await prisma.book.findMany({
-    where: { seriesName },
+    where: { seriesName, userId },
     include: { author: true, genre: true },
   });
   return books.sort((left, right) => {
@@ -132,7 +153,9 @@ export async function getSagaBooks(seriesName: string) {
 export async function searchBooksAndTags(
   query: string,
 ): Promise<{ results: BookSearchResult[]; tags: BookTagSearchResult[] }> {
-  const bookWhere = buildBookSearchWhere(query);
+  const userId = await currentUserId();
+  if (!userId) return { results: [], tags: [] };
+  const bookWhere = { ...buildBookSearchWhere(query), userId };
   const [books, tagRows] = await Promise.all([
     prisma.book.findMany({
       where: bookWhere,
@@ -154,7 +177,7 @@ export async function searchBooksAndTags(
       orderBy: [{ title: "asc" }, { id: "asc" }],
       take: BOOK_SEARCH_RESULT_LIMIT,
     }),
-    findMatchingTags(query, 5),
+    findMatchingTags(query, 5, userId),
   ]);
 
   return {
@@ -170,8 +193,10 @@ export async function searchBooksAndTags(
 
 /** All matching books for the dedicated full search results page. */
 export async function searchBooks(query: string): Promise<DashboardBook[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
   return prisma.book.findMany({
-    where: buildBookSearchWhere(query),
+    where: { ...buildBookSearchWhere(query), userId },
     include: { author: true, genre: true },
     orderBy: [{ title: "asc" }, { id: "asc" }],
   });
@@ -179,24 +204,30 @@ export async function searchBooks(query: string): Promise<DashboardBook[]> {
 
 /** All matching tags for the dedicated full search results page. */
 export async function searchTags(query: string): Promise<BookTagSearchResult[]> {
-  return findMatchingTags(query);
+  const userId = await currentUserId();
+  return findMatchingTags(query, undefined, userId);
 }
 
 async function findMatchingTags(
   query: string,
   take?: number,
+  userId?: string | null,
 ): Promise<BookTagSearchResult[]> {
+  if (userId === undefined) {
+    // default: resolve from session
+  }
+  const resolvedUserId = userId === undefined ? await currentUserId() : userId;
   const escaped = escapeBookSearchWildcards(query);
   const tags = await prisma.tag.findMany({
     where: {
       name: { contains: escaped },
-      books: { some: { deleted: false } },
+      books: { some: { deleted: false, ...(resolvedUserId ? { book: { userId: resolvedUserId } } : {}) } },
     },
     select: {
       id: true,
       name: true,
       category: true,
-      _count: { select: { books: { where: { deleted: false } } } },
+      _count: { select: { books: { where: { deleted: false, ...(resolvedUserId ? { book: { userId: resolvedUserId } } : {}) } } } },
     },
     orderBy: [{ books: { _count: "desc" } }, { name: "asc" }],
     ...(take ? { take } : {}),
@@ -274,8 +305,10 @@ function parseSearchDate(value: string): { gte: Date; lt: Date } | null {
 
 /** Books with saved metadata but no Open Library tags (tag-gap report + CSV). */
 export async function getBooksWithoutOpenLibraryTags() {
+  const userId = await currentUserId();
+  if (!userId) return [];
   return prisma.book.findMany({
-    where: { tags: { none: { source: "OPEN_LIBRARY", deleted: false } } },
+    where: { userId, tags: { none: { source: "OPEN_LIBRARY", deleted: false } } },
     select: {
       id: true,
       title: true,
@@ -306,8 +339,11 @@ export async function getBooksWithoutOpenLibraryTags() {
  * oldest checks first so the stalest results are re-queried first.
  */
 export async function getOpenLibraryTagGapsForRetry(limit: number) {
+  const userId = await currentUserId();
+  if (!userId) return [];
   return prisma.book.findMany({
     where: {
+      userId,
       metadataCheckedAt: { not: null },
       tags: { none: { source: "OPEN_LIBRARY", deleted: false } },
     },
@@ -338,8 +374,11 @@ export async function getOpenLibraryTagGapsForRetry(limit: number) {
  * included so the user can reuse them as subjects when creating the record.
  */
 export async function getOpenLibraryCreationGaps() {
+  const userId = await currentUserId();
+  if (!userId) return [];
   return prisma.book.findMany({
     where: {
+      userId,
       metadataCheckedAt: { not: null },
       openLibraryWorkId: null,
     },
@@ -362,8 +401,11 @@ export async function getOpenLibraryCreationGaps() {
 
 /** Checked books that still have possible Open Library matches to review. */
 export async function getBooksWithMetadataCandidates() {
+  const userId = await currentUserId();
+  if (!userId) return [];
   return prisma.book.findMany({
     where: {
+      userId,
       metadataCheckedAt: { not: null },
       metadataCandidates: { some: {} },
     },
@@ -392,8 +434,10 @@ export async function getBooksWithMetadataCandidates() {
 
 /** Lookup data for the recommendation action. */
 export async function getBookForRecommendation(bookId: string) {
-  return prisma.book.findUnique({
-    where: { id: bookId },
+  const userId = await currentUserId();
+  if (!userId) return null;
+  return prisma.book.findFirst({
+    where: { id: bookId, userId },
     select: {
       title: true,
       openLibraryWorkId: true,
@@ -406,32 +450,40 @@ export async function getBookForRecommendation(bookId: string) {
 export async function getCompletedBookSummaries(): Promise<
   { title: string; openLibraryWorkId: string | null }[]
 > {
+  const userId = await currentUserId();
+  if (!userId) return [];
   return prisma.book.findMany({
-    where: { status: "COMPLETED" },
+    where: { userId, status: "COMPLETED" },
     select: { title: true, openLibraryWorkId: true },
   });
 }
 
 /** Title + author name used to search Open Library covers. */
 export async function getBookCoverTarget(bookId: string) {
-  return prisma.book.findUnique({
-    where: { id: bookId },
+  const userId = await currentUserId();
+  if (!userId) return null;
+  return prisma.book.findFirst({
+    where: { id: bookId, userId },
     select: { title: true, author: { select: { name: true } } },
   });
 }
 
 /** Author name used to search Open Library author photos. */
 export async function getBookAuthorName(bookId: string) {
-  return prisma.book.findUnique({
-    where: { id: bookId },
+  const userId = await currentUserId();
+  if (!userId) return null;
+  return prisma.book.findFirst({
+    where: { id: bookId, userId },
     select: { author: { select: { name: true } } },
   });
 }
 
 /** Snapshot consumed by the metadata-enrichment action. */
 export async function getBookEnrichmentSnapshot(bookId: string) {
-  return prisma.book.findUnique({
-    where: { id: bookId },
+  const userId = await currentUserId();
+  if (!userId) return null;
+  return prisma.book.findFirst({
+    where: { id: bookId, userId },
     select: {
       id: true,
       title: true,
@@ -452,8 +504,10 @@ export async function getBookEnrichmentSnapshot(bookId: string) {
 
 /** Author id owning a book (author-photo persistence). */
 export async function getBookAuthorId(bookId: string) {
-  return prisma.book.findUnique({
-    where: { id: bookId },
+  const userId = await currentUserId();
+  if (!userId) return null;
+  return prisma.book.findFirst({
+    where: { id: bookId, userId },
     select: { authorId: true },
   });
 }
@@ -462,8 +516,10 @@ export async function getBookAuthorId(bookId: string) {
 export async function getExistingBookIds(
   ids: readonly string[],
 ): Promise<{ id: string }[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
   return prisma.book.findMany({
-    where: { id: { in: [...ids] } },
+    where: { userId, id: { in: [...ids] } },
     select: { id: true },
   });
 }
@@ -498,20 +554,20 @@ export type BookDetailsInput = {
  * errors so the caller can map P2025/P2002 onto user-facing messages.
  */
 export async function saveBookDetails(input: BookDetailsInput): Promise<void> {
+  const userId = await requireCurrentUserId();
   await prisma.$transaction(async (transaction) => {
     const existingBook = await transaction.book.findUnique({
-      where: { id: input.bookId },
+      where: { id: input.bookId, userId },
       select: { title: true, authorId: true },
     });
+    if (!existingBook) throw new Error("Book not found.");
     const author = await transaction.author.upsert({
       where: { name: input.authorName },
       create: { name: input.authorName },
       update: {},
     });
     const identityChanged =
-      existingBook !== null &&
-      (existingBook.title !== input.title ||
-        existingBook.authorId !== author.id);
+      existingBook.title !== input.title || existingBook.authorId !== author.id;
     const genre = input.genreName
       ? await transaction.genre.upsert({
           where: { name: input.genreName },
@@ -521,7 +577,7 @@ export async function saveBookDetails(input: BookDetailsInput): Promise<void> {
       : null;
 
     await transaction.book.update({
-      where: { id: input.bookId },
+      where: { id: input.bookId, userId },
       data: {
         title: input.title,
         status: input.status,
@@ -581,6 +637,7 @@ export type ReadingBookInput = {
 export async function createReadingBookRecord(
   input: ReadingBookInput,
 ): Promise<void> {
+  const userId = await requireCurrentUserId();
   await prisma.$transaction(async (transaction) => {
     const author = await transaction.author.upsert({
       where: { name: input.authorName },
@@ -614,6 +671,7 @@ export async function createReadingBookRecord(
         publicationYear: input.publicationYear ?? null,
         authorId: author.id,
         genreId: genre?.id ?? null,
+        userId,
       },
       select: { id: true },
     });
@@ -632,9 +690,11 @@ export async function startSagaWishlistBook(
   seriesName: string,
   startDate: Date,
 ): Promise<boolean> {
+  const userId = await requireCurrentUserId();
   const result = await prisma.book.updateMany({
     where: {
       id: bookId,
+      userId,
       seriesName,
       status: { in: ["PENDING", "WISH_LIST"] },
     },
@@ -659,8 +719,9 @@ export async function startSagaWishlistBook(
  * its place in the library (the row itself is the reading event).
  */
 export async function markBookUnread(bookId: string): Promise<boolean> {
+  const userId = await requireCurrentUserId();
   const result = await prisma.book.updateMany({
-    where: { id: bookId, status: { not: "PENDING" } },
+    where: { id: bookId, userId, status: { not: "PENDING" } },
     data: {
       status: "PENDING",
       currentPages: 0,
@@ -678,6 +739,7 @@ export async function createPendingBookRecord(input: {
   authorName: string;
   readingYear: number;
 }): Promise<string> {
+  const userId = await requireCurrentUserId();
   return prisma.$transaction(async (transaction) => {
     const author = await transaction.author.upsert({
       where: { name: input.authorName },
@@ -690,6 +752,7 @@ export async function createPendingBookRecord(input: {
         readingYear: input.readingYear,
         status: "PENDING",
         authorId: author.id,
+        userId,
       },
       select: { id: true },
     });
@@ -702,7 +765,8 @@ export async function createPendingBookRecord(input: {
 export async function deleteBookById(
   bookId: string,
 ): Promise<{ deleted: boolean }> {
-  const result = await prisma.book.deleteMany({ where: { id: bookId } });
+  const userId = await requireCurrentUserId();
+  const result = await prisma.book.deleteMany({ where: { id: bookId, userId } });
   return { deleted: result.count > 0 };
 }
 
@@ -712,6 +776,10 @@ export async function setBookStillReadingRecord(bookId: string): Promise<{
   finishDate: Date | null;
   rating: number | null;
 }> {
+  const userId = await requireCurrentUserId();
+  // verify ownership
+  const existing = await prisma.book.findFirst({ where: { id: bookId, userId }, select: { id: true } });
+  if (!existing) throw new Error("Book not found.");
   return prisma.book.update({
     where: { id: bookId },
     data: { status: "READING", finishDate: null, rating: null },
@@ -727,8 +795,9 @@ export async function setBookProgressPages(
   bookId: string,
   nextPages: number,
 ): Promise<void> {
-  const book = await prisma.book.findUnique({
-    where: { id: bookId },
+  const userId = await requireCurrentUserId();
+  const book = await prisma.book.findFirst({
+    where: { id: bookId, userId },
     select: { totalPages: true },
   });
   if (!book) {
@@ -754,8 +823,9 @@ export async function completeBookRecord(
   rating: number,
   finishDate: Date,
 ): Promise<{ count: number }> {
+  const userId = await requireCurrentUserId();
   return prisma.book.updateMany({
-    where: { id: bookId, status: "READING" },
+    where: { id: bookId, userId, status: "READING" },
     data: { status: "COMPLETED", finishDate, rating },
   });
 }
@@ -766,8 +836,9 @@ export async function saveBookCoverSelection(
   workId: string,
   coverId: number,
 ): Promise<void> {
-  await prisma.book.update({
-    where: { id: bookId },
+  const userId = await requireCurrentUserId();
+  await prisma.book.updateMany({
+    where: { id: bookId, userId },
     data: {
       openLibraryWorkId: workId,
       openLibraryCoverId: coverId,
@@ -781,6 +852,8 @@ export async function updateAuthorPortrait(
   photoUrl: string,
   sourceUrl: string,
 ): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthorized");
   await prisma.author.update({
     where: { id: authorId },
     data: {
@@ -791,5 +864,15 @@ export async function updateAuthorPortrait(
       portraitLicense: null,
       portraitLicenseUrl: null,
     },
+  });
+}
+
+export async function getCompletedBooksForExport(year: number | null) {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  return prisma.book.findMany({
+    where: { userId, status: "COMPLETED", ...(year !== null && !Number.isNaN(year) ? { readingYear: year } : {}) },
+    include: { author: true, genre: true },
+    orderBy: [{ readingYear: "asc" }, { title: "asc" }],
   });
 }

@@ -7,6 +7,7 @@
  */
 import { BookTagCategory, BookTagSource } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 import { replaceBookTags, replaceManyBookTags } from "@/lib/book-tags";
 
 export function isBookTagSource(value: string): value is BookTagSource {
@@ -17,9 +18,12 @@ export function isBookTagSource(value: string): value is BookTagSource {
 export async function countOpenLibrarySubjectTags(
   bookId: string,
 ): Promise<number> {
+  const user = await getCurrentUser();
+  if (!user) return 0;
   return prisma.bookTag.count({
     where: {
       bookId,
+      book: { userId: user.id },
       source: "OPEN_LIBRARY",
       deleted: false,
       tag: { category: "SUBJECT" },
@@ -40,13 +44,16 @@ export type UsedTag = {
  * popularity).
  */
 export async function getUsedTags(): Promise<UsedTag[]> {
+  const user = await getCurrentUser();
+  if (!user) return [];
   const storedTags = await prisma.$queryRaw<
     { id: string; name: string; category: BookTagCategory; count: bigint }[]
   >`
     SELECT t.id, t.name, t.category, COUNT(DISTINCT bt.book_id) AS count
     FROM "Tag" AS t
     INNER JOIN book_tags AS bt ON bt.tag_id = t.id
-    WHERE bt.deleted = false
+    INNER JOIN "Book" AS b ON b.id = bt.book_id
+    WHERE bt.deleted = false AND b."userId" = ${user.id}
     GROUP BY t.id, t.name, t.category
     ORDER BY t.category ASC, t.name ASC
   `;
@@ -58,10 +65,13 @@ export async function getUsedTags(): Promise<UsedTag[]> {
 
 /** A tag with its books (author + genre included), or `null`. */
 export async function getTagWithBooks(id: string) {
+  const user = await getCurrentUser();
+  if (!user) return null;
   return prisma.tag.findUnique({
     where: { id },
     include: {
       books: {
+        where: { book: { userId: user.id } },
         include: {
           book: { include: { author: true, genre: true } },
         },
@@ -75,10 +85,12 @@ export async function getTagWithBooks(id: string) {
 export async function getSubjectTagOptions(): Promise<
   { id: string; name: string }[]
 > {
+  const user = await getCurrentUser();
+  if (!user) return [];
   return prisma.tag.findMany({
     where: {
       category: "SUBJECT",
-      books: { some: { deleted: false } },
+      books: { some: { deleted: false, book: { userId: user.id } } },
     },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
@@ -91,10 +103,12 @@ export async function saveManualSubjectTags(
   bookId: string,
   names: readonly string[],
 ): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthorized");
   await prisma.$transaction(
     async (transaction) => {
       await transaction.book.findUniqueOrThrow({
-        where: { id: bookId },
+        where: { id: bookId, userId: user.id },
         select: { id: true },
       });
       await replaceBookTags(
@@ -115,6 +129,8 @@ export async function deleteBookTag(
   tagId: string,
   source: BookTagSource,
 ): Promise<{ deleted: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthorized");
   // Retrieved (Open Library) tags are soft-deleted so a later metadata
   // refresh/retry cannot silently re-add a tag the user removed by hand.
   // The row is kept (marked deleted) as the "memory" of that decision.
@@ -122,6 +138,7 @@ export async function deleteBookTag(
     const result = await prisma.bookTag.updateMany({
       where: {
         bookId,
+        book: { userId: user.id },
         tagId,
         source,
         deleted: false,
@@ -137,6 +154,7 @@ export async function deleteBookTag(
   const result = await prisma.bookTag.deleteMany({
     where: {
       bookId,
+      book: { userId: user.id },
       tagId,
       source,
     },
@@ -152,6 +170,8 @@ export async function mergeTags(
   keepTagId: string,
   mergeTagId: string,
 ): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthorized");
   await prisma.$transaction(async (transaction) => {
     const [keepTag, mergeTag] = await Promise.all([
       transaction.tag.findUnique({ where: { id: keepTagId } }),
@@ -183,6 +203,8 @@ export async function mergeTags(
 export async function importManualSubjectTags(
   entries: readonly { bookId: string; names: readonly string[] }[],
 ): Promise<{ updatedBooks: number; savedTags: number }> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthorized");
   const savedTags = entries.reduce((total, entry) => total + entry.names.length, 0);
   await prisma.$transaction(
     async (transaction) => {

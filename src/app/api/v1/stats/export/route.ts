@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getCompletedBooksForExport } from "@/lib/books";
 import { buildCsvDocument } from "@/lib/csv";
 
 export async function GET(request: Request): Promise<Response> {
@@ -6,14 +6,7 @@ export async function GET(request: Request): Promise<Response> {
   const yearParam = url.searchParams.get("year");
   const year = yearParam ? Number(yearParam) : null;
 
-  const where: Record<string, unknown> = { status: "COMPLETED" };
-  if (year !== null && !Number.isNaN(year)) where.readingYear = year;
-
-  const books = await prisma.book.findMany({
-    where,
-    include: { author: true, genre: true },
-    orderBy: [{ readingYear: "asc" }, { title: "asc" }],
-  });
+  const books = await getCompletedBooksForExport(year);
 
   const rows = [
     [

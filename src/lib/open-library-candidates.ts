@@ -8,6 +8,7 @@
  */
 import { BookTagCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 import { replaceBookTags } from "@/lib/book-tags";
 import type {
   OpenLibraryBookMetadata,
@@ -41,6 +42,8 @@ export async function saveOpenLibraryMetadata(
   possibleMatches: readonly OpenLibraryMetadataCandidate[],
   options: { replaceWorkLink?: boolean } = {},
 ): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthorized");
   const checkedAt = new Date();
   await prisma.$transaction(
     async (transaction) => {
@@ -117,6 +120,8 @@ export async function applyOpenLibraryCandidateMatch(
   bookId: string,
   candidateId: string,
 ): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthorized");
   await prisma.$transaction(async (transaction) => {
     const candidate = await transaction.bookMetadataCandidate.findFirst({
       where: { id: candidateId, bookId },
@@ -128,8 +133,8 @@ export async function applyOpenLibraryCandidateMatch(
       },
     });
     if (!candidate) throw new Error("This possible match is no longer available.");
-    const book = await transaction.book.findUnique({
-      where: { id: bookId },
+    const book = await transaction.book.findFirst({
+      where: { id: bookId, userId: user.id },
       select: {
         publicationYear: true,
         openLibraryCoverId: true,

@@ -205,3 +205,28 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * **UI** — `/stats` now renders all-time KPIs, new charts, top-10 most valuable books, and expanded rankings; book detail shows similar books.
 * **Export** — `GET /api/v1/stats/export` CSV download (optional `?year=`).
 * **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.
+
+**Authentication + per-user ownership (2026-10-25):**
+* **Schema** — added `User` (email, passwordHash, role) and `Session` (hashed token, expiry) models; `Book.userId` FK with cascade; backfilled 809 existing books to a default owner.
+* **Auth** — custom cookie-session auth (scrypt password hashing, SHA-256 session tokens, httpOnly cookies) in `src/lib/auth.ts` + `src/lib/password.ts`; `src/proxy.ts` optimistic guard; login/signup pages + Server Actions.
+* **Ownership** — all book/tag/analytics/import/export service reads and mutations scoped by the signed-in user; DAL re-verifies on every action/route.
+* **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully, `npm run validate:ingestion` 0 errors.
+
+**FK repair helper (2026-10-25):**
+* **Script** — `npm run repair:user-ownership` ensures the `marino` owner exists and reassigns any orphaned `Book.userId` rows before adding the `Book_userId_fkey` constraint (fixes P3005/FK violations on existing DBs).
+
+**Default owner "marino" (2026-10-25):**
+* **DB** — default user changed to `marino` (id `marino`, email `marino@books.local`, ADMIN role); all 809 books reassigned; old Owner removed; `Book.userId` now defaults to `'marino'` at DB level. Password is not stored in repo; set via `DEFAULT_OWNER_PASSWORD` (see `.env.example` if present) or the repair script.
+* **Backfill script** — defaults to marino id/email/password; can be overridden via env vars.
+* **Password handling** — no admin password is committed; the migration seeds an unusable placeholder (`!`); set a real password via `DEFAULT_OWNER_PASSWORD` + `npm run repair:user-ownership` (or accept a generated one printed to the console).
+**Tags query fix (2026-10-25):**
+* **Bug** — `getUsedTags()` raw SQL referenced `b.user_id`, but `Book.userId` has no `@map`, so the actual column is `"userId"` (camelCase) → Postgres error `42703 column b.user_id does not exist`.
+* **Fix** — updated raw query to `b."userId"`; verified against local Postgres.
+
+**Logout button (2026-10-25):**
+* **Feature** — added `LogoutButton` client component (`src/components/LogoutButton.tsx`) wired to existing `logoutAction` (destroys session + redirects to `/login`).
+* **Placement** — in `DashboardShell` menu and globally via `LogoutSlot` (Suspense-gated) in the root layout, so it appears on every authenticated page as a floating bottom-right button.
+
+**Account/password change (2026-10-25):**
+* **Feature** — added `/account` page with `ChangePasswordForm` allowing authenticated users to change their own password (verifies current password, min 8 chars, confirmation match); server action `changePasswordAction` + `findUserById`/`updateUserPassword` helpers in `lib/auth.ts`.
+* **Navigation** — "My account"/"Account" links added to DashboardShell menu and global LogoutSlot.

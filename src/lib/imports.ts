@@ -6,6 +6,7 @@
  * interactive transaction (atomic: every valid row lands or nothing does).
  */
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 import { buildLibraryBookTags, replaceManyBookTags } from "@/lib/book-tags";
 import {
   editionKeyFromMetadata,
@@ -68,6 +69,7 @@ async function persistBook(
   authorIds: Map<string, string>,
   genreIds: Map<string, string>,
   legacyBooks: Map<string, LegacyBook[]>,
+  userId: string,
 ): Promise<string> {
   const authorId = authorIds.get(book.authorName);
   if (!authorId) {
@@ -120,7 +122,7 @@ async function persistBook(
       },
     },
     update: fields,
-    create: { ...fields, title: book.title, readingYear, authorId },
+    create: { ...fields, title: book.title, readingYear, authorId, userId },
     select: { id: true },
   });
   return savedBook.id;
@@ -141,11 +143,14 @@ export type WorkbookImportResult = {
 export async function importWorkbookBooks(
   workbook: ParsedWorkbook,
 ): Promise<WorkbookImportResult> {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthorized");
+  const userId = user.id;
   const authorIds = new Map<string, string>();
   const genreIds = new Map<string, string>();
   const authorsBefore = await prisma.author.count();
   const genresBefore = await prisma.genre.count();
-  const booksBefore = await prisma.book.count();
+  const booksBefore = await prisma.book.count({ where: { userId } });
   let backfilledReadingYear = 0;
 
   await prisma.$transaction(
@@ -175,7 +180,7 @@ export async function importWorkbookBooks(
       // Upgrade existing rows written before edition fingerprints were added.
       const legacyBooks = new Map<string, LegacyBook[]>();
       const legacyRows = await tx.book.findMany({
-        where: { editionKey: "" },
+        where: { userId, editionKey: "" },
         select: {
           id: true,
           title: true,
@@ -201,7 +206,7 @@ export async function importWorkbookBooks(
         tags: ReturnType<typeof buildLibraryBookTags>;
       }[] = [];
       for (const book of workbook.books) {
-        const bookId = await persistBook(tx, book, authorIds, genreIds, legacyBooks);
+        const bookId = await persistBook(tx, book, authorIds, genreIds, legacyBooks, userId);
         importedBookTags.push({
           bookId,
           tags: buildLibraryBookTags(book.genreName, book.origin),
@@ -215,7 +220,7 @@ export async function importWorkbookBooks(
 
   // created = net row growth, updated = the remainder. Two COUNT queries beat
   // per-row existence checks just to label each row.
-  const created = (await prisma.book.count()) - booksBefore;
+  const created = (await prisma.book.count({ where: { userId } })) - booksBefore;
   return {
     created,
     updated: workbook.books.length - created,
