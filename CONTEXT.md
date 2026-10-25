@@ -178,3 +178,21 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * **Prisma client** — default interactive transaction timeout raised from 5s to 30s (maxWait 10s) for remote/cloud databases.
 * **Slow transactions** — explicit 30s timeouts added to `saveOpenLibraryMetadata`, `applyOpenLibraryCandidateMatch`, `saveManualSubjectTags`, and `saveBookDetails` (tag-heavy paths).
 * **Validation** — `npm test` 61/61, `npm run build` compiled successfully.
+
+**Saga link on book detail (2026-10-25):**
+* **UI** — `src/app/books/[id]/page.tsx` now shows a **View saga: {name} →** link to `/sagas/{name}` when the book has a non-empty `seriesName`, so a book that belongs to a saga can jump to that saga's list of books.
+* **Validation** — `npm test` 61/61, `npm run lint` 0 errors, `npm run build` compiled successfully.
+
+**Local PostgreSQL backup + MariaDB decommission plan (2026-10-25):**
+* **Backup script** — added `scripts/backup-postgresql-local.sh` (plus aliases) to dump a PostgreSQL source (Neon by default) and restore it into a local PostgreSQL database, with row-count verification.
+* **Local PostgreSQL URL** — documented `postgresql://book:password@127.0.0.1:5432/reading_tracker_local` in `.env.example` and `switch-db.sh` (`local-postgres` target).
+* **switch-db** — new `local-postgres`/`local-pg` target sets the local PostgreSQL URL and `postgresql` provider.
+* **Decommission plan** — added `MYSQL_MARIADB_DECOMMISSION_PLAN.md` with phased MySQL/MariaDB retirement steps, rollback, and validation checklist.
+* **npm/README** — added `backup:postgresql:local` script and documentation.
+
+**Local PostgreSQL restore from Neon (2026-10-25):**
+* **Restore** — ran `scripts/backup-postgresql-local.sh` (source: Neon `reading_tracker`, target: local `reading_tracker_local`); all row counts match (Author 433, Genre 25, Tag 1189, Book 809, book_tags 4163, book_metadata_candidates 0).
+* **Compatibility fix** — restore now filters the PG18-only `SET transaction_timeout` line so dumps from newer servers load into local PostgreSQL 16.
+* **App config** — switched dev `.env` to `local-postgres`; Prisma client regenerated.
+* **Validation** — `npm test` 61/61, `npm run lint` 0 errors.
+

@@ -32,6 +32,7 @@ ENV_FILE=".env"
 PROD_ENV_FILE=".env.production"
 SCHEMA_FILE="prisma/schema.prisma"
 LOCAL_URL="mysql://book:password@127.0.0.1:3306/reading_tracker_local"
+LOCAL_PG_URL="postgresql://book:password@127.0.0.1:5432/reading_tracker_local"
 
 ###############################################################################
 # Helpers
@@ -149,6 +150,12 @@ PYEOF
 ###############################################################################
 cmd="${1:-}"
 
+# Prefer the developer's actual local PostgreSQL credentials when present.
+if [[ -f ".env.local" ]]; then
+  _local_pg="$(read_env_value .env.local DATABASE_URL 2>/dev/null || true)"
+  [[ -n "$_local_pg" ]] && LOCAL_PG_URL="$_local_pg"
+fi
+
 case "$cmd" in
   local)
     echo "==> Switching to LOCAL MariaDB"
@@ -186,6 +193,15 @@ case "$cmd" in
     echo "   Next: npx prisma db push   (to sync schema to NeonDB)"
     ;;
 
+  local-postgres|local-pg|postgres-local)
+    echo "==> Switching to LOCAL PostgreSQL"
+    write_env_value "$ENV_FILE" DATABASE_URL "$LOCAL_PG_URL"
+    set_schema_provider "postgresql"
+    check_migration_lock "postgresql"
+    echo "   Done. Local PostgreSQL configured in .env."
+    echo "   Next: npx prisma db push   (to sync schema to local PostgreSQL)"
+    ;;
+
   status)
     echo "==> Current database configuration"
     echo "   .env (dev — active):"
@@ -200,6 +216,8 @@ case "$cmd" in
     echo ""
     if [[ "$dev_url" == "$LOCAL_URL" ]]; then
       echo "   Active target: LOCAL MariaDB"
+    elif [[ "$dev_url" == "$LOCAL_PG_URL" ]]; then
+      echo "   Active target: LOCAL PostgreSQL"
     elif [[ "$dev_url" == postgresql://* ]]; then
       echo "   Active target: REMOTE PostgreSQL (NeonDB)"
     elif [[ "$dev_url" == mysql://* ]]; then
@@ -210,9 +228,10 @@ case "$cmd" in
     ;;
 
   --help|-h|*)
-    echo "Usage: $0 {local|cloud|mariadb|neon|postgres|status} [DATABASE_URL]"
+    echo "Usage: $0 {local|local-postgres|cloud|mariadb|neon|postgres|status} [DATABASE_URL]"
     echo ""
-    echo "  local                          Switch to local MariaDB (127.0.0.1:3306)"
+    echo "  local                          Switch to local MariaDB (127.0.0.1:3306)
+  local-postgres | local-pg      Switch to local PostgreSQL (127.0.0.1:5432)"
     echo "  cloud | mariadb                Switch to MariaDB cloud (SkySQL / Aiven)"
     echo "                                 Reads DATABASE_URL from .env.production"
     echo "  neon | postgres                Switch to NeonDB (PostgreSQL)"

@@ -194,6 +194,14 @@ it is never hard-coded in the script. Pair this with
 `scripts/connect-skysql.sh` when you need an interactive cloud session instead
 of a file backup.
 
+**`scripts/backup-postgresql-local.sh`** (npm: `backup:postgresql:local`) — Back up a
+PostgreSQL database (NeonDB by default) and restore it into a local PostgreSQL
+database.
+
+```bash
+npm run backup:postgresql:local
+```
+
 ### Restoring a backup into the local database
 
 Backups under `db/backups/` are plain SQL dumps (gzipped). To restore one into
@@ -338,6 +346,7 @@ module encapsulation rules.
 | `backup:cloud-local` | Dump MariaDB cloud (SkySQL) to `db/backups/` |
 | `switch-db` | Switch between local / cloud / NeonDB database |
 | `backup:postgresql` | Migrate MariaDB data to PostgreSQL |
+| `backup:postgresql:local` | Back up PostgreSQL (Neon) and restore into local PostgreSQL |
 | `check:encapsulation` | Verify module encapsulation |
 
 ## Deployment

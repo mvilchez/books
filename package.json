@@ -12,6 +12,7 @@
     "validate:ingestion": "tsx --tsconfig tsconfig.json src/scripts/validate-ingestion.ts",
     "backfill:book-tags": "tsx --tsconfig tsconfig.json src/scripts/backfill-book-tags.ts",
     "backup:postgresql": "bash scripts/backup-to-postgresql.sh",
+    "backup:postgresql:local": "bash scripts/backup-postgresql-local.sh",
     "backup:local": "bash scripts/backup-local.sh",
     "backup:cloud-local": "bash scripts/backup-cloud-local.sh",
     "switch-db": "bash scripts/switch-db.sh",
