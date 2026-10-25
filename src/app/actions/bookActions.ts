@@ -1,6 +1,6 @@
 "use server";
 
-import { refresh, revalidatePath } from "next/cache";
+import { refresh, revalidatePath, revalidateTag } from "next/cache";
 import {
   completeBookRecord,
   createPendingBookRecord,
@@ -184,6 +184,7 @@ export async function updateBookDetails(
 
   revalidatePath("/");
   revalidatePath("/stats");
+  revalidateTag("stats", "hours");
   revalidatePath(`/books/${bookId}`);
   return { status: "success", message: "Book details saved." };
 }

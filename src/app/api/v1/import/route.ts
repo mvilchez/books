@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { importWorkbookBooks } from "@/lib/imports";
 import { parseWorkbookBuffer, type ParsedWorkbook } from "@/lib/ingestion/workbook-parser";
+import { revalidateTag } from "next/cache";
 
 /**
  * POST /api/v1/import — transactional bulk ingestion (PLAN.md Step 2.3)
@@ -142,6 +143,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     errors: workbook.errors,
   };
 
+  revalidateTag("stats", "hours");
   return NextResponse.json(payload, { status: 200 });
 }
 

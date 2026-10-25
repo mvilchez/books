@@ -90,6 +90,9 @@ model Book {
   @@unique([title, authorId, readingYear, editionKey])
   @@index([readingYear, status])
   @@index([userId])
+  @@index([userId, readingYear, status])
+  @@index([userId, status])
+  @@index([userId, rating])
 }
 
 model BookMetadataCandidate {
@@ -136,6 +139,8 @@ model BookTag {
   @@id([bookId, tagId, source])
   @@index([tagId, source])
   @@index([deleted])
+  @@index([bookId, deleted])
+  @@index([tagId, deleted])
   @@map("book_tags")
 }
 

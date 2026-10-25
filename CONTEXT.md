@@ -230,3 +230,16 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 **Account/password change (2026-10-25):**
 * **Feature** — added `/account` page with `ChangePasswordForm` allowing authenticated users to change their own password (verifies current password, min 8 chars, confirmation match); server action `changePasswordAction` + `findUserById`/`updateUserPassword` helpers in `lib/auth.ts`.
 * **Navigation** — "My account"/"Account" links added to DashboardShell menu and global LogoutSlot.
+**Performance pass (2026-10-25):**
+* **Stats page** — removed a duplicate `getTopAuthors` round-trip by reusing the top-10 result sliced to top-5 for discovery metrics; parallelized publication-era bucket count with its findMany; narrowed `getTopSubjects` tag projection.
+* **Book detail recommender** — `getSimilarBooks` now selects only the columns it consumes instead of full `Author`/`Genre`/`Tag` rows.
+**Performance pass v2 (2026-10-25):**
+* **DB** — added composite indexes on `Book(userId, readingYear, status)`, `Book(userId, status)`, `Book(userId, rating)`, `BookTag(bookId, deleted)`, `BookTag(tagId, deleted)`; applied via `prisma db push`.
+* **Stats page** — converted all 8 chart imports to `next/dynamic` (code-split Recharts bundle).
+* **Rendering** — removed `unoptimized` from `BookCover` to enable Next image optimization for Open Library covers.
+* **Micro-opts** — hoisted `Intl.DateTimeFormat` instances in `BookCard` and dashboard table to module scope.
+* **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.
+* **Deferred** — cross-request analytics caching (`'use cache'`) left as stretch goal due to user-scoped cache-key/isolation concerns; DB-side dashboard pagination and SQL aggregation rewrites deferred to next pass.
+
+* **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.
+

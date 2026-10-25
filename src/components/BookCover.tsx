@@ -31,7 +31,6 @@ export default function BookCover({
           alt={`Cover of ${title}`}
           fill
           sizes={isLarge ? "192px" : "56px"}
-          unoptimized
           loading="lazy"
           className="object-cover"
           onError={() => setImageFailed(true)}

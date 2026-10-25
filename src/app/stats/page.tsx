@@ -1,4 +1,5 @@
 // src/app/stats/page.tsx
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { PRE_TAB_READING_YEAR_SENTINEL } from '@/lib/ingestion/workbook-parser';
@@ -9,14 +10,15 @@ import {
   getTopAuthorsByPages, getTopAuthorsByRating, getTopSubjects, getYearKpis, getYearlyTrend,
 } from '@/lib/analytics';
 import { Kpi, nf, StatsSkeleton, SuggestionsList, TopAuthorsBooks, TopList } from './_components';
-import YearTrendChart from '@/components/charts/YearTrendChart';
-import RatingChart from '@/components/charts/RatingChart';
-import GenreChart from '@/components/charts/GenreChart';
-import AuthorsChart from '@/components/charts/AuthorsChart';
-import MonthlyPaceChart from '@/components/charts/MonthlyPaceChart';
-import OriginChart from '@/components/charts/OriginChart';
-import PublicationEraChart from '@/components/charts/PublicationEraChart';
-import CumulativeTrendChart from '@/components/charts/CumulativeTrendChart';
+
+const YearTrendChart = dynamic(() => import('@/components/charts/YearTrendChart'), { loading: () => <div className="h-[360px] animate-pulse rounded-xl bg-slate-800" /> });
+const RatingChart = dynamic(() => import('@/components/charts/RatingChart'), { loading: () => <div className="h-[360px] animate-pulse rounded-xl bg-slate-800" /> });
+const GenreChart = dynamic(() => import('@/components/charts/GenreChart'), { loading: () => <div className="h-[360px] animate-pulse rounded-xl bg-slate-800" /> });
+const AuthorsChart = dynamic(() => import('@/components/charts/AuthorsChart'), { loading: () => <div className="h-[360px] animate-pulse rounded-xl bg-slate-800" /> });
+const MonthlyPaceChart = dynamic(() => import('@/components/charts/MonthlyPaceChart'), { loading: () => <div className="h-[360px] animate-pulse rounded-xl bg-slate-800" /> });
+const OriginChart = dynamic(() => import('@/components/charts/OriginChart'), { loading: () => <div className="h-[360px] animate-pulse rounded-xl bg-slate-800" /> });
+const PublicationEraChart = dynamic(() => import('@/components/charts/PublicationEraChart'), { loading: () => <div className="h-[360px] animate-pulse rounded-xl bg-slate-800" /> });
+const CumulativeTrendChart = dynamic(() => import('@/components/charts/CumulativeTrendChart'), { loading: () => <div className="h-[360px] animate-pulse rounded-xl bg-slate-800" /> });
 
 // PageProps<'/stats'> is a Next.js-generated global helper (no import needed).
 type StatsSearchParams = PageProps<'/stats'>['searchParams'];
@@ -69,7 +71,6 @@ async function StatsContent({ searchParams }: { searchParams: StatsSearchParams 
     ratings,
     authors,
     pace,
-    discovery,
     allTimeKpis,
     origins,
     eras,
@@ -86,7 +87,6 @@ async function StatsContent({ searchParams }: { searchParams: StatsSearchParams 
     getRatingDistribution(),
     getTopAuthors(10),
     getMonthlyPace(year),
-    getDiscoveryMetrics(),
     getAllTimeKpis(),
     getOriginShares(),
     getPublicationEraBuckets(),
@@ -99,6 +99,7 @@ async function StatsContent({ searchParams }: { searchParams: StatsSearchParams 
     getTopAuthorsByPages(8),
     getTopAuthorsByRating(8),
   ]);
+  const discovery = await getDiscoveryMetrics(authors.slice(0, 5));
 
   return (
     <div className="space-y-10">
