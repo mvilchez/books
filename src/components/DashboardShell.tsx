@@ -101,6 +101,7 @@ export default function DashboardShell({
   const [explicitPreference, setExplicitPreference] = useState<boolean | null>(
     null,
   );
+const [userPanelOpen, setUserPanelOpen] = useState<boolean>(true);
   const storedPreference = useSyncExternalStore(
     subscribeToMenuPreference,
     readMenuPreference,
@@ -170,13 +171,6 @@ export default function DashboardShell({
             <IngestionWidget />
           </div>
           <div className="mt-auto flex flex-col gap-2 border-t border-slate-800 pt-4">
-            <Link
-              href="/account"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
-            >
-              Change password
-            </Link>
-            <LogoutButton className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-red-500/50 hover:text-red-300" />
             <button
               type="button"
               onClick={toggleMenu}
@@ -213,7 +207,28 @@ export default function DashboardShell({
             </div>
           </div>
           {search}
+<button
+          type="button"
+          onClick={() => setUserPanelOpen(!userPanelOpen)}
+          aria-expanded={userPanelOpen}
+          aria-label={userPanelOpen ? "Collapse user panel" : "Expand user panel"}
+          className="inline-flex items-center rounded-lg border border-slate-700 p-2 text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+        >
+          {userPanelOpen ? <ChevronsLeftIcon /> : <ChevronsRightIcon />}
+        </button>
         </header>
+          {userPanelOpen && (
+            <div className="absolute right-0 top-0 w-64 bg-slate-800 rounded-lg p-4 space-y-4 shadow-lg">
+              <div className="flex items-center gap-2 text-slate-300">
+                <div className="h-8 w-8 rounded-full bg-slate-600 flex items-center justify-center text-sm font-medium">
+                  M
+                </div>
+                <span>marino</span>
+              </div>
+              <a href="/account" className="hover:text-white transition text-sm">Change password</a>
+              <LogoutButton />
+            </div>
+          )}
 
         <main className="flex-1 p-6 md:p-12">{children}</main>
       </div>

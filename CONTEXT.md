@@ -226,10 +226,12 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 **Logout button (2026-10-25):**
 * **Feature** — added `LogoutButton` client component (`src/components/LogoutButton.tsx`) wired to existing `logoutAction` (destroys session + redirects to `/login`).
 * **Placement** — in `DashboardShell` menu and globally via `LogoutSlot` (Suspense-gated) in the root layout, so it appears on every authenticated page as a floating bottom-right button.
+* **Update (2026-11-05)** — moved to top-left user menu profile alongside change password option; floating buttons removed from main dashboard view.
 
 **Account/password change (2026-10-25):**
 * **Feature** — added `/account` page with `ChangePasswordForm` allowing authenticated users to change their own password (verifies current password, min 8 chars, confirmation match); server action `changePasswordAction` + `findUserById`/`updateUserPassword` helpers in `lib/auth.ts`.
 * **Navigation** — "My account"/"Account" links added to DashboardShell menu and global LogoutSlot.
+* **Update (2026-11-05)** — moved to top-left user menu profile alongside logout option; floating buttons removed from main dashboard view.
 **Performance pass (2026-10-25):**
 * **Stats page** — removed a duplicate `getTopAuthors` round-trip by reusing the top-10 result sliced to top-5 for discovery metrics; parallelized publication-era bucket count with its findMany; narrowed `getTopSubjects` tag projection.
 * **Book detail recommender** — `getSimilarBooks` now selects only the columns it consumes instead of full `Author`/`Genre`/`Tag` rows.
