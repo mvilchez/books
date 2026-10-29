@@ -231,7 +231,8 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 **Logout button (2026-10-25):**
 * **Feature** — added `LogoutButton` client component (`src/components/LogoutButton.tsx`) wired to existing `logoutAction` (destroys session + redirects to `/login`).
 * **Placement** — in `DashboardShell` menu and globally via `LogoutSlot` (Suspense-gated) in the root layout, so it appears on every authenticated page as a floating bottom-right button.
-* **Update (2026-11-05)** — moved to top-left user menu profile alongside change password option; floating buttons removed from main dashboard view.
+* **Update (2026-10-29)** — changed 'Change password' left-panel link to a button with matching style to the left panel buttons (`inline-flex items-center rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white`). Added "Import books" button to left panel dashboard menu with same styling as "Export to Excel" (`primary: true`, `PlusIcon`, `href: "/import"`), and removed `IngestionWidget` from the dashboard body so it now only appears in the left panel menu.
+* **Update (2026-11-05)** — moved to top-left user menu profile alongside logout option; floating buttons removed from main dashboard view.
 
 **Account/password change (2026-10-25):**
 * **Feature** — added `/account` page with `ChangePasswordForm` allowing authenticated users to change their own password (verifies current password, min 8 chars, confirmation match); server action `changePasswordAction` + `findUserById`/`updateUserPassword` helpers in `lib/auth.ts`.

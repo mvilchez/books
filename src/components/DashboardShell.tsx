@@ -37,6 +37,7 @@ type MenuEntry = {
 
 const MENU_ENTRIES: MenuEntry[] = [
   { href: "/books/new", label: "Start a book", primary: true, Icon: PlusIcon },
+  { href: "/import", label: "Import books", Icon: PlusIcon, primary: true },
   { href: "/sagas", label: "Book sagas", Icon: BooksIcon },
   { href: "/stats", label: "Statistics & graphs", Icon: ChartIcon },
   {
@@ -175,9 +176,6 @@ const [userPanelOpen, setUserPanelOpen] = useState<boolean>(false);
               );
             })}
           </nav>
-          <div className="mt-2 border-t border-slate-800 pt-4">
-            <IngestionWidget />
-          </div>
           <div className="mt-auto flex flex-col gap-2 border-t border-slate-800 pt-4">
             <button
               type="button"
@@ -243,8 +241,14 @@ const [userPanelOpen, setUserPanelOpen] = useState<boolean>(false);
                   <ChevronsRightIcon />
                 </button>
               </div>
-              <a href="/account" className="hover:text-white transition text-sm">Change password</a>
-              <LogoutButton />
+              <button
+          type="button"
+          onClick={() => setUserPanelOpen(false)}
+          aria-label="Close user panel"
+          className="inline-flex items-center rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white">
+          Change password
+        </button>
+        <LogoutButton />
             </div>
           )}
 
