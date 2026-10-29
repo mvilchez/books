@@ -16,6 +16,20 @@ import {
   type BookTagSearchResult,
 } from "@/lib/book-search";
 
+/** Type for a book row in the export, matching the relational model fields. */
+export type ExportedBook = {
+  readingYear: number;
+  title: string;
+  authorName: string;
+  totalPages: number | null;
+  startDate: Date | null;
+  finishDate: Date | null;
+  genreName: string | null;
+  rating: number | null;
+  publicationYear: number | null;
+  origin: string | null;
+};
+
 /** The dashboard's book projection: full `Book` rows plus their relations. */
 export type DashboardBook = Prisma.BookGetPayload<{
   include: { author: true; genre: true };
@@ -875,4 +889,47 @@ export async function getCompletedBooksForExport(year: number | null) {
     include: { author: true, genre: true },
     orderBy: [{ readingYear: "asc" }, { title: "asc" }],
   });
+}
+
+/** All books of the user, grouped by reading year, for export purposes. */
+export async function getBooksForExport(year?: number | null) {
+  const userId = await currentUserId();
+  if (!userId) return { booksByYear: new Map<number, ExportedBook[]>(), userId: null };
+
+  const where: { userId: string; readingYear?: number } = { userId };
+  if (year !== null && !Number.isNaN(year)) {
+    where.readingYear = year;
+  }
+
+  const allBooks = await prisma.book.findMany({
+    where,
+    include: { author: true, genre: true },
+    orderBy: [{ readingYear: "asc" }, { title: "asc" }],
+  });
+
+  // Map Prisma Book to ExportedBook format and group by reading year
+  const exportBooks: ExportedBook[] = allBooks.map((book) => ({
+    readingYear: book.readingYear,
+    title: book.title,
+    authorName: book.author?.name ?? "",
+    totalPages: book.totalPages ?? null,
+    startDate: book.startDate ?? null,
+    finishDate: book.finishDate ?? null,
+    genreName: book.genre?.name ?? null,
+    rating: book.rating ?? null,
+    publicationYear: book.publicationYear ?? null,
+    origin: book.origin ?? null,
+  }));
+
+  // Group books by reading year
+  const booksByYear = new Map<number, ExportedBook[]>();
+  for (const book of exportBooks) {
+    const ry = book.readingYear;
+    if (!booksByYear.has(ry)) {
+      booksByYear.set(ry, []);
+    }
+    booksByYear.get(ry)!.push(book);
+  }
+
+  return { booksByYear, userId };
 }

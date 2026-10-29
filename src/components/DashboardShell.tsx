@@ -50,6 +50,12 @@ const MENU_ENTRIES: MenuEntry[] = [
     Icon: SearchIcon,
   },
   { href: "/tags/manage", label: "Review similar tags", Icon: CopyTagsIcon },
+  {
+    href: "/api/v1/books/export",
+    label: "Export to Excel",
+    Icon: TagIcon,
+    primary: true,
+  },
 ];
 
 const MENU_STORAGE_KEY = "books.dashboard-menu-open";

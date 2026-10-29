@@ -204,6 +204,11 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * **Charts** — `OriginChart`, `PublicationEraChart`, `CumulativeTrendChart`.
 * **UI** — `/stats` now renders all-time KPIs, new charts, top-10 most valuable books, and expanded rankings; book detail shows similar books.
 * **Export** — `GET /api/v1/stats/export` CSV download (optional `?year=`).
+
+**Step 2026-11-05 — Excel export feature:**
+* Added `GET /api/v1/books/export` route handler (`src/app/api/v1/books/export/route.ts`) that exports the user's book library to an Excel workbook organized by reading year, using ExcelJS. One worksheet per reading year with columns matching the import format (Titulo, Autor, Paginas, Fecha Inicio, Fecha Fin, Tipo, Puntuación, Num leídos, Año, Origen).
+* Added `getBooksForExport(year?)` domain function in `src/lib/books.ts` that fetches books grouped by reading year, optionally filtered by year.
+* Added "Export to Excel" button to the left collapsible menu in `src/components/DashboardShell.tsx`.
 * **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.
 
 **Authentication + per-user ownership (2026-10-25):**
