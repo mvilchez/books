@@ -18,6 +18,12 @@ const nextConfig: NextConfig = {
         pathname: "/b/isbn/**",
         search: "?default=false",
       },
+      {
+        protocol: "https",
+        hostname: "covers.openlibrary.org",
+        pathname: "/a/id/**",
+        search: "?default=false",
+      },
     ],
   },
   turbopack: {

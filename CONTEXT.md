@@ -251,3 +251,9 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 
 * **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.
 
+
+**Image caching (2026-11-05):**
+* `next.config.ts` — added /a/id/** remote pattern for covers.openlibrary.org to enable Next.js image optimization and caching for Open Library author photos (previously only /b/id/** and /b/isbn/ were covered).
+* `src/components/AuthorPortrait.tsx` — removed unoptimized prop from next/Image component to allow automatic image optimization and caching for author portraits.
+* `src/components/SagaCardCover.tsx` — removed unoptimized prop from next/Image component to allow automatic image optimization and caching for saga cover collages.
+* Validation — `npm test` 67/67, `npm run build` compiled successfully.
