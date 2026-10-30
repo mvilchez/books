@@ -3,7 +3,6 @@ services:
     name: books
     env: node
     nodeVersion: "20"
-    rootDir: "/opt/render/project/src"
     buildCommand: npm install && npx next build
     startCommand: npx next start
     diskSize: 1GB
