@@ -251,6 +251,10 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.
 * **Deferred** — cross-request analytics caching (`'use cache'`) left as stretch goal due to user-scoped cache-key/isolation concerns; DB-side dashboard pagination and SQL aggregation rewrites deferred to next pass.
 
+* **Icon (2026-11-05):** Created `public/app-icon.svg` — a book-themed app icon following the project's existing SVG icon pattern (24px viewBox, `stroke="currentColor"`, `strokeWidth="2"`, round line caps/joins). This serves as the application's visual identity icon.
+
+* **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.
+
 * **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.
 
 
