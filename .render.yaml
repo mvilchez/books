@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: books
+    env: node
+    buildCommand: npx next build
+    startCommand: npx next start
+    diskSize: 1GB
