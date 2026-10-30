@@ -245,6 +245,8 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * **DB** — added composite indexes on `Book(userId, readingYear, status)`, `Book(userId, status)`, `Book(userId, rating)`, `BookTag(bookId, deleted)`, `BookTag(tagId, deleted)`; applied via `prisma db push`.
 * **Stats page** — converted all 8 chart imports to `next/dynamic` (code-split Recharts bundle).
 * **Rendering** — removed `unoptimized` from `BookCover` to enable Next image optimization for Open Library covers.
+* **Micro-opt (2026-11-05):** analytics query refactor — added shared `getBookCounts()` helper in `src/lib/analytics.ts` that consolidates 5 `prisma.book.count()` calls used by `getMetadataCoverage()` and prepares infrastructure for future `'use cache'` caching per PLAN.md §5. Also fixed `src/lib/_cache_test.ts` ESLint error: `T extends any[]` → `T extends unknown[]`.
+
 * **Micro-opts** — hoisted `Intl.DateTimeFormat` instances in `BookCard` and dashboard table to module scope.
 * **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.
 * **Deferred** — cross-request analytics caching (`'use cache'`) left as stretch goal due to user-scoped cache-key/isolation concerns; DB-side dashboard pagination and SQL aggregation rewrites deferred to next pass.

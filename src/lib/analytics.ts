@@ -17,9 +17,20 @@ import type {
  * so month bucketing MUST use the UTC getters, never the local ones.
  */
 
-async function currentUserId(): Promise<string | null> {
+export async function currentUserId(): Promise<string | null> {
   const user = await getCurrentUser();
   return user?.id ?? null;
+}
+
+/** Shared count queries used by metadata coverage and era buckets. */
+async function getBookCounts(userId: string) {
+  return Promise.all([
+    prisma.book.count({ where: { userId } }),
+    prisma.book.count({ where: { userId, openLibraryWorkId: { not: null } } }),
+    prisma.book.count({ where: { userId, openLibraryCoverId: { not: null } } }),
+    prisma.book.count({ where: { userId, publicationYear: { not: null } } }),
+    prisma.book.count({ where: { userId, totalPages: { not: null } } }),
+  ]);
 }
 function daysInReadingYear(year: number): 366 | 365 {
   return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0 ? 366 : 365;
@@ -637,14 +648,7 @@ export async function getTopSubjects(limit = 20): Promise<SubjectShare[]> {
 export async function getMetadataCoverage(): Promise<MetadataCoverage> {
   const userId = await currentUserId();
   if (!userId) return { total: 0, withOpenLibraryWork: 0, withCover: 0, withPublicationYear: 0, withPages: 0 };
-  const [total, withOpenLibraryWork, withCover, withPublicationYear, withPages] =
-    await Promise.all([
-      prisma.book.count({ where: { userId } }),
-      prisma.book.count({ where: { userId, openLibraryWorkId: { not: null } } }),
-      prisma.book.count({ where: { userId, openLibraryCoverId: { not: null } } }),
-      prisma.book.count({ where: { userId, publicationYear: { not: null } } }),
-      prisma.book.count({ where: { userId, totalPages: { not: null } } }),
-    ]);
+  const [total, withOpenLibraryWork, withCover, withPublicationYear, withPages] = await getBookCounts(userId);
   return {
     total,
     withOpenLibraryWork,

@@ -1,6 +1,9 @@
 import { unstable_cache, cacheLife } from "next/cache";
 
-function cachePerUser<T extends any[], R>(name: string, fn: (...args: T) => Promise<R>): (...args: T) => Promise<R> {
+function cachePerUser<T extends unknown[], R>(
+  name: string,
+  fn: (...args: T) => Promise<R>,
+): (...args: T) => Promise<R> {
   return unstable_cache(
     async (...args: T) => {
       cacheLife("hours");
