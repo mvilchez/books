@@ -75,7 +75,7 @@ export async function getYearKpis(year: number): Promise<YearKpis> {
   ]);
 
   const pagesInYear = completed._sum.totalPages ?? 0;
-  const pagesRead = pagesInYear + (active._sum.currentPages ?? 0);
+  const pagesRead = pagesInYear;
 
   return {
     year,
