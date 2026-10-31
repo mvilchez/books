@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Books",
   description: "Books app built with Next.js 13, Tailwind CSS, and TypeScript",
+  icons: {
+    icon: [{ url: "/app-icon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -206,6 +206,7 @@ const [userPanelOpen, setUserPanelOpen] = useState<boolean>(false);
               {menuOpen ? <ChevronsLeftIcon /> : <ChevronsRightIcon />}
             </button>
             <div>
+              <BooksIcon />
               <h1 className="text-3xl font-extrabold tracking-tight text-white">
                 {title}
               </h1>
