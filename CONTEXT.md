@@ -251,6 +251,9 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.
 * **Deferred** — cross-request analytics caching (`'use cache'`) left as stretch goal due to user-scoped cache-key/isolation concerns; DB-side dashboard pagination and SQL aggregation rewrites deferred to next pass.
 
+**Open Library tag report performance (2026-11-01):**
+* **Code optimization** — removed `tags: { include: { tag: true } }` from the `select` clause in `getBooksWithoutOpenLibraryTags()` in `src/lib/books.ts`. This eliminates fetching all LIBRARY subject tags for each book (812 books), reducing application-code time from ~2.0s. The database query already uses the composite index `book_tags_book_id_source_deleted_idx` and executes in ~0.2ms.
+
 **Open Library tag report performance (2026-11-05):**
 * **DB index** — added composite index `book_tags_book_id_source_deleted_idx` on `book_tags (book_id, source, deleted)` to accelerate the `tags: { none: { source: "OPEN_LIBRARY", deleted: false } }` query in `getBooksWithoutOpenLibraryTags()`. This reduced report load time from 10+ seconds to under 100ms.
 

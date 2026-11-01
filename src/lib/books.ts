@@ -331,14 +331,6 @@ export async function getBooksWithoutOpenLibraryTags() {
       totalPages: true,
       metadataCheckedAt: true,
       genre: { select: { name: true } },
-      tags: {
-        where: {
-          source: "LIBRARY",
-          deleted: false,
-          tag: { category: "SUBJECT" },
-        },
-        include: { tag: true },
-      },
     },
     orderBy: [
       { metadataCheckedAt: "desc" },
