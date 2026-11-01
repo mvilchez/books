@@ -254,6 +254,10 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 **Open Library tag report performance (2026-11-01):**
 * **Code optimization** — removed `tags: { include: { tag: true } }` from the `select` clause in `getBooksWithoutOpenLibraryTags()` in `src/lib/books.ts`. This eliminates fetching all LIBRARY subject tags for each book (812 books), reducing application-code time from ~2.0s. The database query already uses the composite index `book_tags_book_id_source_deleted_idx` and executes in ~0.2ms.
 
+**Author nationality enrichment (2026-11-01):**
+* **Source correction** — `src/scripts/enrich-author-nationality.ts` uses an author `wikidataId` already stored in the database, exact-label Wikidata name search, or Open Library-linked entities only if Wikidata name search finds no exact label. Google Books is not used because its public volume metadata does not provide author nationality.
+* **Country code handling** — nationality is derived from Wikidata country-of-citizenship (P27) and ISO alpha-2 (P297). Multiple exact-name Wikidata candidates must agree on every available valid nationality; candidates with no nationality are ignored, but at least one valid value is required. A Wikidata ID is saved only for a single candidate. Conflicting values are skipped. Dry runs perform lookups and print proposed changes but do not write to the database; lookup failures are reported separately and cause a nonzero exit.
+
 **Author nationality & country features (2026-11-05):**
 * **Schema** — added `nationality` field (`String?`, ISO 3166-1 alpha-2 country code) to `Author` model in `prisma/schema.prisma`.
 * **AuthorPortrait** — enhanced to display author's nationality flag based on ISO country code, with United Nations flag fallback when nationality is unknown.

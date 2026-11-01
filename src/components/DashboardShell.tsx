@@ -51,6 +51,12 @@ const MENU_ENTRIES: MenuEntry[] = [
     label: "Possible Open Library matches",
     Icon: SearchIcon,
   },
+  {
+    href: "/enrich-author-nationality",
+    label: "Bulk nationality script",
+    Icon: GlobeIcon,
+    primary: true,
+  },
   { href: "/tags/manage", label: "Review similar tags", Icon: CopyTagsIcon },
   {
     href: "/api/v1/books/export",

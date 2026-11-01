@@ -167,6 +167,31 @@ export function CheckIcon() {
   );
 }
 
+export function AlertCircleIcon() {
+  return (
+    <Icon>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2v4l10 8-10 8" />
+    </Icon>
+  );
+}
+
+export function LoadingIcon() {
+  return (
+    <Icon>
+      <path d="M13 2L18 7l-5 5l5 5" />
+    </Icon>
+  );
+}
+
+export function RefreshCwIcon() {
+  return (
+    <Icon>
+      <path d="M12 19c-2 1.1-3.5 2.1-5 3.5s-2.8-2.5-3.5-4.5c-.4-.7-.3-1.1.7-1.5l1.5-1.5c.7-.6 1.5-1.1 2.5-1.3l2.5 1.5c.6.4 1.1.7 1.7.5l1.5-2.5c.4-.6.7-1.1 1.5-1.3l-1.5-2.5zM12 3L2 12l10 10" />
+    </Icon>
+  );
+}
+
 export function GlobeIcon() {
   return (
     <Icon>

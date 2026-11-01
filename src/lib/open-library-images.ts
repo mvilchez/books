@@ -1329,3 +1329,27 @@ export function getOpenLibraryAuthorUrl(authorId: string): string | null {
     ? `${OPEN_LIBRARY_ORIGIN}/authors/${authorId}`
     : null;
 }
+export function normalizeNationality(country: string): string {
+  const mapping: Record<string, string> = {
+    "united states": "US",
+    "united kingdom": "GB",
+    "united states of america": "US",
+    "u.s.": "US",
+    "u.s.a.": "US",
+    "u.k.": "GB",
+    "uk": "GB",
+    "france": "FR",
+    "deutschland": "DE",
+    "germany": "DE",
+    "espania": "ES",
+    "spain": "ES",
+    "italia": "IT",
+    "italy": "IT",
+    "canada": "CA",
+    "mexico": "MX",
+    "brazil": "BR",
+    "japan": "JP",
+  };
+  const lower = country.toLowerCase().trim();
+  return mapping[lower] || country;
+}
