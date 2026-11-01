@@ -23,7 +23,10 @@ export async function GET(): Promise<Response> {
       book.author.name,
       book.metadataCheckedAt ? "checked_no_open_library_tags" : "not_checked",
       book.genre?.name ?? "",
-      book.tags.map(({ tag }) => tag.name).join("; "),
+      // Handle tags - may be null if not loaded
+      (book.tags?.length ?? 0) > 0
+        ? book.tags.map((t: { tag: { name: string } }) => t.tag.name).join("; ")
+        : "—",
       book.publicationYear,
       book.totalPages,
       book.metadataCheckedAt?.toISOString() ?? "",

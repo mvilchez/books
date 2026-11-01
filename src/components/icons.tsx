@@ -166,3 +166,12 @@ export function CheckIcon() {
     </Icon>
   );
 }
+
+export function GlobeIcon() {
+  return (
+    <Icon>
+      <path d="M12 2a2 2 0 0 1 2-2 2 2 0 0 1 2 2 2 2 0 0 1-2 2 2 2 0 0 1-2-2zm5.06 3.75l-1.63 1.63a2.66 2.66 0 0 0 1.41 3.76l1.53 1.53a2.66 2.66 0 0 0 3.75-1.41l-1.53-1.53a2.66 2.66 0 0 0-3.76 1.41z" />
+      <circle cx="12" cy="12" r="10" />
+    </Icon>
+  );
+}

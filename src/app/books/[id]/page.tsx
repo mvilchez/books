@@ -71,7 +71,7 @@ export default async function BookDetailPage({
                 {book.title}
               </h1>
               <div className="mt-2">
-                <AuthorPortrait author={book.author} size="large" />
+                <AuthorPortrait author={book.author} size="large" nationality={book.author.nationality ?? ""} />
               </div>
               {book.rating !== null && (
                 <p className="mt-4 font-semibold text-amber-400">

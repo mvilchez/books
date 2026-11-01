@@ -254,6 +254,15 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 **Open Library tag report performance (2026-11-01):**
 * **Code optimization** — removed `tags: { include: { tag: true } }` from the `select` clause in `getBooksWithoutOpenLibraryTags()` in `src/lib/books.ts`. This eliminates fetching all LIBRARY subject tags for each book (812 books), reducing application-code time from ~2.0s. The database query already uses the composite index `book_tags_book_id_source_deleted_idx` and executes in ~0.2ms.
 
+**Author nationality & country features (2026-11-05):**
+* **Schema** — added `nationality` field (`String?`, ISO 3166-1 alpha-2 country code) to `Author` model in `prisma/schema.prisma`.
+* **AuthorPortrait** — enhanced to display author's nationality flag based on ISO country code, with United Nations flag fallback when nationality is unknown.
+* **Book detail page** — author portrait now shows nationality flag alongside the portrait.
+* **New book form** — country selector added with population from existing authors' nationalities; auto-selection by ISBN when available.
+* **Bulk nationality script** — `npm run scripts/enrich-author-nationality` retrieves author nationalities from Open Library API with Google Books fallback; results persisted to database.
+* **Mapa mundi (world map)** — new dashboard component visualizing countries of authors whose books have been read; tooltip shows number of books per country.
+* **Suggested future features** — see below.
+
 **Open Library tag report performance (2026-11-05):**
 * **DB index** — added composite index `book_tags_book_id_source_deleted_idx` on `book_tags (book_id, source, deleted)` to accelerate the `tags: { none: { source: "OPEN_LIBRARY", deleted: false } }` query in `getBooksWithoutOpenLibraryTags()`. This reduced report load time from 10+ seconds to under 100ms.
 

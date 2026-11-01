@@ -63,6 +63,7 @@ export default function NewReadingBookForm({
   const [startDate, setStartDate] = useState("");
   const [totalPages, setTotalPages] = useState("");
   const [genre, setGenre] = useState("");
+  const [country, setCountry] = useState("");
   const [isbnInput, setIsbnInput] = useState("");
   const [lookup, setLookup] = useState<LookupState>({
     status: "idle",
@@ -434,6 +435,31 @@ export default function NewReadingBookForm({
           onChange={(event) => setGenre(event.target.value)}
           className={inputClass}
         />
+      </div>
+      <div className="sm:col-span-2">
+        <label htmlFor="country" className="mb-1 block text-sm font-medium text-slate-300">
+          Country <span className="text-slate-500">(optional)</span>
+        </label>
+        <select
+          id="country"
+          name="country"
+          value={country}
+          onChange={(event) => setCountry(event.target.value)}
+          className={inputClass}
+        >
+          <option value="">Select country</option>
+          <option value="US">United States (US)</option>
+          <option value="GB">United Kingdom (GB)</option>
+          <option value="FR">France (FR)</option>
+          <option value="DE">Germany (DE)</option>
+          <option value="ES">Spain (ES)</option>
+          <option value="IT">Italy (IT)</option>
+          <option value="CA">Canada (CA)</option>
+          <option value="JP">Japan (JP)</option>
+          <option value="MX">Mexico (MX)</option>
+          <option value="BR">Brazil (BR)</option>
+          <option value="Other">Other</option>
+        </select>
       </div>
       {state.status === "error" && (
         <p role="alert" className="text-sm text-rose-400">{state.message}</p>

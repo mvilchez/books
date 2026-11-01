@@ -94,7 +94,7 @@ type FetchJsonOptions = {
   fresh?: boolean;
 };
 
-async function fetchJson(
+export async function fetchJson(
   url: URL,
   options: FetchJsonOptions = {},
 ): Promise<unknown> {

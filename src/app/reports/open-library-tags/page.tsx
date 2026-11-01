@@ -140,7 +140,7 @@ async function OpenLibraryTagReportContent() {
                     </td>
                     <td className="px-4 py-3">{book.genre?.name ?? "—"}</td>
                     <td className="px-4 py-3">
-                      {(book.tags || []).map(({ tag }) => tag.name).join(", ") || "—"}
+                      {(book.tags?.length ?? 0 > 0 ? book.tags!.map((t: { tag: { name: string } }) => t.tag.name).join(", ") : "—")}
                     </td>
                     <td className="px-4 py-3">
                       {[book.publicationYear, book.totalPages ? `${book.totalPages} pages` : null]

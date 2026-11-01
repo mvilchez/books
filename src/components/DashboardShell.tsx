@@ -14,6 +14,7 @@ import {
   PlusIcon,
   SearchIcon,
   TagIcon,
+  GlobeIcon,
 } from "@/components/icons";
 
 /**

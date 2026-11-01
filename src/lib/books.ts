@@ -28,6 +28,15 @@ export type ExportedBook = {
   rating: number | null;
   publicationYear: number | null;
   origin: string | null;
+  nationality: string | null;
+};
+
+/** Data point for the world map component. */
+export type MapDataPoint = {
+  country: string;
+  countryName: string;
+  flag: string;
+  bookCount: number;
 };
 
 /** The dashboard's book projection: full `Book` rows plus their relations. */
@@ -331,6 +340,7 @@ export async function getBooksWithoutOpenLibraryTags() {
       totalPages: true,
       metadataCheckedAt: true,
       genre: { select: { name: true } },
+      tags: { where: { deleted: false }, include: { tag: true } },
     },
     orderBy: [
       { metadataCheckedAt: "desc" },
@@ -551,6 +561,7 @@ export type BookDetailsInput = {
   rating: number | null;
   startDate: Date | null;
   finishDate: Date | null;
+  nationality: string | null;
 };
 
 /**
@@ -569,7 +580,7 @@ export async function saveBookDetails(input: BookDetailsInput): Promise<void> {
     if (!existingBook) throw new Error("Book not found.");
     const author = await transaction.author.upsert({
       where: { name: input.authorName },
-      create: { name: input.authorName },
+      create: { name: input.authorName, nationality: input.nationality },
       update: {},
     });
     const identityChanged =
@@ -911,6 +922,7 @@ export async function getBooksForExport(year?: number | null) {
     rating: book.rating ?? null,
     publicationYear: book.publicationYear ?? null,
     origin: book.origin ?? null,
+    nationality: book.author?.nationality ?? null,
   }));
 
   // Group books by reading year
@@ -924,4 +936,62 @@ export async function getBooksForExport(year?: number | null) {
   }
 
   return { booksByYear, userId };
+}
+
+/** Get all authors with their nationalities, filtered by books read. */
+export async function getAuthorsWithNationality(): Promise<MapDataPoint[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+
+  const authors = await prisma.author.findMany({
+    where: { books: { some: { userId } } },
+    select: {
+      id: true,
+      name: true,
+      nationality: true,
+      books: {
+        where: { userId },
+        select: { id: true },
+      },
+    },
+    orderBy: { name: "asc" },
+  });
+
+  // Count books per author and group by nationality
+  const nationalityCounts = new Map<string, number>();
+  const countryNames: Record<string, string> = {
+    US: "United States",
+    GB: "United Kingdom",
+    FR: "France",
+    DE: "Germany",
+    ES: "Spain",
+    IT: "Italy",
+    CA: "Canada",
+    JP: "Japan",
+    MX: "Mexico",
+    BR: "Brazil",
+  };
+
+  for (const author of authors) {
+    if (!author.nationality) continue;
+    const code = author.nationality.toUpperCase().trim();
+    if (/^[A-Z]{2}$/.test(code)) {
+      const current = nationalityCounts.get(code) || 0;
+      nationalityCounts.set(code, current + author.books.length);
+    }
+  }
+
+  // Build map data points
+  const mapData: MapDataPoint[] = [];
+  for (const [code, count] of nationalityCounts) {
+    const countryName = countryNames[code] || code;
+    mapData.push({
+      country: code,
+      countryName,
+      flag: `/flags/${code.toLowerCase()}.svg`,
+      bookCount: count,
+    });
+  }
+
+  return mapData;
 }

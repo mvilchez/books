@@ -168,6 +168,7 @@ export async function updateBookDetails(
       rating,
       startDate,
       finishDate,
+      nationality: null,
     });
   } catch (error) {
     if (isRecordNotFound(error)) {
