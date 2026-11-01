@@ -18,7 +18,7 @@
     "backup:postgresql": "bash scripts/backup-to-postgresql.sh",
     "backup:postgresql:local": "bash scripts/backup-postgresql-local.sh",
     "backup:local": "bash scripts/backup-local.sh",
-    "backup:cloud-local": "bash scripts/backup-cloud-local.sh",
+    "backup:cloud-local": "set -a && . /home/marino/Documentos/workspace/books/.env && set +a && NEON_DB_URL=$NEON_DB_URL bash scripts/backup-cloud-local.sh",
     "switch-db": "bash scripts/switch-db.sh",
     "enrich:open-library": "tsx --tsconfig tsconfig.json src/scripts/enrich-open-library-metadata.ts",
     "cleanup:books": "tsx --tsconfig tsconfig.json src/scripts/cleanup-invalid-books.ts",

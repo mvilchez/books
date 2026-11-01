@@ -21,7 +21,7 @@
 // ---------------------------------------------------------------------------
 
 datasource db {
-  provider = "postgresql" // MariaDB is driven by Prisma's "mysql" provider
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -141,6 +141,7 @@ model BookTag {
   @@index([deleted])
   @@index([bookId, deleted])
   @@index([tagId, deleted])
+@@index([bookId, source, deleted])
   @@map("book_tags")
 }
 

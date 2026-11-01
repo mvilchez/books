@@ -1,1 +1,0 @@
-backup-postgresql-local.sh

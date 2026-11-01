@@ -19,7 +19,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## Project status (from CONTEXT.md)
 - Next.js 16 App Router app replacing a multi-year Excel reading tracker.
-- Prisma 6 + MariaDB via the `mysql` provider; local MariaDB for dev.
+- Prisma 6 + PostgreSQL via the `postgresql` provider; local PostgreSQL for dev.
 - Phase 4 (cloud deployment) is planned but not executed.
 - Phase 5 stretch goals remain open (origin donut, publication-era histogram, CSV export, analytics caching).
 - Phase 6 features 6.1, 6.2, 6.3 are implemented.
@@ -27,7 +27,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Stack
 - Next.js 16.4, React 19, TypeScript strict
 - Tailwind CSS 4
-- Prisma 6 + MariaDB (`mysql` provider)
+- Prisma 6 + PostgreSQL (`postgresql` provider)
 - ExcelJS, Recharts 3
 - Unit tests via `npm test`
 
@@ -51,7 +51,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - `public/` — static assets
 
 ## Important gotchas
-- MariaDB is accessed through Prisma's `mysql` provider; there is no `mariadb` provider.
+- PostgreSQL is the only supported database (local dev via PostgreSQL, production via Neon/managed PostgreSQL). MariaDB has been decommissioned.
 - Reading year comes from the worksheet/tab name, not the `Año` column (that is publication year).
 - Only tabs whose names start with `Leidos/Leídos` are read records.
 - Avoid computing “today” during render to prevent hydration mismatches.

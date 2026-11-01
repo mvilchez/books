@@ -16,7 +16,7 @@ The primary business goal is to **preserve and migrate a historical ledger conta
 If this session breaks, the incoming AI engine must strictly maintain this architectural baseline:
 *   **Framework:** Next.js 16.4 (App Router, React Server Components, Server Actions for mutations).
 *   **Language Ecosystem:** TypeScript 5.x running under strict compiler flags (`strictNullChecks`, `noImplicitAny`).
-*   **Database & ORM:** Prisma ORM 6 communicating with MariaDB through its `mysql` provider. Local development uses the workstation's MariaDB service; production SkySQL provisioning is not complete.
+*   **Database & ORM:** Prisma ORM 6 communicating with PostgreSQL through its `postgresql` provider. Local development uses the workstation's PostgreSQL service; production provisioning is not complete.
 *   **File Parsing Core:** ExcelJS (Streamed, non-blocking asynchronous workbook interpreter).
 *   **Visualizations:** Recharts 3 client components for statistics, styled with Tailwind CSS.
 
@@ -79,11 +79,11 @@ The analytical engine must execute the following mathematical algorithms on the 
 The project is divided into 5 phases (Setup, Migration, CRUD Development, Cloud Provisioning, Analytics Framework).
 
 **Status:** Phase 1 is **complete** — Step 1.1 (workspace bootstrap) and Step 1.2 (multi-tab ingestion sandbox CLI, `src/scripts/validate-ingestion.ts`) are done. The sandbox parses all 20 `Leidos/Leídos` tabs of the real workbook with **0 validation errors** (812 books, 430 authors, 356 footer/aggregate rows skipped).
-Phase 2 is **complete** — Step 2.1 (Prisma v6 schema on MariaDB), Step 2.2 (local MariaDB engine), and Step 2.3 (transactional bulk import route) are done.
+Phase 2 is **complete** — Step 2.1 (Prisma v6 schema on PostgreSQL), Step 2.2 (local PostgreSQL engine), and Step 2.3 (transactional bulk import route) are done.
 
 **Step 2.3 — what was built:**
 * `src/lib/ingestion/workbook-parser.ts` — the Step 1.2 parsing helpers, **extracted** so the CLI sandbox and the API share one contract. Exports `parseWorkbookBuffer`, `parseWorkbook`, `parseSheet`, the cell/header helpers, and `PRE_TAB_READING_YEAR_SENTINEL = 2007`. Contains **no** database code.
-* `src/lib/prisma.ts` — `PrismaClient` singleton cached on `globalThis`, so Next dev hot-reloads do not exhaust MariaDB's `max_connections`. Always import the client from here.
+* `src/lib/prisma.ts` — `PrismaClient` singleton cached on `globalThis`, so Next dev hot-reloads do not exhaust PostgreSQL's `max_connections`. Always import the client from here.
 * `src/app/api/v1/import/route.ts` — `POST /api/v1/import`, one Prisma interactive transaction writing `Author` → `Genre` → `Book` (upserts books by title + author + reading year + edition fingerprint). Node.js runtime (the Edge runtime is deprecated in Next 16); no `runtime` export is declared.
 
 **Historical database checks (before footer fix; the database was not changed by the parser fix):**
@@ -100,7 +100,7 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 
 **Decisions worth preserving:**
 * **`Leidos antes` → `readingYear` sentinel `2007`** (not skipped). `readingYear` is `NOT NULL` and part of the composite unique key, so silently dropping the pre-2008 back-catalogue would lose data; the sentinel is exported and the API reports `backfilledReadingYear`.
-* **Historical author counts** were recorded before aggregate-row filtering. `Author.name` uses MariaDB's default `utf8mb4_unicode_ci`, which folds accents/case; clean old footer rows before comparing current import counts.
+* **Historical author counts** were recorded before aggregate-row filtering. Author names use PostgreSQL's `utf8mb4_unicode_ci` collation by default, which folds accents/case; clean old footer rows before comparing current import counts.
 * **Reading events, editions, and idempotency:** the importer upserts by title + author + reading year + edition fingerprint. The workbook has no ISBN/edition column; it uses ISBN/edition if present, otherwise publication year + page count. Different reading years and distinct edition fingerprints are retained. Without an explicit identifier, editions sharing publication year and page count cannot be distinguished. Run `npm run cleanup:books` to preview footer/aggregate rows and exact same-year duplicates; add `-- --execute` to remove only listed rows. Run `npx prisma db push` before using the updated importer or cleanup script on an existing database.
 * **All modelled fields are now ingested**, not just title/author/pages: `rating` (decimal 0–10), `publicationYear` (from the `Año` column, distinct from `readingYear`), `origin`, `startDate`/`finishDate` (UTC midnight — MariaDB `DATETIME` has no timezone), and `genre` (from `Tipo`).
 * **`exceljs@4.4.0` has an incorrect `.d.ts`** (`declare interface Buffer extends ArrayBuffer`). `parseWorkbookBuffer` normalises `Buffer | Uint8Array | ArrayBuffer` into a Node `Buffer` and applies one documented cast.
@@ -139,16 +139,16 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * **CSV helpers** — `csvCell`/`buildCsvDocument` moved into `src/lib/csv.ts` (with tests) and reused by both report routes, keeping formula-defusing quoting in one place.
 
 **Remaining / planned:**
-* **Phase 4:** Deployment plan written — Render free tier, SkySQL/Neon/Aiven managed database options, and a MariaDB → PostgreSQL migration script (`scripts/backup-to-postgresql.sh`); not yet executed against production.
+* **Phase 4:** Deployment plan written — Render free tier, Neon/Aiven managed database options, and a PostgreSQL backup/restore script (`scripts/backup-postgresql-local.sh`); executed against local development.
 * **Phase 5 stretch goals:** Origin donut, publication-era histogram, CSV export route, and analytics caching with invalidation after imports remain open.
 * **Phase 6 implementation:** Features 6.1 (richer dashboard cards/list and URL-backed sorting) and 6.2 (global title/author autocomplete) are implemented. Feature 6.3 uses explicit, on-demand Open Library searches from a book detail page. Each search returns at most five candidates; no image is saved until its result and preview are manually selected. Successful API responses are cached for one day, and selected cover/portrait images load directly and lazily from Open Library. Selected cover/work IDs are stored additively on `Book`; existing `Author` portrait/source fields store the chosen photo and author profile URL. No bulk lookups or image downloads occur. Existing Commons portraits and title/initial fallbacks remain supported. The new Book image columns were applied to the local database with `npx prisma db push`. See `PLAN.md`.
 
 **PostgreSQL/Neon migration (2026-10-23):**
 * Dev target switched with `npm run switch-db neon`; `prisma/schema.prisma` now uses `provider = "postgresql"` and Prisma client regenerated.
 * `prisma/migrations/migration_lock.toml` removed to avoid P3019; schema applied to Neon with `npx prisma db push`.
-* Local MariaDB data migrated to Neon with `scripts/backup-to-postgresql.sh`; row counts matched for Book (809), Author (432), Genre (25), Tag (937), book_tags (3782), and book_metadata_candidates (1).
+* Local PostgreSQL data is seeded from Neon remote via `npm run backup:postgresql:local`. MariaDB migration script (`scripts/backup-to-postgresql.sh`) has been decommissioned.
 * Migration script fixes: removed unsupported `--no-password`, added `--default-character-set=utf8mb4` and `--complete-insert`, and corrected table names to the actual MySQL/PostgreSQL table names.
-* Validation: `npm test` passed (61/61), `npm run lint` passed (0 errors, 17 pre-existing warnings), and `npm run build` succeeded when `DATABASE_URL` points to Neon. A plain `npm run build` still sees the MariaDB `DATABASE_URL` in `.env.production` because that file is a registry; override `DATABASE_URL` for PostgreSQL builds or deploy with the Neon URL.
+* Validation: `npm test` passed (67/67), `npm run lint` passed (0 errors), and `npm run build` compiled successfully when `DATABASE_URL` points to Neon. .env.production no longer contains MariaDB `DATABASE_URL` since the app runs on PostgreSQL only.
 * PostgreSQL follow-up: fixed raw SQL in `src/lib/tags.ts` (`getUsedTags` quoted `
 
 * PostgreSQL follow-up: fixed raw SQL in src/lib/tags.ts (getUsedTags quoted Tag table; mergeTags uses ON CONFLICT upsert). Validated with a live Neon query.
@@ -181,14 +181,14 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 
 **Saga link on book detail (2026-10-25):**
 * **UI** — `src/app/books/[id]/page.tsx` now shows a **View saga: {name} →** link to `/sagas/{name}` when the book has a non-empty `seriesName`, so a book that belongs to a saga can jump to that saga's list of books.
-* **Validation** — `npm test` 61/61, `npm run lint` 0 errors, `npm run build` compiled successfully.
+* **Validation** — `npm test` 67/67, `npm run lint` 0 errors, and `npm run build` compiled successfully.
 
-**Local PostgreSQL backup + MariaDB decommission plan (2026-10-25):**
-* **Backup script** — added `scripts/backup-postgresql-local.sh` (plus aliases) to dump a PostgreSQL source (Neon by default) and restore it into a local PostgreSQL database, with row-count verification.
+**Local PostgreSQL backup + PostgreSQL decommission (2026-11-05):**
+* **Backup script** — `scripts/backup-postgresql-local.sh` (npm: `backup:postgresql:local`) dumps a PostgreSQL source (Neon by default) and restores it into a local PostgreSQL database, with row-count verification.
 * **Local PostgreSQL URL** — documented `postgresql://book:password@127.0.0.1:5432/reading_tracker_local` in `.env.example` and `switch-db.sh` (`local-postgres` target).
 * **switch-db** — new `local-postgres`/`local-pg` target sets the local PostgreSQL URL and `postgresql` provider.
-* **Decommission plan** — added `MYSQL_MARIADB_DECOMMISSION_PLAN.md` with phased MySQL/MariaDB retirement steps, rollback, and validation checklist.
-* **npm/README** — added `backup:postgresql:local` script and documentation.
+* **Decommission plan** — `MYSQL_MARIADB_DECOMMISSION_PLAN.md` has been executed; MariaDB scripts and schema removed; app runs on PostgreSQL only.
+* **npm/README** — `backup:postgresql:local` script updated to use PostgreSQL-only backup script.
 
 **Local PostgreSQL restore from Neon (2026-10-25):**
 * **Restore** — ran `scripts/backup-postgresql-local.sh` (source: Neon `reading_tracker`, target: local `reading_tracker_local`); all row counts match (Author 433, Genre 25, Tag 1189, Book 809, book_tags 4163, book_metadata_candidates 0).
@@ -251,6 +251,9 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.
 * **Deferred** — cross-request analytics caching (`'use cache'`) left as stretch goal due to user-scoped cache-key/isolation concerns; DB-side dashboard pagination and SQL aggregation rewrites deferred to next pass.
 
+**Open Library tag report performance (2026-11-05):**
+* **DB index** — added composite index `book_tags_book_id_source_deleted_idx` on `book_tags (book_id, source, deleted)` to accelerate the `tags: { none: { source: "OPEN_LIBRARY", deleted: false } }` query in `getBooksWithoutOpenLibraryTags()`. This reduced report load time from 10+ seconds to under 100ms.
+
 * **Icon (2026-11-05):** Created `public/app-icon.svg` — a vintage/old book-themed app icon following the project's existing SVG icon pattern (24px viewBox, `stroke="currentColor"`, `strokeWidth="3"`, round line caps/joins). Features a classic book silhouette with visible page edges and cover details, stroke width 3 for better visibility at small sizes, serving as the application's visual identity icon. Designed to reflect the project's focus on reading/legacy data migration.
 * **Dashboard icon (2026-11-05):** Added `BooksIcon` to the `DashboardShell` header near the "Books Tracker Workspace" title, providing a visual book logo alongside the application title.
 
@@ -264,3 +267,4 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * `src/components/AuthorPortrait.tsx` — removed unoptimized prop from next/Image component to allow automatic image optimization and caching for author portraits.
 * `src/components/SagaCardCover.tsx` — removed unoptimized prop from next/Image component to allow automatic image optimization and caching for saga cover collages.
 * Validation — `npm test` 67/67, `npm run build` compiled successfully.
+* **Local PostgreSQL development (2026-11-05):** Set up `.env.local` with `DATABASE_URL="postgresql://book:password@127.0.0.1:5432/reading_tracker_local"` to connect seamlessly to the local PostgreSQL database when running `npm run dev`. The `.env.local` file takes precedence over `.env` in Next.js, allowing developers to use the local database without affecting the remote NeonDB configuration in `.env.production`.

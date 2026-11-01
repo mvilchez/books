@@ -6,16 +6,16 @@
 # a local database and a remote database. Remote targets are read from
 # .env.production, which acts as a read-only registry of available databases:
 #
-#   * DATABASE_URL   -> MariaDB cloud (SkySQL / Aiven)
+#   * DATABASE_URL   -> PostgreSQL cloud (SkySQL / Aiven)
 #   * POSTGRES_URL   -> NeonDB (PostgreSQL)
 #
 # .env.production is NEVER overwritten — both remote URLs stay available as a
 # registry. Only .env (dev) is switched, plus prisma/schema.prisma provider
-# and Prisma client generation when moving between MariaDB and PostgreSQL.
+# and Prisma client generation when moving between PostgreSQL.
 #
 # Named targets:
-#   * local        — local MariaDB (127.0.0.1:3306), Prisma `mysql` provider
-#   * cloud / mariadb — DATABASE_URL  from .env.production (SkySQL/Aiven MariaDB)
+#   * local        — local PostgreSQL (127.0.0.1:5432), Prisma `postgresql` provider
+#   * cloud / mariadb — DATABASE_URL  from .env.production (SkySQL/Aiven PostgreSQL)
 #   * neon / postgres — POSTGRES_URL from .env.production (NeonDB PostgreSQL)
 #
 # You can also pass an explicit URL as the second argument to override.
@@ -31,7 +31,7 @@ set -euo pipefail
 ENV_FILE=".env"
 PROD_ENV_FILE=".env.production"
 SCHEMA_FILE="prisma/schema.prisma"
-LOCAL_URL="mysql://book:password@127.0.0.1:3306/reading_tracker_local"
+LOCAL_URL="postgresql://book:password@127.0.0.1:5432/reading_tracker_local"
 LOCAL_PG_URL="postgresql://book:password@127.0.0.1:5432/reading_tracker_local"
 
 ###############################################################################
@@ -84,7 +84,7 @@ resolve_target_url() {
 
   if [[ -z "$url" ]]; then
     echo "Error: no URL found for target '$target' in .env.production." >&2
-    echo "   Add DATABASE_URL (MariaDB) or POSTGRES_URL (NeonDB) to .env.production," >&2
+    echo "   Add DATABASE_URL (PostgreSQL) or POSTGRES_URL (NeonDB) to .env.production," >&2
     echo "   or pass the URL explicitly as the second argument." >&2
     exit 1
   fi
@@ -119,7 +119,7 @@ check_migration_lock() {
   fi
 }
 
-# set_schema_provider <mysql|postgresql>
+# set_schema_provider postgresql|postgresql>
 set_schema_provider() {
   local target="$1"
   local current
@@ -135,9 +135,8 @@ file, target = sys.argv[1], sys.argv[2]
 with open(file, "r", encoding="utf-8") as f:
     content = f.read()
 if target == "postgresql":
-    content = content.replace('provider = "mysql"', 'provider = "postgresql"')
+    content = content.replace('provider = "postgresql"', 'provider = "postgresql"')
 else:
-    content = content.replace('provider = "postgresql"', 'provider = "mysql"')
 with open(file, "w", encoding="utf-8") as f:
     f.write(content)
 PYEOF
@@ -158,24 +157,25 @@ fi
 
 case "$cmd" in
   local)
-    echo "==> Switching to LOCAL MariaDB"
+    echo "==> Switching to LOCAL PostgreSQL"
     write_env_value "$ENV_FILE" DATABASE_URL "$LOCAL_URL"
-    set_schema_provider "mysql"
-    echo "   Done. Local MariaDB configured in .env (.env.production left untouched)."
+    set_schema_provider "postgresql"
+    echo "   Done. Local PostgreSQL configured in .env (.env.production left untouched)."
     echo "   Next: npx prisma db push   (to sync schema to local DB)"
     ;;
 
   cloud|mariadb)
     url="$(resolve_target_url "cloud" "${2:-}")"
-    if [[ ! "$url" == mysql://* ]]; then
-      echo "Error: resolved URL must start with mysql:// (got: $url)" >&2
+    if [[ ! "$url" == postgresql://** ]]; then
+      echo "Error: resolved URL must start with postgresql:// (got: $url)" >&2
       exit 1
     fi
     echo "==> Switching to MARIADB CLOUD"
     write_env_value "$ENV_FILE" DATABASE_URL "$url"
-    set_schema_provider "mysql"
-    check_migration_lock "mysql"
-    echo "   Done. MariaDB cloud configured in .env (.env.production left untouched)."
+    set_schema_provider "postgresql"
+    sed -i "s|^DATABASE_URL=.*|DATABASE_URL="$url"|" .env.local
+    check_migration_lock "postgresql"
+    echo "   Done. PostgreSQL cloud configured in .env (.env.production left untouched)."
     echo "   Next: npx prisma migrate deploy   (to apply schema to cloud DB)"
     ;;
 
@@ -190,12 +190,15 @@ case "$cmd" in
     set_schema_provider "postgresql"
     check_migration_lock "postgresql"
     echo "   Done. NeonDB configured in .env (.env.production left untouched)."
+    sed -i "s|^DATABASE_URL=.*|DATABASE_URL="$url"|" .env.local
     echo "   Next: npx prisma db push   (to sync schema to NeonDB)"
     ;;
 
   local-postgres|local-pg|postgres-local)
     echo "==> Switching to LOCAL PostgreSQL"
     write_env_value "$ENV_FILE" DATABASE_URL "$LOCAL_PG_URL"
+    sed -i "s|^DATABASE_URL=.*|DATABASE_URL="$LOCAL_PG_URL"|" .env.local
+export DATABASE_URL="$LOCAL_PG_URL"
     set_schema_provider "postgresql"
     check_migration_lock "postgresql"
     echo "   Done. Local PostgreSQL configured in .env."
@@ -210,18 +213,18 @@ case "$cmd" in
     echo "   .env.production (registry — remote URLs):"
     prod_db="$(read_env_value "$PROD_ENV_FILE" DATABASE_URL || echo '<not set>')"
     prod_pg="$(read_env_value "$PROD_ENV_FILE" POSTGRES_URL || echo '<not set>')"
-    echo "     DATABASE_URL =$prod_db      (MariaDB cloud / SkySQL)"
+    echo "     DATABASE_URL =$prod_db      (PostgreSQL local)"
     echo "     POSTGRES_URL=$prod_pg       (NeonDB PostgreSQL)"
     echo "   schema.prisma provider: $(current_provider)"
     echo ""
     if [[ "$dev_url" == "$LOCAL_URL" ]]; then
-      echo "   Active target: LOCAL MariaDB"
+      echo "   Active target: LOCAL PostgreSQL"
     elif [[ "$dev_url" == "$LOCAL_PG_URL" ]]; then
       echo "   Active target: LOCAL PostgreSQL"
     elif [[ "$dev_url" == postgresql://* ]]; then
       echo "   Active target: REMOTE PostgreSQL (NeonDB)"
-    elif [[ "$dev_url" == mysql://* ]]; then
-      echo "   Active target: REMOTE MariaDB (cloud)"
+    elif [[ "$dev_url" == postgresql://* ]]; then
+      echo "   Active target: REMOTE PostgreSQL (cloud)"
     else
       echo "   Active target: unknown / not set"
     fi
@@ -230,23 +233,23 @@ case "$cmd" in
   --help|-h|*)
     echo "Usage: $0 {local|local-postgres|cloud|mariadb|neon|postgres|status} [DATABASE_URL]"
     echo ""
-    echo "  local                          Switch to local MariaDB (127.0.0.1:3306)
-  local-postgres | local-pg      Switch to local PostgreSQL (127.0.0.1:5432)"
-    echo "  cloud | mariadb                Switch to MariaDB cloud (SkySQL / Aiven)"
+    echo "  local                          Switch to local PostgreSQL (127.0.0.1:5432)"
+  echo "  local-postgres | local-pg      Switch to local PostgreSQL (127.0.0.1:5432)"
+    echo "  cloud | mariadb                Switch to PostgreSQL cloud (SkySQL / Aiven)"
     echo "                                 Reads DATABASE_URL from .env.production"
     echo "  neon | postgres                Switch to NeonDB (PostgreSQL)"
     echo "                                 Reads POSTGRES_URL from .env.production"
     echo "  status                         Show current configuration"
     echo ""
     echo "You can also pass an explicit URL as the second argument to override:"
-    echo "  $0 cloud  \"mysql://user:pass@host:4014/db?sslaccept=strict\""
+    echo "  $0 cloud  \"postgresql://user:pass@host:4014/db?sslaccept=strict\""
     echo "  $0 neon   \"postgresql://user:pass@host.region.neon.tech/db?sslmode=require\""
     echo ""
     echo "Notes:"
     echo "  * .env (dev) is switched; .env.production is left untouched as a registry"
-    echo "    holding both DATABASE_URL (SkySQL MariaDB) and POSTGRES_URL (NeonDB)."
+    echo "    holding both DATABASE_URL (SkySQL PostgreSQL) and POSTGRES_URL (NeonDB)."
     echo "  * .env and .env.production are gitignored — credentials stay local."
-    echo "  * Switching mysql <-> postgresql updates schema.prisma and runs"
+    echo "  * Switching Schema updates updates schema.prisma and runs"
     echo "    'npx prisma generate' automatically."
     echo "  * After switching, run 'npx prisma db push' (local/dev) or"
     echo "    'npx prisma migrate deploy' (production/cloud) to apply the schema."
