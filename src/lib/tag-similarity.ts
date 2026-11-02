@@ -28,9 +28,17 @@ function editSimilarity(left: string, right: string): number {
   return 1 - previous[right.length] / Math.max(left.length, right.length);
 }
 
-export function tagSimilarity(left: string, right: string): number {
-  const normalizedLeft = normalizeTagName(left);
-  const normalizedRight = normalizeTagName(right);
+/**
+ * Similarity between two already-normalized tag names.
+ *
+ * Callers that have already normalized their inputs (e.g. `findSimilarTags`
+ * and `findSimilarTagPairs`) reuse this directly so each tag name is
+ * normalized only once instead of on every comparison.
+ */
+function tagSimilarityBetweenNormalized(
+  normalizedLeft: string,
+  normalizedRight: string,
+): number {
   if (!normalizedLeft || !normalizedRight) return 0;
   if (normalizedLeft === normalizedRight) return 1;
 
@@ -53,6 +61,13 @@ export function tagSimilarity(left: string, right: string): number {
   return Math.max(
     editSimilarity(normalizedLeft, normalizedRight),
     tokenSimilarity,
+  );
+}
+
+export function tagSimilarity(left: string, right: string): number {
+  return tagSimilarityBetweenNormalized(
+    normalizeTagName(left),
+    normalizeTagName(right),
   );
 }
 
@@ -80,7 +95,7 @@ export function findSimilarTags<T extends { name: string }>(
           .some((token) => token.startsWith(finalQueryToken));
       return {
         tag,
-        similarity: tagSimilarity(name, tag.name),
+        similarity: tagSimilarityBetweenNormalized(normalized, existingName),
         isExact: existingName === normalized,
         isPrefix,
       };
@@ -142,7 +157,10 @@ export function findSimilarTagPairs<T extends { id: string; name: string }>(
       ) {
         continue;
       }
-      const similarity = tagSimilarity(left.tag.name, right.tag.name);
+      const similarity = tagSimilarityBetweenNormalized(
+        left.normalized,
+        right.normalized,
+      );
       if (similarity >= threshold) {
         pairs.push({ first: left.tag, second: right.tag, similarity });
       }
