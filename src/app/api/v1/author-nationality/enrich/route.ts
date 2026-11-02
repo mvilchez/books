@@ -1,3 +1,4 @@
+import { getCurrentUser } from "@/lib/auth";
 import { findAuthorsWithoutNationality, updateAuthorNationality } from "@/lib/author-nationality-service";
 import { parseWikidataId, parseWikidataCitizenshipIds, parseWikidataCountryCodes } from "@/lib/author-nationality";
 import { parseWikidataNameSearchResults } from "@/lib/author-nationality";
@@ -6,13 +7,22 @@ import { fetchJson } from "@/lib/open-library-images";
 import { setProgress, resetProgress } from "@/lib/enrichment-progress";
 
 export async function POST(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return new Response(
+      JSON.stringify({ error: "Unauthorized" }),
+      { status: 401, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
   try {
     const { execute, limit } = await request.json();
 
+    const take = limit ? Number(limit) : 500;
+    const cappedTake = Number.isFinite(take) && take > 0 ? Math.min(take, 500) : 500;
+
     // Find authors without nationality using the service layer
-    const authors = await findAuthorsWithoutNationality(
-      limit ? Number(limit) : 500
-    );
+    const authors = await findAuthorsWithoutNationality(cappedTake);
 
     if (authors.length === 0) {
       return new Response(

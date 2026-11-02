@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { findUserByEmail, createUser, hashPassword, verifyPassword, createSession, destroySession, findUserById, updateUserPassword, getCurrentUser } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const signupSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
@@ -46,6 +47,14 @@ export async function loginAction(formData: FormData) {
     return { error: "Invalid email or password." };
   }
   const { email, password } = parsed.data;
+
+  const rateLimit = checkRateLimit(`login:${email}`, {
+    maxAttempts: 5,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return { error: "Too many login attempts. Please try again later." };
+  }
 
   const user = await findUserByEmail(email);
   if (!user || !verifyPassword(password, user.passwordHash)) {
@@ -93,6 +102,7 @@ export async function changePasswordAction(formData: FormData) {
   }
 
   await updateUserPassword(user.id, newPassword);
-  return { success: "Password updated successfully." };
+  await destroySession();
+  return { success: "Password updated. All sessions were revoked; please log in again." };
 }
 

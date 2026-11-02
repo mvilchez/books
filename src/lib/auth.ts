@@ -67,8 +67,8 @@ export async function createSession(userId: string): Promise<string> {
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, rawToken, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    secure: true,
     path: "/",
     expires: expiresAt,
   });
@@ -99,6 +99,9 @@ export async function updateUserPassword(userId: string, password: string): Prom
     where: { id: userId },
     data: { passwordHash: hashPassword(password) },
   });
+  // Rotating the password must invalidate every existing session so a stolen
+  // cookie cannot survive a password change.
+  await prisma.session.deleteMany({ where: { userId } });
 }
 
 /** Find a user by email (includes passwordHash). */
