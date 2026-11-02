@@ -15,22 +15,23 @@ export function AuthForm({ mode }: { mode: Mode }) {
   );
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="space-y-5">
       {mode === "signup" && (
         <div>
-          <label className="block text-sm font-medium text-slate-300" htmlFor="name">
+          <label className="block text-sm font-semibold text-slate-300" htmlFor="name">
             Name
           </label>
           <input
             id="name"
             name="name"
             type="text"
-            className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-white"
+            autoComplete="name"
+            className="mt-2 min-h-12 w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-base text-white outline-none transition placeholder:text-slate-500 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20"
           />
         </div>
       )}
       <div>
-        <label className="block text-sm font-medium text-slate-300" htmlFor="email">
+        <label className="block text-sm font-semibold text-slate-300" htmlFor="email">
           Email
         </label>
         <input
@@ -38,11 +39,12 @@ export function AuthForm({ mode }: { mode: Mode }) {
           name="email"
           type="email"
           required
-          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-white"
+          autoComplete="email"
+          className="mt-2 min-h-12 w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-base text-white outline-none transition placeholder:text-slate-500 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-300" htmlFor="password">
+        <label className="block text-sm font-semibold text-slate-300" htmlFor="password">
           Password
         </label>
         <input
@@ -51,7 +53,8 @@ export function AuthForm({ mode }: { mode: Mode }) {
           type="password"
           required
           minLength={8}
-          className="mt-1 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-white"
+          autoComplete={mode === "login" ? "current-password" : "new-password"}
+          className="mt-2 min-h-12 w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-base text-white outline-none transition placeholder:text-slate-500 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20"
         />
       </div>
       {state?.error && (
@@ -62,7 +65,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-md bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+        className="min-h-12 w-full rounded-lg bg-emerald-400 px-4 py-3 font-bold text-slate-950 transition hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {pending ? "Please wait…" : mode === "login" ? "Log in" : "Sign up"}
       </button>

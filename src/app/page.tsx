@@ -15,6 +15,7 @@ import DashboardSortControls from "@/components/DashboardSortControls";
 import DeleteBookButton from "@/components/DeleteBookButton";
 import AuthorPortrait from "@/components/AuthorPortrait";
 import TagCloud from "@/components/TagCloud";
+import DisclosurePanel from "@/components/DisclosurePanel";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -153,37 +154,47 @@ async function DashboardContent({
             Next →
           </Link>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {years.map((availableYear) => (
-            <Link
-              key={availableYear}
-              href={dashboardHref({ selectedYear: availableYear })}
-              aria-current={availableYear === year ? "page" : undefined}
-              className={`rounded-full border px-3 py-1 text-sm font-semibold transition ${
-                availableYear === year
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
-                  : "border-slate-700 text-slate-400 hover:border-slate-500 hover:text-white"
-              }`}
-            >
-              {availableYear === 2007 ? "pre-2008" : availableYear}
-            </Link>
-          ))}
-        </div>
+        <DisclosurePanel
+          title="Choose reading year"
+          summary={`${years.length} available · ${year === 2007 ? "pre-2008" : year} selected`}
+        >
+          <div className="flex flex-wrap gap-2">
+            {years.map((availableYear) => (
+              <Link
+                key={availableYear}
+                href={dashboardHref({ selectedYear: availableYear })}
+                aria-current={availableYear === year ? "page" : undefined}
+                className={`inline-flex min-h-9 items-center rounded-full border px-3 py-1 text-sm font-semibold transition ${
+                  availableYear === year
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                    : "border-slate-700 text-slate-400 hover:border-slate-500 hover:text-white"
+                }`}
+              >
+                {availableYear === 2007 ? "pre-2008" : availableYear}
+              </Link>
+            ))}
+          </div>
+        </DisclosurePanel>
       </nav>
       <TagCloud tags={tags} />
-      <section
-        aria-label={`${year} reading statistics`}
-        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"
+      <DisclosurePanel
+        title={`${year === 2007 ? "Pre-2008" : year} reading stats`}
+        summary={`${kpis.booksCompleted.toLocaleString("es-ES")} finished · ${kpis.pagesRead.toLocaleString("es-ES")} pages`}
       >
-        <YearStat label="Finished" value={kpis.booksCompleted.toLocaleString("es-ES")} />
-        <YearStat label="Pages read" value={kpis.pagesRead.toLocaleString("es-ES")} />
-        <YearStat label="Reading now" value={kpis.activeReads.toLocaleString("es-ES")} />
-        <YearStat
-          label="Average rating"
-          value={kpis.avgRating === null ? "—" : `${kpis.avgRating.toFixed(1)} / 10`}
-        />
-        <YearStat label="Pages per book" value={kpis.avgPagesPerBook.toLocaleString("es-ES")} />
-      </section>
+        <section
+          aria-label={`${year} reading statistics`}
+          className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
+        >
+          <YearStat label="Finished" value={kpis.booksCompleted.toLocaleString("es-ES")} />
+          <YearStat label="Pages read" value={kpis.pagesRead.toLocaleString("es-ES")} />
+          <YearStat label="Reading now" value={kpis.activeReads.toLocaleString("es-ES")} />
+          <YearStat
+            label="Average rating"
+            value={kpis.avgRating === null ? "—" : `${kpis.avgRating.toFixed(1)} / 10`}
+          />
+          <YearStat label="Pages per book" value={kpis.avgPagesPerBook.toLocaleString("es-ES")} />
+        </section>
+      </DisclosurePanel>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-lg font-bold text-white">Books</h3>
         <nav
@@ -231,7 +242,12 @@ async function DashboardContent({
         />
       ) : null}
       {view === "list" ? (
-        <BookList books={pageBooks} year={year} />
+        <BookList
+          books={pageBooks}
+          year={year}
+          sort={sort}
+          direction={direction}
+        />
       ) : (
         <BookGrid books={pageBooks} year={year} />
       )}
@@ -305,9 +321,13 @@ function BookPagination({
 function BookList({
   books,
   year,
+  sort,
+  direction,
 }: {
   books: DashboardBook[];
   year: number;
+  sort: DashboardSort;
+  direction: SortDirection;
 }) {
   if (books.length === 0) {
     return <EmptyBooks year={year} />;
@@ -323,23 +343,53 @@ function BookList({
         }).format(date)
       : "—";
 
+  const sortHref = (nextSort: DashboardSort) => {
+    const nextDirection =
+      sort === nextSort && direction === "asc" ? "desc" : "asc";
+    const params = new URLSearchParams({
+      year: String(year),
+      view: "list",
+      sort: nextSort,
+      direction: nextDirection,
+    });
+    return `/?${params.toString()}`;
+  };
+
+  const sortIndicator = (column: DashboardSort) =>
+    sort === column ? (direction === "asc" ? "↑" : "↓") : null;
+  const titleIndicator = sortIndicator("title");
+  const authorIndicator = sortIndicator("author");
+  const startDateIndicator = sortIndicator("startDate");
+
   return (
     <div className="max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-slate-700/60">
-      <table className="min-w-[64rem] divide-y divide-slate-700 text-left text-sm">
-        <thead className="bg-slate-800 text-xs uppercase tracking-wide text-slate-400">
+      <table className="min-w-[64rem] divide-y divide-slate-700 text-left text-xs">
+        <thead className="sticky top-0 bg-slate-800 text-[0.65rem] uppercase tracking-wide text-slate-400">
           <tr>
-            <th scope="col" className="px-4 py-3">Book</th>
-            <th scope="col" className="px-4 py-3">Author</th>
-            <th scope="col" className="px-4 py-3">Started</th>
-            <th scope="col" className="px-4 py-3">Finished</th>
-            <th scope="col" className="px-4 py-3">Genre</th>
-            <th scope="col" className="px-4 py-3">Status</th>
-            <th scope="col" className="px-4 py-3 text-right">Pages</th>
-            <th scope="col" className="px-4 py-3 text-right">Published</th>
-            <th scope="col" className="px-4 py-3">Origin</th>
-            <th scope="col" className="px-4 py-3 text-right">Rating</th>
-            <th scope="col" className="px-4 py-3">Complete</th>
-            <th scope="col" className="px-4 py-3">Actions</th>
+            <th scope="col" aria-sort={sort === "title" ? (direction === "asc" ? "ascending" : "descending") : "none"} className="whitespace-nowrap px-2 py-2">
+              <Link href={sortHref("title")} aria-label={`Sort by title${titleIndicator ? `, ${direction === "asc" ? "ascending" : "descending"}` : ""}`} className="inline-flex items-center gap-1 hover:text-white">
+                Book {titleIndicator ? <span aria-hidden="true">{titleIndicator}</span> : null}
+              </Link>
+            </th>
+            <th scope="col" aria-sort={sort === "author" ? (direction === "asc" ? "ascending" : "descending") : "none"} className="whitespace-nowrap px-2 py-2">
+              <Link href={sortHref("author")} aria-label={`Sort by author${authorIndicator ? `, ${direction === "asc" ? "ascending" : "descending"}` : ""}`} className="inline-flex items-center gap-1 hover:text-white">
+                Author {authorIndicator ? <span aria-hidden="true">{authorIndicator}</span> : null}
+              </Link>
+            </th>
+            <th scope="col" aria-sort={sort === "startDate" ? (direction === "asc" ? "ascending" : "descending") : "none"} className="whitespace-nowrap px-2 py-2">
+              <Link href={sortHref("startDate")} aria-label={`Sort by start date${startDateIndicator ? `, ${direction === "asc" ? "ascending" : "descending"}` : ""}`} className="inline-flex items-center gap-1 hover:text-white">
+                Started {startDateIndicator ? <span aria-hidden="true">{startDateIndicator}</span> : null}
+              </Link>
+            </th>
+            <th scope="col" className="whitespace-nowrap px-2 py-2">Finished</th>
+            <th scope="col" className="whitespace-nowrap px-2 py-2">Genre</th>
+            <th scope="col" className="whitespace-nowrap px-2 py-2">Status</th>
+            <th scope="col" className="whitespace-nowrap px-2 py-2 text-right">Pages</th>
+            <th scope="col" className="whitespace-nowrap px-2 py-2 text-right">Published</th>
+            <th scope="col" className="whitespace-nowrap px-2 py-2">Origin</th>
+            <th scope="col" className="whitespace-nowrap px-2 py-2 text-right">Rating</th>
+            <th scope="col" className="whitespace-nowrap px-2 py-2">Complete</th>
+            <th scope="col" className="whitespace-nowrap px-2 py-2">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-800 bg-slate-900/60">
@@ -348,8 +398,8 @@ function BookList({
               key={book.id}
               className={`text-slate-300 transition ${getBookStatusPresentation(book.status).row}`}
             >
-              <th scope="row" className="px-4 py-3 font-semibold text-white">
-                  <div className="flex items-center gap-3">
+              <th scope="row" className="max-w-64 px-2 py-2 font-semibold text-white">
+                  <div className="flex items-center gap-2">
                     <BookCover
                       editionKey={book.editionKey}
                       openLibraryCoverId={book.openLibraryCoverId}
@@ -357,34 +407,34 @@ function BookList({
                     />
                     <Link
                       href={`/books/${book.id}`}
-                      className="hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-400"
+                      className="line-clamp-2 text-xs leading-4 hover:text-emerald-300 focus-visible:outline-2 focus-visible:outline-emerald-400"
                     >
                       {book.title}
                     </Link>
                   </div>
               </th>
-              <td className="px-4 py-3">
+              <td className="whitespace-nowrap px-2 py-2">
                 <AuthorPortrait author={book.author} />
               </td>
-              <td className="whitespace-nowrap px-4 py-3">{formatDate(book.startDate)}</td>
-              <td className="whitespace-nowrap px-4 py-3">{formatDate(book.finishDate)}</td>
-              <td className="px-4 py-3">{book.genre?.name ?? "—"}</td>
-              <td className="whitespace-nowrap px-4 py-3">
+              <td className="whitespace-nowrap px-2 py-2">{formatDate(book.startDate)}</td>
+              <td className="whitespace-nowrap px-2 py-2">{formatDate(book.finishDate)}</td>
+              <td className="max-w-32 truncate px-2 py-2">{book.genre?.name ?? "—"}</td>
+              <td className="whitespace-nowrap px-2 py-2">
                 <span
                   className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getBookStatusPresentation(book.status).badge}`}
                 >
                   {getBookStatusPresentation(book.status).label}
                 </span>
               </td>
-              <td className="px-4 py-3 text-right">
+              <td className="whitespace-nowrap px-2 py-2 text-right">
                 {book.totalPages?.toLocaleString("es-ES") ?? "—"}
               </td>
-              <td className="px-4 py-3 text-right">{book.publicationYear ?? "—"}</td>
-              <td className="px-4 py-3">{book.origin ?? "—"}</td>
-              <td className="px-4 py-3 text-right">
+              <td className="whitespace-nowrap px-2 py-2 text-right">{book.publicationYear ?? "—"}</td>
+              <td className="max-w-28 truncate px-2 py-2">{book.origin ?? "—"}</td>
+              <td className="whitespace-nowrap px-2 py-2 text-right">
                 {book.rating === null ? "—" : `${book.rating}/10`}
               </td>
-              <td className="px-4 py-3">
+              <td className="px-2 py-2">
                 {book.status === "READING" ? (
                   <CompleteBookForm
                     bookId={book.id}
@@ -395,7 +445,7 @@ function BookList({
                   "—"
                 )}
               </td>
-              <td className="px-4 py-3">
+              <td className="px-2 py-2">
                 <DeleteBookButton
                   bookId={book.id}
                   title={book.title}

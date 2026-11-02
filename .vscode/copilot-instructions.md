@@ -5,6 +5,10 @@
 
 ## Active Optimizations
 
+### Code Search & Navigation (CodeGraph)
+- **MANDATORY**: When locating symbols, callers, or implementations, ALWAYS query CodeGraph (`codegraph_explore` or `codegraph`) before grepping.
+- **FORBIDDEN**: NEVER perform brute-force directory grep searches when CodeGraph semantic indexing is available.
+
 ### CLI Output Compression
 - **MANDATORY**: Report only test failure details and status summaries — skip passing test lines.
 - **FORBIDDEN**: NEVER run full verbose test suites or print entire git diffs into prompt context without range limits.

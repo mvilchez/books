@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "events": [
+    {
+      "id": "evt-1793641315942-p91h",
+      "timestamp": "2026-11-02T17:41:55.942Z",
+      "directive": "Diff-Only Output",
+      "source": ".vscode/settings.json",
+      "tokensSaved": 401,
+      "costSavedUsd": 0.001203,
+      "details": "Applied 93 token diff hunk instead of rewriting full 494 token file (81% tokens saved)",
+      "sessionNumber": 2,
+      "beforeTokens": 494,
+      "afterTokens": 93,
+      "reductionPercent": 81,
+      "modelName": "Auto",
+      "beforeContent": "{\n  \"github.copilot.chat.codeGeneration.instructions\": [\n    {\n      \"file\": \".vscode/copilot-instructions.md\"\n    }\n  ],\n  \"mcp\": {\n    \"servers\": {\n      \"headroom\": {\n        \"command\": \"headroom\",\n        \"args\": [\n          \"mcp\",\n          \"serve\"\n        ],\n        \"type\": \"stdio\",\n        \"env\": {\n          \"HEADROOM_BEACON\": \"off\",\n          \"HEADROOM_TELEMETRY\": \"off\",\n          \"HEADROOM_OFFLINE\": \"1\",\n          \"DO_NOT_TRACK\": \"1\"\n        }\n      },\n      \"token-cache\": {\n        \"command\": \"node\",\n        \"args\": [\n          \"/home/marino/.vscode/extensions/sarfudheen.tokensculpt-1.0.19/dist/cache-server.js\",\n          \"/home/marino/Documentos/workspace/books\"\n        ],\n        \"type\": \"stdio\"\n      }\n    }\n  },\n  \"github.copilot.chat.codesearch.exclude\": {\n    \"*.lock\": true,\n    \"*.min.js\": true,\n    \"*.min.css\": true,\n    \"*.map\": true,\n    \"*.d.ts\": true,\n    \"*.generated.*\": true,\n    \"dist/**\": true,\n    \"build/**\": true,\n    \"coverage/**\": true,\n    \".git/**\": true,\n    \"node_modules/**\": true,\n    \".next/**\": true,\n    \".nuxt/**\": true,\n    \"__pycache__/**\": true,\n    \"*.pyc\": true,\n    \"*.pyo\": true,\n    \"target/**\": true,\n    \"vendor/**\": true,\n    \"package-lock.json\": true,\n    \"yarn.lock\": true,\n    \"pnpm-lock.yaml\": true,\n    \".yarn/**\": true\n  },\n  \"tokensculpt.activeStrategies\": {\n    \"codeGraph\": true,\n    \"outputCompression\": true,\n    \"verbosityControl\": true,\n    \"sessionManagement\": true,\n    \"semanticCache\": true,\n    \"astSkeleton\": true,\n    \"contextExclusion\": true,\n    \"diffOnlyOutput\": true,\n    \"agentGuardrails\": true,\n    \"smartModelRouting\": true,\n    \"gitDiffContext\": true,\n    \"kvCacheAlignment\": true,\n    \"commentStripper\": true,\n    \"testFailureIsolator\": true,\n    \"rangeSlicing\": true,\n    \"inlineChatScopePinning\": true,\n    \"copilotIgnoreGeneration\": true,\n    \"copilotEditsAwareness\": true,\n    \"threadResetTrigger\": true,\n    \"headroomCompression\": true\n  },\n  \"tokensculpt.profile\": \"custom\"\n}",
+      "afterContent": "diff --git a/.vscode/settings.json b/.vscode/settings.json\nindex e99fce8..4f6c5de 100644\n--- a/.vscode/settings.json\n+++ b/.vscode/settings.json\n@@ -55,7 +55,7 @@\n     \".yarn/**\": true\n   },\n   \"tokensculpt.activeStrategies\": {\n-    \"codeGraph\": false,\n+    \"codeGraph\": true,\n     \"outputCompression\": true,\n     \"verbosityControl\": true,\n     \"sessionManagement\": true,\n"
+    }
+  ]
+}

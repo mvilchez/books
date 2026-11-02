@@ -2,8 +2,8 @@
   "version": 1,
   "currentSessionNumber": 2,
   "currentSessionStartedAt": "2026-11-02T17:02:04.050Z",
-  "lifetimeTokensSaved": 0,
-  "lifetimeCostSavedUsd": 0,
+  "lifetimeTokensSaved": 401,
+  "lifetimeCostSavedUsd": 0.001203,
   "pastSessions": [
     {
       "sessionNumber": 1,

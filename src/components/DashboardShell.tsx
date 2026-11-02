@@ -4,7 +4,6 @@ import Link from "next/link";
 import LogoutButton from "@/components/LogoutButton";
 import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
-import IngestionWidget from "@/components/IngestionWidget";
 import {
   BooksIcon,
   ChartIcon,
@@ -117,7 +116,8 @@ export default function DashboardShell({
   const [explicitPreference, setExplicitPreference] = useState<boolean | null>(
     null,
   );
-const [userPanelOpen, setUserPanelOpen] = useState<boolean>(false);
+  const [userPanelOpen, setUserPanelOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const storedPreference = useSyncExternalStore(
     subscribeToMenuPreference,
     readMenuPreference,
@@ -144,24 +144,41 @@ const [userPanelOpen, setUserPanelOpen] = useState<boolean>(false);
     }
   }
 
+  function closeMenu() {
+    setExplicitPreference(false);
+    try {
+      window.localStorage.setItem(MENU_STORAGE_KEY, "false");
+    } catch {
+      /* Storage may be unavailable; the in-memory toggle still works. */
+    }
+  }
+
   return (
     <div className="flex min-h-dvh flex-col bg-slate-900 text-slate-100 md:h-dvh md:min-h-0 md:flex-row md:overflow-hidden">
+      {menuOpen && isMobileViewport ? (
+        <button
+          type="button"
+          aria-label="Close navigation menu"
+          onClick={closeMenu}
+          className="fixed inset-0 z-30 bg-slate-950/70 backdrop-blur-sm md:hidden"
+        />
+      ) : null}
       <aside
         id="dashboard-menu"
-        className={`shrink-0 overflow-y-auto border-b border-slate-800 transition-[max-height,width] duration-300 ease-in-out md:h-dvh md:overflow-hidden md:border-b-0 md:border-r ${
+        className={`fixed inset-y-0 left-0 z-40 w-[min(20rem,80vw)] overflow-y-auto border-r border-slate-800 bg-slate-950 transition-[transform,width] duration-300 ease-in-out md:sticky md:top-0 md:z-20 md:h-dvh md:shrink-0 md:overflow-hidden md:border-r ${
           menuOpen
-            ? "max-h-[55dvh] w-full md:max-h-none md:w-64"
-            : "h-0 max-h-0 w-0 border-b-0 md:h-auto"
+            ? "translate-x-0 md:w-64"
+            : "-translate-x-full md:translate-x-0 md:w-16"
         }`}
       >
         <div
-          className="flex w-full flex-col gap-3 p-4 md:h-full md:w-64"
-          inert={!menuOpen}
+          className="flex min-h-full w-full flex-col gap-3 p-4 md:h-full md:p-2"
+          inert={!menuOpen && isMobileViewport}
         >
-          <p className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <p className={`px-1 text-xs font-semibold uppercase tracking-wide text-slate-500 ${!menuOpen && !isMobileViewport ? "sr-only" : ""}`}>
             Menu
           </p>
-          <nav aria-label="Main" className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:flex md:flex-col">
+          <nav aria-label="Main" className="flex flex-col gap-2">
             {MENU_ENTRIES.map(({ href, label, primary, Icon }) => {
               const active = pathname === href;
               return (
@@ -169,74 +186,97 @@ const [userPanelOpen, setUserPanelOpen] = useState<boolean>(false);
                   key={href}
                   href={href}
                   aria-current={active ? "page" : undefined}
+                  title={!menuOpen && !isMobileViewport ? label : undefined}
+                  onClick={isMobileViewport ? closeMenu : undefined}
                   className={
                     primary
-                      ? "inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-center text-sm font-bold text-slate-950 transition hover:bg-emerald-400"
-                      : `inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 py-2 text-center text-sm font-semibold transition ${
+                      ? `inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-emerald-500 px-3 py-2 text-center text-sm font-bold text-slate-950 transition hover:bg-emerald-400 ${!menuOpen && !isMobileViewport ? "md:rounded-xl md:px-0" : "px-4"}`
+                      : `inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-3 py-2 text-center text-sm font-semibold transition ${
                           active
                             ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
                             : "border-slate-700 text-slate-300 hover:border-emerald-500/50 hover:text-white"
-                        }`
+                        } ${!menuOpen && !isMobileViewport ? "md:rounded-xl md:px-0" : "px-4"}`
                   }
                 >
-                  <Icon />
-                  {label}
+                  <span className="shrink-0"><Icon /></span>
+                  <span className={!menuOpen && !isMobileViewport ? "md:sr-only" : ""}>
+                    {label}
+                  </span>
                 </Link>
               );
             })}
           </nav>
-          <div className="mt-auto flex flex-col gap-2 border-t border-slate-800 pt-4">
+          <div className="mt-auto border-t border-slate-800 pt-4">
             <button
               type="button"
               onClick={toggleMenu}
               aria-expanded={menuOpen}
               aria-controls="dashboard-menu"
+              aria-label={menuOpen ? "Collapse navigation" : "Expand navigation"}
+              title={menuOpen ? "Collapse navigation" : "Expand navigation"}
               className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
             >
-              <ChevronsLeftIcon />
-              <span>Close menu</span>
+              {menuOpen ? <ChevronsLeftIcon /> : <ChevronsRightIcon />}
+              <span className={!menuOpen && !isMobileViewport ? "md:sr-only" : ""}>
+                {menuOpen ? "Collapse menu" : "Expand menu"}
+              </span>
             </button>
           </div>
         </div>
       </aside>
 
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col md:overflow-y-auto">
-        <header className="sticky top-0 z-10 flex flex-col gap-4 border-b border-slate-800 bg-slate-900 px-4 py-4 sm:px-6 sm:py-5 lg:px-10">
-          <div className="flex min-w-0 items-center gap-3">
+        <header className="sticky top-0 z-20 flex min-w-0 flex-col gap-3 border-b border-slate-800/80 bg-slate-900/95 px-3 py-3 backdrop-blur-xl sm:px-6 sm:py-4 lg:px-10 md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3 md:order-1">
             <button
               type="button"
               onClick={toggleMenu}
               aria-expanded={menuOpen}
               aria-controls="dashboard-menu"
-              aria-label={menuOpen ? "Close menu" : "Open menu"}
-              title={menuOpen ? "Close menu" : "Open menu"}
+              aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
+              title={menuOpen ? "Close navigation menu" : "Open navigation menu"}
               className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-slate-700 p-2 text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
             >
               {menuOpen ? <ChevronsLeftIcon /> : <ChevronsRightIcon />}
             </button>
-            <div>
-              <BooksIcon />
-              <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
-                {title}
-              </h1>
-              <p className="mt-1 text-sm text-slate-400 sm:text-base">{subtitle}</p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <BooksIcon />
+                <h1 className="truncate text-lg font-extrabold tracking-tight text-white sm:text-2xl">
+                  <span className="md:hidden">Books</span>
+                  <span className="hidden md:inline">{title}</span>
+                </h1>
+              </div>
+              <p className="hidden text-sm text-slate-400 md:block">{subtitle}</p>
             </div>
           </div>
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="min-w-0 flex-1">{search}</div>
+          <div className="flex min-w-0 items-center gap-2 md:order-3">
             <button
               type="button"
-              onClick={() => setUserPanelOpen(!userPanelOpen)}
-              aria-expanded={userPanelOpen}
-              aria-label={userPanelOpen ? "Collapse user panel" : "Expand user panel"}
-              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-slate-700 p-2 text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+              onClick={() => setMobileSearchOpen((open) => !open)}
+              aria-expanded={mobileSearchOpen}
+              aria-controls="dashboard-search"
+              aria-label={mobileSearchOpen ? "Close search" : "Open search"}
+              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-slate-700 p-2 text-slate-300 transition hover:border-emerald-500/50 hover:text-white md:hidden"
             >
-              {userPanelOpen ? <ChevronsLeftIcon /> : <ChevronsRightIcon />}
+              <SearchIcon />
+            </button>
+            <button
+              type="button"
+              onClick={() => setUserPanelOpen((open) => !open)}
+              aria-expanded={userPanelOpen}
+              aria-controls="dashboard-user-panel"
+              aria-label={userPanelOpen ? "Close user menu" : `Open user menu for ${userName}`}
+              className="ml-auto inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 p-2 text-sm font-bold text-emerald-300 transition hover:border-emerald-400/60 hover:bg-emerald-500/20 md:ml-0"
+            >
+              {userName.trim().charAt(0).toUpperCase() || "U"}
             </button>
           </div>
-        </header>
           {userPanelOpen && (
-            <div className="absolute right-4 top-24 z-20 w-64 max-w-[calc(100vw-2rem)] space-y-4 rounded-lg bg-slate-800 p-4 shadow-lg sm:right-6 lg:right-10">
+            <div
+              id="dashboard-user-panel"
+              className="absolute right-3 top-full z-30 w-64 max-w-[calc(100vw-1.5rem)] space-y-4 rounded-xl border border-slate-700 bg-slate-800 p-4 shadow-2xl sm:right-6 lg:right-10"
+            >
               <div className="flex items-center justify-between text-slate-300">
                 <div className="flex items-center gap-2">
                   <div className="h-8 w-8 rounded-full bg-slate-600 flex items-center justify-center text-sm font-medium">
@@ -263,7 +303,13 @@ const [userPanelOpen, setUserPanelOpen] = useState<boolean>(false);
         <LogoutButton />
             </div>
           )}
-
+          <div
+            id="dashboard-search"
+            className={`${mobileSearchOpen ? "block" : "hidden"} min-w-0 md:order-2 md:block md:w-full md:max-w-md`}
+          >
+            {search}
+          </div>
+        </header>
         <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-10 xl:p-12">{children}</main>
       </div>
     </div>

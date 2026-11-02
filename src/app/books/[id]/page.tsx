@@ -38,7 +38,7 @@ export default async function BookDetailPage({
         : 0;
 
   return (
-    <main className="min-h-screen bg-slate-900 p-6 text-slate-100 md:p-12">
+    <main className="min-h-screen bg-slate-900 text-slate-100">
       <div className="mx-auto max-w-4xl">
         <Link
           href={`/?year=${book.readingYear}`}
@@ -54,8 +54,8 @@ export default async function BookDetailPage({
           />
         </div>
 
-        <article className="mt-2 rounded-2xl border border-slate-700/60 bg-slate-800 p-6 shadow-xl md:p-10">
-          <div className="flex flex-col gap-8 sm:flex-row">
+        <article className="mt-2 rounded-2xl border border-slate-700/60 bg-slate-800/80 p-5 shadow-xl backdrop-blur sm:p-8 lg:p-10">
+          <div className="flex flex-col gap-6 sm:flex-row sm:gap-8">
             <BookCover
               key={book.id}
               editionKey={book.editionKey}
@@ -67,7 +67,7 @@ export default async function BookDetailPage({
               <span className="inline-flex rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
                 {book.status}
               </span>
-              <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-white">
+              <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
                 {book.title}
               </h1>
               <div className="mt-2">

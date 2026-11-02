@@ -51,29 +51,55 @@ export default function EnrichAuthorNationalityPage() {
     setIsRunning(true);
     setProgress(0);
     setMessage(`Starting enrichment for ${freshAuthors.length} authors...`);
-    
+
+    // Poll server-side progress so the bar moves while the long-running job runs.
+    const base = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin;
+    let stopPolling = false;
+    const pollProgress = async () => {
+      if (stopPolling) return;
+      try {
+        const res = await fetch(`${base}/api/v1/author-nationality/progress`);
+        if (res.ok) {
+          const data = await res.json();
+          setProgress((data.processed / Math.max(data.total, 1)) * 100);
+          if (data.status === "completed" || data.status === "error") {
+            stopPolling = true;
+          }
+        }
+      } catch {
+        // Ignore poll failures; the main POST response will surface errors.
+      }
+    };
+    const interval = setInterval(pollProgress, 1000);
+    pollProgress();
+
     try {
       // Call the API route to run the enrichment script
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || window.location.origin}/api/v1/author-nationality/enrich`, {
+      const response = await fetch(`${base}/api/v1/author-nationality/enrich`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ execute: true, limit: 500 }),
       });
-      
+
+      stopPolling = true;
+      clearInterval(interval);
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Enrichment failed');
       }
-      
+
       const result = await response.json();
       setMessage(result.message || 'Enrichment completed');
       setProgress(100);
-      
+
       // Reload authors to show updated data
       await loadAuthors();
     } catch (error) {
+      stopPolling = true;
+      clearInterval(interval);
       console.error('Enrichment error:', error);
       setMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {

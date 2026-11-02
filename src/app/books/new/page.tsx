@@ -15,7 +15,7 @@ export default function NewBookPage({
   }>;
 }) {
   return (
-    <main className="min-h-screen bg-slate-900 p-6 text-slate-100 md:p-12">
+    <main className="min-h-screen bg-slate-900 text-slate-100">
       <div className="mx-auto max-w-2xl">
         <Link
           href="/"
@@ -23,8 +23,8 @@ export default function NewBookPage({
         >
           ← Dashboard
         </Link>
-        <section className="mt-6 rounded-2xl border border-slate-700/60 bg-slate-800 p-6 shadow-xl md:p-8">
-          <h1 className="text-2xl font-extrabold text-white">Start a book</h1>
+        <section className="mt-6 rounded-2xl border border-slate-700/60 bg-slate-800/80 p-5 shadow-xl backdrop-blur sm:p-8">
+          <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">Start a book</h1>
           <p className="mt-2 text-sm text-slate-400">
             Add a book to your currently reading list.
           </p>

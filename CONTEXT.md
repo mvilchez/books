@@ -1,5 +1,5 @@
 # Technical Architecture & Context Continuity Blueprint: project "books"
-* **Mobile-first responsive layout (2026-11-02):** Updated the shared dashboard shell for viewport-height scrolling, compact mobile gutters, touch-sized navigation and controls, and a capped scrollable mobile menu. Standardized the app font with Geist, prevented mobile form zoom, respected reduced-motion preferences, and tightened spacing on search, statistics, and saga pages. Dashboard book lists now retain a usable horizontal scroll area on narrow screens.
+* **Mobile-first responsive layout (2026-11-02):** Updated the shared dashboard shell for viewport-height scrolling, compact mobile gutters, touch-sized navigation and controls, and a mobile overlay drawer with a desktop icon rail. Standardized the app font with Geist, prevented mobile form zoom, respected reduced-motion preferences, and tightened spacing on search, statistics, and saga pages. Dashboard book lists now retain a usable horizontal scroll area on narrow screens. Login and signup pages now use a responsive split layout on desktop and a touch-friendly stacked form on mobile, with more visible brand styling. Dashboard year choices, Library tags, and year statistics now start collapsed behind accessible disclosure buttons; dashboard search is expandable on mobile and persistent on desktop. Card-view sorting now uses one compact preset selector, while table-view headings sort in place with direction indicators; table rows and cells use reduced padding and text sizes. Shared page surfaces use consistent responsive padding, subtle accent lighting, focus rings, and card elevation.
 
 **Document Purpose:** Current project architecture and implementation status
 **System:** Full-Stack Reading Analytics Application (Next.js 16 + TypeScript)
@@ -296,6 +296,11 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 * **Root cause** — `/enrich-author-nationality` is a `"use client"` page that called the Prisma-backed `findAuthorsWithoutNationality()` directly in a `useEffect`, so no authors loaded in the browser; and `startEnrichment` checked the stale `authors` state right after `await loadAuthors()`, so the button returned early with "No authors without nationality to enrich."
 * **Fix** — Added `src/app/actions/authorNationalityActions.ts` exposing `getAuthorsWithoutNationality()`, a server action that reads through `@/lib/author-nationality-service`. The page now loads authors via that action and uses the freshly returned list (not stale state) to decide whether to start enrichment. Enrichment still POSTs to `/api/v1/author-nationality/enrich`.
 * **Validation** — `npm test` 73/73, `npm run check:encapsulation` OK, `npm run build` compiled successfully. (`page.tsx` retains a pre-existing `react-hooks/set-state-in-effect` lint error and 3 pre-existing unused-variable warnings also present in the original; no new lint issues introduced.)
+
+**Enrich Author Nationality incremental progress (2026-11-11):**
+* **Problem** — The enrichment POST runs sequentially (~1s per author + Wikidata lookups), so for hundreds of authors the client sat at `0.0%` for several minutes with no feedback, looking stuck.
+* **Fix** — Added `src/lib/enrichment-progress.ts` (in-memory progress store), `src/app/api/v1/author-nationality/progress/route.ts` (GET endpoint), and updated the enrich API route to write progress after each author. The client now polls `/api/v1/author-nationality/progress` every second during enrichment and updates the progress bar accordingly.
+* **Validation** — `npm test` 73/73, `npm run check:encapsulation` OK, `npm run build` compiled successfully.
 
 
 **Image caching (2026-11-05):**

@@ -2,11 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import {
-  parseDashboardSort,
-  parseSortDirection,
   type DashboardSort,
   type SortDirection,
 } from "@/lib/dashboard";
+
+const CARD_SORT_OPTIONS = [
+  { value: "startDate:desc", label: "Recently started", sort: "startDate", direction: "desc" },
+  { value: "startDate:asc", label: "Oldest started", sort: "startDate", direction: "asc" },
+  { value: "author:asc", label: "Author A–Z", sort: "author", direction: "asc" },
+  { value: "author:desc", label: "Author Z–A", sort: "author", direction: "desc" },
+  { value: "title:asc", label: "Title A–Z", sort: "title", direction: "asc" },
+  { value: "title:desc", label: "Title Z–A", sort: "title", direction: "desc" },
+] as const;
 
 export default function DashboardSortControls({
   year,
@@ -21,46 +28,36 @@ export default function DashboardSortControls({
 }) {
   const router = useRouter();
 
-  function applySort(
-    nextSort: DashboardSort = sort,
-    nextDirection: SortDirection = direction,
-  ) {
+  if (view === "list") return null;
+
+  function applySort(value: string) {
+    const option = CARD_SORT_OPTIONS.find((candidate) => candidate.value === value);
+    if (!option) return;
     const params = new URLSearchParams({
       year: String(year),
-      sort: nextSort,
-      direction: nextDirection,
+      sort: option.sort,
+      direction: option.direction,
     });
-    if (view === "list") params.set("view", "list");
     router.push(`/?${params.toString()}`, { scroll: false });
   }
 
+  const selectedValue = `${sort}:${direction}`;
+
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-800/40 p-4 sm:flex-row sm:items-end">
-      <label className="grid w-full gap-1 text-xs font-semibold text-slate-400 sm:w-auto">
-        Sort by
+    <div className="flex justify-end">
+      <label className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/60 px-3 text-xs font-semibold text-slate-400">
+        <span className="whitespace-nowrap">Sort cards</span>
         <select
-          name="sort"
-          value={sort}
-          onChange={(event) => applySort(parseDashboardSort(event.target.value))}
-          className="min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white sm:w-auto"
+          name="card-sort"
+          value={selectedValue}
+          onChange={(event) => applySort(event.target.value)}
+          className="min-h-10 min-w-0 max-w-48 bg-transparent text-sm text-white outline-none sm:max-w-none"
         >
-          <option value="startDate">Start date</option>
-          <option value="author">Author</option>
-          <option value="title">Title</option>
-        </select>
-      </label>
-      <label className="grid w-full gap-1 text-xs font-semibold text-slate-400 sm:w-auto">
-        Direction
-        <select
-          name="direction"
-          value={direction}
-          onChange={(event) =>
-            applySort(sort, parseSortDirection(event.target.value, direction))
-          }
-          className="min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white sm:w-auto"
-        >
-          <option value="asc">Ascending</option>
-          <option value="desc">Descending</option>
+          {CARD_SORT_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
       </label>
     </div>

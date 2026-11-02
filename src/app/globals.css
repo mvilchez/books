@@ -21,6 +21,28 @@ body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
+main.min-h-screen {
+  padding: clamp(1rem, 4vw, 3rem);
+  background-image: radial-gradient(
+    ellipse 75% 38% at 50% 0%,
+    rgb(16 185 129 / 8%),
+    transparent
+  );
+}
+
+main.min-h-screen :is(h1, h2) {
+  text-wrap: balance;
+}
+
+main.min-h-screen :is(.rounded-xl.border, .rounded-2xl.border) {
+  box-shadow: 0 14px 36px rgb(2 6 23 / 18%);
+}
+
+main.min-h-screen :is(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid rgb(52 211 153);
+  outline-offset: 3px;
+}
+
 @media (max-width: 767px) {
   input,
   select,

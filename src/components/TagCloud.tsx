@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { BookTagCategory } from "@prisma/client";
+import DisclosurePanel from "@/components/DisclosurePanel";
 
 const categoryLabels: Record<BookTagCategory, string> = {
   GENRE: "Genre",
@@ -30,14 +31,11 @@ export default function TagCloud({
   const minimumCount = Math.min(...visibleTags.map((tag) => tag.count));
 
   return (
-    <section
-      aria-labelledby="library-tags-heading"
-      className="rounded-xl border border-slate-800 bg-slate-800/50 p-5"
+    <DisclosurePanel
+      title="Library tags"
+      summary={`${tags.length} ${tags.length === 1 ? "tag" : "tags"}`}
     >
-      <h2 id="library-tags-heading" className="text-lg font-bold text-white">
-        Library tags
-      </h2>
-      <p className="mt-1 text-sm text-slate-400">
+      <p className="text-sm text-slate-400">
         Genres and metadata tags across your books.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -51,7 +49,7 @@ export default function TagCloud({
               href={`/tags/${encodeURIComponent(tag.id)}`}
               key={tag.id}
               title={`${categoryLabels[tag.category]} · ${tag.count} ${tag.count === 1 ? "book" : "books"}`}
-              className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 font-medium text-emerald-200 hover:border-emerald-400/60 hover:bg-emerald-500/20"
+              className="inline-flex min-h-9 items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 font-medium text-emerald-200 transition hover:border-emerald-400/60 hover:bg-emerald-500/20"
               style={{ fontSize: `${0.75 + scale * 0.3}rem` }}
             >
               {tag.name}
@@ -66,6 +64,6 @@ export default function TagCloud({
           Visit a tag to browse its books.
         </p>
       ) : null}
-    </section>
+    </DisclosurePanel>
   );
 }

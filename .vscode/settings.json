@@ -55,7 +55,7 @@
     ".yarn/**": true
   },
   "tokensculpt.activeStrategies": {
-    "codeGraph": false,
+    "codeGraph": true,
     "outputCompression": true,
     "verbosityControl": true,
     "sessionManagement": true,

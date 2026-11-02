@@ -3,6 +3,7 @@ import { parseWikidataId, parseWikidataCitizenshipIds, parseWikidataCountryCodes
 import { parseWikidataNameSearchResults } from "@/lib/author-nationality";
 import { commonNationality } from "@/lib/author-nationality";
 import { fetchJson } from "@/lib/open-library-images";
+import { setProgress, resetProgress } from "@/lib/enrichment-progress";
 
 export async function POST(request: Request) {
   try {
@@ -23,6 +24,9 @@ export async function POST(request: Request) {
     let updated = 0;
     let skipped = 0;
     let failed = 0;
+
+    resetProgress();
+    setProgress({ total: authors.length, processed: 0, updated: 0, skipped: 0, failed: 0, status: "running" });
 
     for (let i = 0; i < authors.length; i++) {
       const author = authors[i];
@@ -121,6 +125,15 @@ export async function POST(request: Request) {
         failed++;
         console.error(`Error enriching author ${author.name}:`, error);
       }
+
+      setProgress({
+        total: authors.length,
+        processed: i + 1,
+        updated,
+        skipped,
+        failed,
+        status: "running",
+      });
     }
 
     const message = `
