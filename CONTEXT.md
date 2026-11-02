@@ -258,6 +258,19 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * **Source correction** — `src/scripts/enrich-author-nationality.ts` uses an author `wikidataId` already stored in the database, exact-label Wikidata name search, or Open Library-linked entities only if Wikidata name search finds no exact label. Google Books is not used because its public volume metadata does not provide author nationality.
 * **Country code handling** — nationality is derived from Wikidata country-of-citizenship (P27) and ISO alpha-2 (P297). Multiple exact-name Wikidata candidates must agree on every available valid nationality; candidates with no nationality are ignored, but at least one valid value is required. A Wikidata ID is saved only for a single candidate. Conflicting values are skipped. Dry runs perform lookups and print proposed changes but do not write to the database; lookup failures are reported separately and cause a nonzero exit.
 
+**Troubleshooting "cannot find authors" issue (2026-11-01):**
+When running the author nationality enrichment, if no authors are found or the process appears to fail, check the following:
+
+1. **All authors already have nationality** — The enrichment queries `prisma.author.findMany({ where: { nationality: null } })`. If all authors already have a nationality value set, the list will be empty and the process will report "0 authors without nationality selected." Check the database to verify.
+
+2. **Author names don't match Wikidata/Open Library** — If authors don't have a `wikidataId` stored in the database, the script searches Wikidata by name (using `findWikidataIdsByName`) and/or Open Library (using `findOpenLibraryWikidataIds`). Author names must match exactly (case-insensitive, normalized). Names with unusual formatting, abbreviations, or non-Latin characters may not find matches.
+
+3. **Multiple candidates with conflicting nationalities** — When multiple Wikidata/Open Library candidates are found for an author, their nationalities must all agree. If they conflict or if any candidate has no nationality value, the author is skipped with the message "Exact-name Wikidata records have missing, conflicting, or multiple nationality values."
+
+4. **Dry run vs execute** — Running with `--execute` flag actually writes to the database. Without it, the process is a dry run that only prints proposed changes.
+
+To debug, run the enrichment script with `--limit 5 --execute` to see the first few authors' lookup results, or check the database directly for authors without nationality.
+
 **Author nationality & country features (2026-11-05):**
 * **Schema** — added `nationality` field (`String?`, ISO 3166-1 alpha-2 country code) to `Author` model in `prisma/schema.prisma`.
 * **AuthorPortrait** — enhanced to display author's nationality flag based on ISO country code, with United Nations flag fallback when nationality is unknown.

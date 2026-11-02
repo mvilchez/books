@@ -165,6 +165,7 @@ export default function AuthorPortrait({
           />
         ) : null}
         {openLibrarySourceUrl ? (
+          links ? (
           <div className="ms-2 align-middle">
             <Link
               href={openLibrarySourceUrl}
@@ -175,6 +176,13 @@ export default function AuthorPortrait({
               View on OpenLibrary
             </Link>
           </div>
+        ) : (
+          <div className="ms-2 align-middle">
+            <span className="text-[10px] text-slate-400">
+              View on OpenLibrary
+            </span>
+          </div>
+        )
         ) : null}
         {portraitUrl && openLibrarySourceUrl ? (
           links ? (

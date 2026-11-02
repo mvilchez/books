@@ -14,13 +14,6 @@ type BookWithAuthorAndGenre = Prisma.BookGetPayload<{
   include: { author: true; genre: true };
 }>;
 
-const dateFormatter = new Intl.DateTimeFormat("es-ES", {
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-  timeZone: "UTC",
-});
-
 export default function BookCard({
   book,
   returnTo,
@@ -44,8 +37,12 @@ export default function BookCard({
       : isCompleted
         ? 100 // finished, but the source had no page count (pre-2014 rows)
         : 0;
-  const formatDate = (date: Date | null) =>
-    date ? dateFormatter.format(date) : "—";
+  function formatDate(date: Date | null): string {
+  if (!date) return "—";
+  // Use UTC to avoid locale discrepancies between server and client
+  const utc = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return utc.toISOString().split("T")[0]; // YYYY-MM-DD format
+}
 
   return (
     <article className={`rounded-xl border p-5 shadow-xl transition flex flex-col justify-between ${statusStyle.card}`}>
