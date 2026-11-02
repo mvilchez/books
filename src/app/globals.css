@@ -43,6 +43,11 @@ main.min-h-screen :is(a, button, input, select, textarea):focus-visible {
   outline-offset: 3px;
 }
 
+.stats-dashboard figure > div {
+  min-height: 14rem;
+  height: clamp(14rem, 35vw, 18.75rem);
+}
+
 @media (max-width: 767px) {
   input,
   select,

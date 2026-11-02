@@ -16,25 +16,29 @@ const TONES = {
 
 export function Kpi({ label, value, tone }: { label: string; value: string | number; tone: keyof typeof TONES }) {
   return (
-    <div className={`bg-slate-800 p-5 rounded-xl border ${TONES[tone]}`}>
-      <p className="text-slate-400 text-xs font-semibold uppercase">{label}</p>
-      <p className={`text-2xl font-bold mt-2 ${TONES[tone].split(' ')[1]}`}>{value}</p>
+    <div className={`min-w-0 rounded-xl border bg-slate-900/70 p-3 sm:p-4 ${TONES[tone]}`}>
+      <p className="truncate text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400 sm:text-xs">
+        {label}
+      </p>
+      <p className={`mt-1.5 break-words text-xl font-bold sm:text-2xl ${TONES[tone].split(' ')[1]}`}>
+        {value}
+      </p>
     </div>
   );
 }
 
 export function TopList({ title, items }: { title: string; items: { id: string; label: string; value: string }[] }) {
   return (
-    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-      <h3 className="text-lg font-bold text-white mb-4">{title}</h3>
+    <div className="min-w-0 rounded-xl border border-slate-700 bg-slate-800/80 p-4 sm:p-5">
+      <h3 className="mb-4 text-base font-bold text-white sm:text-lg">{title}</h3>
       {items.length === 0 ? (
         <p className="text-slate-400 text-sm italic">No completed books yet.</p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {items.map((item) => (
-            <div key={item.id} className="flex justify-between items-center text-sm">
-              <span className="text-slate-300">{item.label}</span>
-              <span className="bg-slate-900 px-3 py-1 rounded-md text-emerald-400 font-bold">{item.value}</span>
+            <div key={item.id} className="flex min-w-0 items-center justify-between gap-3 rounded-lg bg-slate-900/60 px-3 py-2 text-sm">
+              <span className="min-w-0 truncate text-slate-300">{item.label}</span>
+              <span className="shrink-0 rounded-md bg-slate-950 px-2.5 py-1 text-xs font-bold text-emerald-400 sm:text-sm">{item.value}</span>
             </div>
           ))}
         </div>
@@ -51,8 +55,8 @@ export function TopAuthorsBooks({
   booksByAuthor: AuthorBookList[];
 }) {
   return (
-    <section className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-      <h3 className="text-lg font-bold text-white mb-4">Top 5 authors and their books</h3>
+    <section className="min-w-0 rounded-xl border border-slate-700 bg-slate-800/80 p-4 sm:p-5">
+      <h3 className="mb-4 text-base font-bold text-white sm:text-lg">Top 5 authors and their books</h3>
       {authors.length === 0 ? (
         <p className="text-slate-400 text-sm italic">No completed books yet.</p>
       ) : (
@@ -62,7 +66,7 @@ export function TopAuthorsBooks({
             const completedStyle = getBookStatusPresentation('COMPLETED');
             return (
               <details key={author.id} className="group rounded-lg bg-slate-900/60">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg p-4 text-sm marker:content-none hover:bg-slate-900">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm marker:content-none hover:bg-slate-900 sm:px-4">
                   <Link
                     href={`/search?q=${encodeURIComponent(author.name)}`}
                     aria-label={`Search all books by ${author.name}`}
@@ -109,8 +113,8 @@ export function TopAuthorsBooks({
 
 export function SuggestionsList({ items }: { items: Suggestion[] }) {
   return (
-    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-      <h3 className="text-lg font-bold text-white mb-4">Smart next reading suggestions</h3>
+    <div className="min-w-0 rounded-xl border border-slate-700 bg-slate-800/80 p-4 sm:p-5">
+      <h3 className="mb-4 text-base font-bold text-white sm:text-lg">Smart next reading suggestions</h3>
       {items.length === 0 ? (
         <p className="text-slate-400 text-sm italic">
           Add items to WISH_LIST under your favorite genres to trigger recommendations.
@@ -118,7 +122,7 @@ export function SuggestionsList({ items }: { items: Suggestion[] }) {
       ) : (
         <div className="space-y-4">
           {items.map((book) => (
-            <div key={book.id} className="p-3 bg-slate-900/60 rounded-lg border border-slate-700/40">
+            <div key={book.id} className="rounded-lg border border-slate-700/40 bg-slate-900/60 p-3">
               <h4 className="font-bold text-white text-sm">{book.title}</h4>
               <p className="text-xs text-slate-400 mt-0.5">by {book.author} | {book.genre ?? 'Sin género'}</p>
             </div>
@@ -131,20 +135,18 @@ export function SuggestionsList({ items }: { items: Suggestion[] }) {
 
 export function StatsSkeleton() {
   return (
-    <div className="space-y-10 animate-pulse" aria-busy="true" aria-label="Loading statistics">
-      <div className="flex flex-wrap gap-2">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-8 w-16 rounded-full bg-slate-800" />
+    <div className="animate-pulse space-y-6" aria-busy="true" aria-label="Loading statistics">
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="h-12 rounded-xl border border-slate-800 bg-slate-800/60" />
         ))}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-24 rounded-xl bg-slate-800" />
-        ))}
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className={`h-[360px] rounded-xl bg-slate-800 ${i === 0 ? 'lg:col-span-2' : ''}`} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div
+            key={i}
+            className={`h-[min(70vw,360px)] min-h-56 rounded-xl bg-slate-800 ${i < 2 ? 'lg:col-span-2' : ''}`}
+          />
         ))}
       </div>
     </div>
