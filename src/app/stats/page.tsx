@@ -25,10 +25,10 @@ type StatsSearchParams = PageProps<'/stats'>['searchParams'];
 
 export default function StatsPage(props: PageProps<'/stats'>) {
   return (
-    <main className="min-h-screen bg-slate-900 text-slate-100 p-6 md:p-12">
+    <main className="min-h-screen bg-slate-900 p-4 text-slate-100 sm:p-6 lg:p-12">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4 border-b border-slate-800 pb-6">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white">Reading statistics</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">Reading statistics</h1>
           <p className="text-slate-400 mt-1">Trends, rankings and graphs over the whole ledger.</p>
         </div>
         <div className="flex gap-2">

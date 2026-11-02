@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "currentSessionNumber": 2,
+  "currentSessionStartedAt": "2026-11-02T17:02:04.050Z",
+  "lifetimeTokensSaved": 0,
+  "lifetimeCostSavedUsd": 0,
+  "pastSessions": [
+    {
+      "sessionNumber": 1,
+      "startedAt": "2026-11-02T17:01:13.421Z",
+      "endedAt": "2026-11-02T17:02:04.050Z",
+      "totalTokensSaved": 0,
+      "totalCostSavedUsd": 0,
+      "eventsCount": 0,
+      "modelName": "Auto",
+      "events": []
+    }
+  ]
+}

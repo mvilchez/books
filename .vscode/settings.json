@@ -1,0 +1,80 @@
+{
+  "github.copilot.chat.codeGeneration.instructions": [
+    {
+      "file": ".vscode/copilot-instructions.md"
+    }
+  ],
+  "mcp": {
+    "servers": {
+      "headroom": {
+        "command": "headroom",
+        "args": [
+          "mcp",
+          "serve"
+        ],
+        "type": "stdio",
+        "env": {
+          "HEADROOM_BEACON": "off",
+          "HEADROOM_TELEMETRY": "off",
+          "HEADROOM_OFFLINE": "1",
+          "DO_NOT_TRACK": "1"
+        }
+      },
+      "token-cache": {
+        "command": "node",
+        "args": [
+          "/home/marino/.vscode/extensions/sarfudheen.tokensculpt-1.0.19/dist/cache-server.js",
+          "/home/marino/Documentos/workspace/books"
+        ],
+        "type": "stdio"
+      }
+    }
+  },
+  "github.copilot.chat.codesearch.exclude": {
+    "*.lock": true,
+    "*.min.js": true,
+    "*.min.css": true,
+    "*.map": true,
+    "*.d.ts": true,
+    "*.generated.*": true,
+    "dist/**": true,
+    "build/**": true,
+    "coverage/**": true,
+    ".git/**": true,
+    "node_modules/**": true,
+    ".next/**": true,
+    ".nuxt/**": true,
+    "__pycache__/**": true,
+    "*.pyc": true,
+    "*.pyo": true,
+    "target/**": true,
+    "vendor/**": true,
+    "package-lock.json": true,
+    "yarn.lock": true,
+    "pnpm-lock.yaml": true,
+    ".yarn/**": true
+  },
+  "tokensculpt.activeStrategies": {
+    "codeGraph": false,
+    "outputCompression": true,
+    "verbosityControl": true,
+    "sessionManagement": true,
+    "semanticCache": true,
+    "astSkeleton": true,
+    "contextExclusion": true,
+    "diffOnlyOutput": true,
+    "agentGuardrails": true,
+    "smartModelRouting": true,
+    "gitDiffContext": true,
+    "kvCacheAlignment": true,
+    "commentStripper": true,
+    "testFailureIsolator": true,
+    "rangeSlicing": true,
+    "inlineChatScopePinning": true,
+    "copilotIgnoreGeneration": true,
+    "copilotEditsAwareness": true,
+    "threadResetTrigger": true,
+    "headroomCompression": true
+  },
+  "tokensculpt.profile": "custom"
+}

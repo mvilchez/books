@@ -15,7 +15,7 @@ export default function SagasPage() {
 async function SagaList() {
   const sagas = await getSagaList();
   return (
-    <main className="min-h-screen bg-slate-900 p-6 text-slate-100 md:p-12">
+    <main className="min-h-screen bg-slate-900 p-4 text-slate-100 sm:p-6 lg:p-12">
       <div className="mx-auto max-w-6xl space-y-6">
         <Link
           href="/"
@@ -25,7 +25,7 @@ async function SagaList() {
         </Link>
         <header className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-800 pb-5">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-white">
+            <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
               Book sagas
             </h1>
             <p className="mt-1 text-sm text-slate-400">

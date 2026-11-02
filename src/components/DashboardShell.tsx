@@ -145,21 +145,23 @@ const [userPanelOpen, setUserPanelOpen] = useState<boolean>(false);
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-slate-900 text-slate-100 md:flex-row">
+    <div className="flex min-h-dvh flex-col bg-slate-900 text-slate-100 md:h-dvh md:min-h-0 md:flex-row md:overflow-hidden">
       <aside
         id="dashboard-menu"
-        className={`shrink-0 overflow-hidden border-b border-slate-800 transition-[width] duration-300 ease-in-out md:border-b-0 md:border-r ${
-          menuOpen ? "w-full md:w-64" : "h-0 w-0 border-b-0 md:h-auto"
+        className={`shrink-0 overflow-y-auto border-b border-slate-800 transition-[max-height,width] duration-300 ease-in-out md:h-dvh md:overflow-hidden md:border-b-0 md:border-r ${
+          menuOpen
+            ? "max-h-[55dvh] w-full md:max-h-none md:w-64"
+            : "h-0 max-h-0 w-0 border-b-0 md:h-auto"
         }`}
       >
         <div
-          className="flex h-full w-full flex-col gap-3 p-4 md:w-64"
+          className="flex w-full flex-col gap-3 p-4 md:h-full md:w-64"
           inert={!menuOpen}
         >
           <p className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
             Menu
           </p>
-          <nav aria-label="Main" className="flex flex-col gap-2">
+          <nav aria-label="Main" className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:flex md:flex-col">
             {MENU_ENTRIES.map(({ href, label, primary, Icon }) => {
               const active = pathname === href;
               return (
@@ -169,8 +171,8 @@ const [userPanelOpen, setUserPanelOpen] = useState<boolean>(false);
                   aria-current={active ? "page" : undefined}
                   className={
                     primary
-                      ? "inline-flex items-center justify-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-center text-sm font-bold text-slate-950 transition hover:bg-emerald-400"
-                      : `inline-flex items-center justify-center gap-2 rounded-full border px-4 py-2 text-center text-sm font-semibold transition ${
+                      ? "inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-center text-sm font-bold text-slate-950 transition hover:bg-emerald-400"
+                      : `inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 py-2 text-center text-sm font-semibold transition ${
                           active
                             ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
                             : "border-slate-700 text-slate-300 hover:border-emerald-500/50 hover:text-white"
@@ -189,7 +191,7 @@ const [userPanelOpen, setUserPanelOpen] = useState<boolean>(false);
               onClick={toggleMenu}
               aria-expanded={menuOpen}
               aria-controls="dashboard-menu"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
             >
               <ChevronsLeftIcon />
               <span>Close menu</span>
@@ -198,9 +200,9 @@ const [userPanelOpen, setUserPanelOpen] = useState<boolean>(false);
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
-        <header className="sticky top-0 z-10 flex flex-col gap-4 border-b border-slate-800 bg-slate-900 px-6 py-6 md:flex-row md:items-center md:justify-between md:px-12">
-          <div className="flex items-center gap-4">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col md:overflow-y-auto">
+        <header className="sticky top-0 z-10 flex flex-col gap-4 border-b border-slate-800 bg-slate-900 px-4 py-4 sm:px-6 sm:py-5 lg:px-10">
+          <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={toggleMenu}
@@ -208,31 +210,33 @@ const [userPanelOpen, setUserPanelOpen] = useState<boolean>(false);
               aria-controls="dashboard-menu"
               aria-label={menuOpen ? "Close menu" : "Open menu"}
               title={menuOpen ? "Close menu" : "Open menu"}
-              className="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-700 p-2 text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-slate-700 p-2 text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
             >
               {menuOpen ? <ChevronsLeftIcon /> : <ChevronsRightIcon />}
             </button>
             <div>
               <BooksIcon />
-              <h1 className="text-3xl font-extrabold tracking-tight text-white">
+              <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
                 {title}
               </h1>
-              <p className="text-slate-400 mt-1">{subtitle}</p>
+              <p className="mt-1 text-sm text-slate-400 sm:text-base">{subtitle}</p>
             </div>
           </div>
-          {search}
-<button
-          type="button"
-          onClick={() => setUserPanelOpen(!userPanelOpen)}
-          aria-expanded={userPanelOpen}
-          aria-label={userPanelOpen ? "Collapse user panel" : "Expand user panel"}
-          className="inline-flex items-center rounded-lg border border-slate-700 p-2 text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
-        >
-          {userPanelOpen ? <ChevronsLeftIcon /> : <ChevronsRightIcon />}
-        </button>
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="min-w-0 flex-1">{search}</div>
+            <button
+              type="button"
+              onClick={() => setUserPanelOpen(!userPanelOpen)}
+              aria-expanded={userPanelOpen}
+              aria-label={userPanelOpen ? "Collapse user panel" : "Expand user panel"}
+              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-slate-700 p-2 text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+            >
+              {userPanelOpen ? <ChevronsLeftIcon /> : <ChevronsRightIcon />}
+            </button>
+          </div>
         </header>
           {userPanelOpen && (
-            <div className="absolute right-0 top-0 w-64 bg-slate-800 rounded-lg p-4 space-y-4 shadow-lg z-20">
+            <div className="absolute right-4 top-24 z-20 w-64 max-w-[calc(100vw-2rem)] space-y-4 rounded-lg bg-slate-800 p-4 shadow-lg sm:right-6 lg:right-10">
               <div className="flex items-center justify-between text-slate-300">
                 <div className="flex items-center gap-2">
                   <div className="h-8 w-8 rounded-full bg-slate-600 flex items-center justify-center text-sm font-medium">
@@ -260,7 +264,7 @@ const [userPanelOpen, setUserPanelOpen] = useState<boolean>(false);
             </div>
           )}
 
-        <main className="flex-1 p-6 md:p-12">{children}</main>
+        <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-10 xl:p-12">{children}</main>
       </div>
     </div>
   );

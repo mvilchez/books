@@ -138,7 +138,7 @@ async function DashboardContent({
           <Link
             href={dashboardHref({ selectedYear: year - 1 })}
             aria-label={`Previous year: ${year - 1}`}
-            className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+            className="inline-flex min-h-11 items-center rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
           >
             ← Previous
           </Link>
@@ -148,7 +148,7 @@ async function DashboardContent({
           <Link
             href={dashboardHref({ selectedYear: year + 1 })}
             aria-label={`Next year: ${year + 1}`}
-            className="rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+            className="inline-flex min-h-11 items-center rounded-full border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
           >
             Next →
           </Link>
@@ -324,8 +324,8 @@ function BookList({
       : "—";
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-700/60">
-      <table className="min-w-full divide-y divide-slate-700 text-left text-sm">
+    <div className="max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-slate-700/60">
+      <table className="min-w-[64rem] divide-y divide-slate-700 text-left text-sm">
         <thead className="bg-slate-800 text-xs uppercase tracking-wide text-slate-400">
           <tr>
             <th scope="col" className="px-4 py-3">Book</th>

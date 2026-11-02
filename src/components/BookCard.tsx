@@ -45,10 +45,10 @@ export default function BookCard({
 }
 
   return (
-    <article className={`rounded-xl border p-5 shadow-xl transition flex flex-col justify-between ${statusStyle.card}`}>
+    <article className={`flex min-w-0 flex-col justify-between rounded-xl border p-4 shadow-xl transition sm:p-5 ${statusStyle.card}`}>
       <Link
         href={`/books/${book.id}`}
-        className="group flex gap-4 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+        className="group flex min-w-0 gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:gap-4"
         aria-label={`View details for ${book.title} by ${book.author.name}`}
       >
         <BookCover

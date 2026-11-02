@@ -35,21 +35,21 @@ export default function DashboardSortControls({
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-800 bg-slate-800/40 p-4">
-      <label className="grid gap-1 text-xs font-semibold text-slate-400">
+    <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-800/40 p-4 sm:flex-row sm:items-end">
+      <label className="grid w-full gap-1 text-xs font-semibold text-slate-400 sm:w-auto">
         Sort by
         <select
           name="sort"
           value={sort}
           onChange={(event) => applySort(parseDashboardSort(event.target.value))}
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+          className="min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white sm:w-auto"
         >
           <option value="startDate">Start date</option>
           <option value="author">Author</option>
           <option value="title">Title</option>
         </select>
       </label>
-      <label className="grid gap-1 text-xs font-semibold text-slate-400">
+      <label className="grid w-full gap-1 text-xs font-semibold text-slate-400 sm:w-auto">
         Direction
         <select
           name="direction"
@@ -57,7 +57,7 @@ export default function DashboardSortControls({
           onChange={(event) =>
             applySort(sort, parseSortDirection(event.target.value, direction))
           }
-          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"
+          className="min-h-11 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white sm:w-auto"
         >
           <option value="asc">Ascending</option>
           <option value="desc">Descending</option>

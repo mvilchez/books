@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { findAuthorsWithoutNationality } from "@/lib/author-nationality-service";
+import { getAuthorsWithoutNationality } from "@/app/actions/authorNationalityActions";
 import { LoadingIcon, CheckIcon, AlertCircleIcon, RefreshCwIcon } from "@/components/icons";
 
 interface AuthorNationality {
@@ -19,37 +19,38 @@ export default function EnrichAuthorNationalityPage() {
   const [progress, setProgress] = useState(0);
   const [message, setMessage] = useState("");
 
-  const loadAuthors = async () => {
+  const loadAuthors = async (): Promise<AuthorNationality[]> => {
     try {
-      const data = await findAuthorsWithoutNationality();
-      setAuthors(
-        data.map((author): AuthorNationality => ({
-          id: author.id,
-          name: author.name,
-          currentNationality: null,
-          targetNationality: null,
-          status: "pending",
-          progress: 0,
-        }))
-      );
+      const data = await getAuthorsWithoutNationality();
+      const mapped = data.map((author): AuthorNationality => ({
+        id: author.id,
+        name: author.name,
+        currentNationality: null,
+        targetNationality: null,
+        status: "pending",
+        progress: 0,
+      }));
+      setAuthors(mapped);
+      return mapped;
     } catch (error) {
       setMessage("Failed to load authors");
+      return [];
     }
   };
 
   const startEnrichment = async () => {
-    // First load the authors if not already loaded
-    await loadAuthors();
-    
-    if (authors.length === 0) {
+    // (Re)load authors first so we work with the latest list, not stale state.
+    const freshAuthors = await loadAuthors();
+
+    if (freshAuthors.length === 0) {
       setMessage("No authors without nationality to enrich.");
       setIsRunning(false);
       return;
     }
-    
+
     setIsRunning(true);
     setProgress(0);
-    setMessage(`Starting enrichment for ${authors.length} authors...`);
+    setMessage(`Starting enrichment for ${freshAuthors.length} authors...`);
     
     try {
       // Call the API route to run the enrichment script
