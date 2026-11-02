@@ -139,8 +139,12 @@ export function parseWikidataCountryCodes(
       if (claim?.rank === "deprecated") continue;
       const mainsnak = record(claim?.mainsnak);
       const datavalue = record(mainsnak?.datavalue);
-      const code = record(datavalue?.value);
-      const alpha2 = code?.value;
+      const rawCode = datavalue?.value;
+      // P297 (ISO 3166-1 alpha-2 code) is a string datatype on Wikidata, so
+      // datavalue.value is the raw code string ("GB"), not a wikibase entity
+      // object. Accept both shapes defensively.
+      const alpha2 =
+        typeof rawCode === "string" ? rawCode : record(rawCode)?.value;
       if (typeof alpha2 === "string" && /^[A-Z]{2}$/.test(alpha2)) {
         codes.add(alpha2);
       }

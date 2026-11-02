@@ -309,3 +309,13 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 * `src/components/SagaCardCover.tsx` — removed unoptimized prop from next/Image component to allow automatic image optimization and caching for saga cover collages.
 * Validation — `npm test` 67/67, `npm run build` compiled successfully.
 * **Local PostgreSQL development (2026-11-05):** Set up `.env.local` with `DATABASE_URL="postgresql://book:password@127.0.0.1:5432/reading_tracker_local"` to connect seamlessly to the local PostgreSQL database when running `npm run dev`. The `.env.local` file takes precedence over `.env` in Next.js, allowing developers to use the local database without affecting the remote NeonDB configuration in `.env.production`.
+
+**Author nationality enrichment retrieves no nationality (2026-11-02):**
+* **Root cause** — `parseWikidataCountryCodes()` in `src/lib/author-nationality.ts` treated the `P297` (ISO 3166-1 alpha-2 code) claim value as a wikibase-entity object (`datavalue.value.value.id`), but P297 is a string datatype on Wikidata, so `datavalue.value` is the raw code string (`"GB"`). `record("GB")` returned `null`, so `countryCodes` was always empty and every author was skipped at `if (countryCodes.length !== 1)` — the enrich endpoint ran but updated zero authors.
+* **Fix** — `parseWikidataCountryCodes` now accepts the raw string datavalue directly (the object shape is kept defensively). Updated `src/lib/author-nationality.test.ts` so the `P297` parser test uses the real Wikidata wire format plus a non-string rejection case.
+* **Validation** — `npm test` 73/73, `npm run build` compiled successfully, `npm run lint` introduces no new issues (only the pre-existing `page.tsx` set-state-in-effect error remains).
+
+**Unknown nationality count shown during enrichment progress (2026-11-02):**
+* **Problem** — The enrichment progress endpoint exposed `total/processed/updated/skipped/failed` but no live count of how many authors still lack a nationality, so the client could only show a percentage complete.
+* **Fix** — Added an `unknown` field (total − updated) to `EnrichmentProgress` in `src/lib/enrichment-progress.ts`, initialized in `resetProgress()`, set to `authors.length` at job start and recomputed as `authors.length - updated` after each author in the enrich route. The progress `GET` route returns it automatically. The client page (`src/app/enrich-author-nationality/page.tsx`) polls it and renders `({unknown} still unknown)` next to the percentage while enrichment runs.
+* **Validation** — `npm test` 73/73, `npm run build` compiled successfully (TypeScript clean), `npm run check:encapsulation` OK.

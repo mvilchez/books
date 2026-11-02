@@ -14,6 +14,8 @@ export interface EnrichmentProgress {
   updated: number;
   skipped: number;
   failed: number;
+  /** Authors whose nationality is still unknown (total − updated). */
+  unknown: number;
   status: "idle" | "running" | "completed" | "error";
 }
 
@@ -23,6 +25,7 @@ let current: EnrichmentProgress = {
   updated: 0,
   skipped: 0,
   failed: 0,
+  unknown: 0,
   status: "idle",
 };
 
@@ -41,6 +44,7 @@ export function resetProgress(): void {
     updated: 0,
     skipped: 0,
     failed: 0,
+    unknown: 0,
     status: "idle",
   };
 }

@@ -17,6 +17,7 @@ export default function EnrichAuthorNationalityPage() {
   const [authors, setAuthors] = useState<AuthorNationality[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [unknown, setUnknown] = useState(0);
   const [message, setMessage] = useState("");
 
   const loadAuthors = async (): Promise<AuthorNationality[]> => {
@@ -62,6 +63,7 @@ export default function EnrichAuthorNationalityPage() {
         if (res.ok) {
           const data = await res.json();
           setProgress((data.processed / Math.max(data.total, 1)) * 100);
+          setUnknown(data.unknown ?? 0);
           if (data.status === "completed" || data.status === "error") {
             stopPolling = true;
           }
@@ -119,7 +121,7 @@ export default function EnrichAuthorNationalityPage() {
         <button
           onClick={loadAuthors}
           disabled={isRunning}
-          className="mr-2 px-3 py-2 rounded border border-slate-700 text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+          className="mr-2 px-4 py-2 rounded border border-slate-500 text-slate-200 transition-colors hover:bg-slate-800 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <RefreshCwIcon /> Refresh List
         </button>
@@ -143,7 +145,7 @@ export default function EnrichAuthorNationalityPage() {
       {isRunning && (
         <div className="mb-4">
           <p className="text-sm mb-2">
-            Processing {progress.toFixed(1)}% complete
+            Processing {progress.toFixed(1)}% complete ({unknown} still unknown)
           </p>
           <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
             <div className="h-full bg-emerald-600" style={{ width: progress + "%" }}></div>

@@ -103,7 +103,7 @@ test("reads non-deprecated country-of-citizenship claims", () => {
 test("reads only valid ISO alpha-2 country codes and deduplicates results", () => {
   const makeEntity = (code: unknown) => ({
     claims: {
-      P297: [{ mainsnak: { datavalue: { value: { value: code } } } }],
+      P297: [{ mainsnak: { datavalue: { value: code } } }],
     },
   });
   assert.deepEqual(
@@ -113,9 +113,10 @@ test("reads only valid ISO alpha-2 country codes and deduplicates results", () =
           Q145: makeEntity("GB"),
           Q30: makeEntity("US"),
           Q999: makeEntity("gbr"),
+          Q112: makeEntity(123),
         },
       },
-      ["Q145", "Q30", "Q999", "Q145"],
+      ["Q145", "Q30", "Q999", "Q112", "Q145"],
     ),
     ["GB", "US"],
   );

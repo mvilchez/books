@@ -36,7 +36,15 @@ export async function POST(request: Request) {
     let failed = 0;
 
     resetProgress();
-    setProgress({ total: authors.length, processed: 0, updated: 0, skipped: 0, failed: 0, status: "running" });
+    setProgress({
+      total: authors.length,
+      processed: 0,
+      updated: 0,
+      skipped: 0,
+      failed: 0,
+      unknown: authors.length,
+      status: "running",
+    });
 
     for (let i = 0; i < authors.length; i++) {
       const author = authors[i];
@@ -142,6 +150,7 @@ export async function POST(request: Request) {
         updated,
         skipped,
         failed,
+        unknown: authors.length - updated,
         status: "running",
       });
     }
