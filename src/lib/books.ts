@@ -988,7 +988,7 @@ export async function getAuthorsWithNationality(): Promise<MapDataPoint[]> {
     mapData.push({
       country: code,
       countryName,
-      flag: `/flags/${code.toLowerCase()}.svg`,
+      flag: `https://flagcdn.com/${code.toLowerCase()}.svg`,
       bookCount: count,
     });
   }

@@ -21,11 +21,11 @@ function getNationalityFlagUrl(countryCode: string | null | undefined): string |
   // Validate ISO 3166-1 alpha-2 format (two uppercase letters)
   if (!/^[A-Z]{2}$/.test(code)) return null;
   // Use flagcdn.com for country flags
-  return `/flags/${code.toLowerCase()}.svg`;
+  return `https://flagcdn.com/${code.toLowerCase()}.svg`;
 }
 
 function getUnFlagUrl(): string {
-  return "/flags/un.svg";
+  return "https://flagcdn.com/un.svg";
 }
 
 function trustedPortraitUrl(value: string | null): string | null {
