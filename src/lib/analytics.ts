@@ -5,8 +5,8 @@ import { computeValueScore } from '@/lib/book-value';
 import { rankSimilar } from '@/lib/similar-books';
 import type { SimilarCandidate } from '@/lib/similar-books';
 import type {
-  AllTimeKpis, AuthorMetric, AuthorRank, BookRankItem, CumulativePoint,
-  DiscoveryMetrics, GenreShare, MetadataCoverage, MonthPacePoint,
+  AllTimeKpis, AuthorMetric, AuthorRank, BookRankItem, CountryStat,
+  CumulativePoint, DiscoveryMetrics, GenreShare, MetadataCoverage, MonthPacePoint,
   OriginShare, PublicationEraBucket, SeriesProgress, SimilarBook, SubjectShare,
   RatingDistribution, Suggestion, YearKpis, YearlyTrendPoint,
 } from '@/lib/analytics-types';
@@ -201,6 +201,46 @@ export async function getTopAuthors(limit = 10): Promise<AuthorRank[]> {
       portraitLicense: a.portraitLicense,
       portraitLicenseUrl: a.portraitLicenseUrl,
     }));
+}
+
+/**
+ * Authors and completed books per author nationality (country code).
+ * An author counts once, in their single nationality; books are the completed
+ * books of authors of that nationality.
+ */
+export async function getCountryStats(): Promise<CountryStat[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  const [authors, bookCounts] = await Promise.all([
+    prisma.author.findMany({
+      where: {
+        nationality: { not: null },
+        books: { some: { userId, status: 'COMPLETED' } },
+      },
+      select: { id: true, nationality: true },
+    }),
+    prisma.book.groupBy({
+      by: ['authorId'],
+      where: { userId, status: 'COMPLETED' },
+      _count: { _all: true },
+    }),
+  ]);
+  const booksByAuthor = new Map<string, number>();
+  for (const row of bookCounts) {
+    booksByAuthor.set(row.authorId, row._count._all);
+  }
+  const byCountry = new Map<string, { authors: number; books: number }>();
+  for (const author of authors) {
+    const code = author.nationality!.toUpperCase().trim();
+    if (!/^[A-Z]{2}$/.test(code)) continue;
+    const entry = byCountry.get(code) ?? { authors: 0, books: 0 };
+    entry.authors += 1;
+    entry.books += booksByAuthor.get(author.id) ?? 0;
+    byCountry.set(code, entry);
+  }
+  return Array.from(byCountry.entries())
+    .map(([country, stats]) => ({ country, ...stats }))
+    .sort((a, b) => b.books - a.books || a.country.localeCompare(b.country));
 }
 
 /**

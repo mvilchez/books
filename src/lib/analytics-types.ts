@@ -76,6 +76,13 @@ export interface DiscoveryMetrics {
 
 export interface OriginShare { origin: string; books: number }
 
+/** Authors and completed books read per author nationality (ISO 3166-1 alpha-2). */
+export interface CountryStat {
+  country: string;
+  authors: number;
+  books: number;
+}
+
 export interface PublicationEraBucket { era: string; books: number }
 
 export interface AllTimeKpis {

@@ -50,6 +50,12 @@ export default function StatsPage(props: PageProps<'/stats'>) {
             Export CSV
           </a>
           <Link
+            href="/stats/countries"
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-slate-700 px-4 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+          >
+            Mapa mundi
+          </Link>
+          <Link
             href="/"
             className="inline-flex min-h-11 items-center justify-center rounded-full border border-slate-700 px-4 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
           >
