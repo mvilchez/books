@@ -328,3 +328,18 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 * **Problem** — The enrichment progress endpoint exposed `total/processed/updated/skipped/failed` but no live count of how many authors still lack a nationality, so the client could only show a percentage complete.
 * **Fix** — Added an `unknown` field (total − updated) to `EnrichmentProgress` in `src/lib/enrichment-progress.ts`, initialized in `resetProgress()`, set to `authors.length` at job start and recomputed as `authors.length - updated` after each author in the enrich route. The progress `GET` route returns it automatically. The client page (`src/app/enrich-author-nationality/page.tsx`) polls it and renders `({unknown} still unknown)` next to the percentage while enrichment runs.
 * **Validation** — `npm test` 73/73, `npm run build` compiled successfully (TypeScript clean), `npm run check:encapsulation` OK.
+
+**Manual nationality assignment from unknown-author list (2026-11-02):**
+* **Problem** — The unknown-authors list only showed name/Current/Target/Status columns; there was no way to manually assign a nationality to an author whose Wikidata lookup failed or returned no result.
+* **Fix** — Added `updateAuthorNationalityManual()` to `src/lib/author-nationality-service.ts` and `setAuthorNationality()` server action. Added a curated `COMMON_COUNTRIES` list (40 common author-nationality countries, ISO 3166-1 alpha-2 + name, sorted by name) to `src/lib/author-nationality.ts`. Reworked the table in `src/app/enrich-author-nationality/page.tsx` to replace the Current/Target/Status columns with a per-row country `<select>` dropdown (populated from `COMMON_COUNTRIES`) plus a Save button; saving calls the server action and removes the author from the list, and the row shows a saving spinner. Refresh button styling was also improved (see earlier delta).
+* **Validation** — `npm test` 73/73, `npm run build` compiled successfully (TypeScript clean), `npm run check:encapsulation` OK.
+
+**Delete orphan authors (authors without books) (2026-11-02):**
+* **Problem** — The author-nationality page had no way to clean up orphan authors (authors with no associated books), which accumulate from imports and manual edits.
+* **Fix** — Added `findOrphanAuthors()` and `deleteOrphanAuthors()` to `src/lib/author-nationality-service.ts` (queries authors where `books: { none: {} }`, deletes them via `deleteMany`). Added `deleteOrphanAuthorsAction()`, `countOrphanAuthors()`, and `getOrphanAuthors()` server actions. Added a red "Delete Orphan Authors (N)" button that first opens a modal listing the exact orphan authors (with Cancel option), then a Confirm Delete button per author count. Modal shows spinner while loading. Refreshes count afterward.
+* **Validation** — `npm test` 73/73, `npm run build` compiled successfully (TypeScript clean), `npm run check:encapsulation` OK.
+
+**View orphan authors before deletion (2026-11-02):**
+* **Problem** — Deleting orphan authors risked accidental deletion with no visibility into which authors would be removed.
+* **Fix** — Added a modal workflow: clicking "Delete Orphan Authors (N)" first fetches and shows the list of orphan authors in a centered modal with a Cancel button. The Confirm Delete button only appears after the list is loaded and displays the exact number to be deleted (`Delete N`). Modal shows a spinner while loading. Refreshes the orphan count afterward.
+* **Validation** — `npm test` 73/73, `npm run build` compiled successfully (TypeScript clean), `npm run check:encapsulation` OK.
