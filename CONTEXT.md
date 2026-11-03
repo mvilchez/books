@@ -321,6 +321,11 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 * **Placement** — Placed inside the user panel within `DashboardShell` (`src/components/DashboardShell.tsx`, line 309), appearing alongside the "Account" link and "Change password" button when the user clicks on their name/avatar in the header.
 * This completes the logout functionality in the user menu profile, moved from the previous floating bottom-right button placement (2026-10-25) to the top-left user menu profile (2026-11-05).
 
+**Email type definitions fix (2026-11-12):**
+* **Problem** — `src/lib/email.ts(9,18): error TS2503: Cannot find namespace 'nodemailer'` — TypeScript could not resolve the `nodemailer` namespace despite the `nodemailer` npm package being installed.
+* **Fix** — Installed `@types/nodemailer@8.0.2` as a dev dependency (`package.json`). This provides the TypeScript type definitions needed for proper namespace resolution. No source code changes to `email.ts` were required.
+* **Verification** — `npm test` 73/73 passing; TypeScript can now resolve `nodemailer.Transporter` and related types.
+
 **Personal account view + email confirmation on signup (2026-11-12):**
 * **Schema** — added `emailVerified` Boolean (`@default(false)`, `@map("email_verified")`) to `User` model in `prisma/schema.prisma`.
 * **Auth lib** (`src/lib/auth.ts`) — added `getUnverifiedUserByEmail()` (selects `id`, `email`, `name`, `emailVerified`, `passwordHash`), `markEmailAsVerified()`, `updateUserProfile()`, and `emailVerified` field on `CurrentUser` type returned by `getCurrentUser()`.
@@ -368,4 +373,4 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 **View orphan authors before deletion (2026-11-02):**
 * **Problem** — Deleting orphan authors risked accidental deletion with no visibility into which authors would be removed.
 * **Fix** — Added a modal workflow: clicking "Delete Orphan Authors (N)" first fetches and shows the list of orphan authors in a centered modal with a Cancel button. The Confirm Delete button only appears after the list is loaded and displays the exact number to be deleted (`Delete N`). Modal shows a spinner while loading. Refreshes the orphan count afterward.
-* **Validation** — `npm test` 73/73, `npm run build` compiled successfully (TypeScript clean), `npm run check:encapsulation` OK.
+* **Validation** — `npm test` 73/73, `npm run build` compiled successfully (TypeScript clean), `npm run check:encapsulation` OK.`n**Image caching on local FS (2026-11-11):**
