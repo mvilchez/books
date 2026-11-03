@@ -302,9 +302,14 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 
 
 **Enrich Author Nationality page fixes (2026-11-11):**
-* **Root cause** — `/enrich-author-nationality` is a `"use client"` page that called the Prisma-backed `findAuthorsWithoutNationality()` directly in a `useEffect`, so no authors loaded in the browser; and `startEnrichment` checked the stale `authors` state right after `await loadAuthors()`, so the button returned early with "No authors without nationality to enrich."
+**Enrich Author Nationality page fixes (2026-11-11):**
+* **Root cause** — `/enrich-author-nationality` is a "use client" page that called the Prisma-backed `findAuthorsWithoutNationality()` directly in a `useEffect`, so no authors loaded in the browser; and `startEnrichment` checked the stale `authors` state right after `await loadAuthors()`, so the button returned early with "No authors without nationality to enrich."
 * **Fix** — Added `src/app/actions/authorNationalityActions.ts` exposing `getAuthorsWithoutNationality()`, a server action that reads through `@/lib/author-nationality-service`. The page now loads authors via that action and uses the freshly returned list (not stale state) to decide whether to start enrichment. Enrichment still POSTs to `/api/v1/author-nationality/enrich`.
 * **Validation** — `npm test` 73/73, `npm run check:encapsulation` OK, `npm run build` compiled successfully. (`page.tsx` retains a pre-existing `react-hooks/set-state-in-effect` lint error and 3 pre-existing unused-variable warnings also present in the original; no new lint issues introduced.)
+
+**Return-to-main-view button added (2026-11-12):**
+* **`src/app/enrich-author-nationality/page.tsx`** — replaced the standalone "Start Enrichment" button with (a) an `<Link href="/">` "← Return" button in the action row, matching the primary button styling used by sibling pages (`/sagas`, `/stats`, `/mapa-mundi`); and (b) `import Link from "next/link"`.
+* **Validation** — `npm test` 73/73, `npm run build` compiled successfully (no new lint errors; the page retains its pre-existing `react-hooks/set-state-in-effect` lint error and the unrelated `no-unused-vars`/no-img warnings are pre-existing).
 
 **Enrich Author Nationality incremental progress (2026-11-11):**
 * **Problem** — The enrichment POST runs sequentially (~1s per author + Wikidata lookups), so for hundreds of authors the client sat at `0.0%` for several minutes with no feedback, looking stuck.

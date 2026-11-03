@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getAuthorsWithoutNationality, setAuthorNationality, deleteOrphanAuthorsAction, countOrphanAuthors, getOrphanAuthors } from "@/app/actions/authorNationalityActions";
 import { COMMON_COUNTRIES } from "@/lib/author-nationality";
@@ -198,17 +199,12 @@ export default function EnrichAuthorNationalityPage() {
         >
           <RefreshCwIcon /> Refresh List
         </button>
-        <button
-          onClick={startEnrichment}
-          disabled={isRunning || authors.length === 0}
-          className="px-4 py-2 rounded bg-emerald-600 text-white"
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
         >
-          {isRunning ? (
-            <LoadingIcon />
-          ) : (
-            "Start Enrichment"
-          )}
-        </button>
+          ← Return
+        </Link>
         <button
           onClick={openOrphanModal}
           disabled={loadingOrphans || deletingOrphans || isRunning}
