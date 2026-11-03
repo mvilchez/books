@@ -169,6 +169,7 @@ model Genre {
 model User {
   id           String    @id @default(uuid())
   email        String    @unique
+  emailVerified Boolean   @default(false) @map("email_verified")
   name         String?
   passwordHash String    @map("password_hash")
   role         UserRole  @default(USER)

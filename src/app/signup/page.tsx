@@ -1,7 +1,19 @@
+"use client";
+
 import Link from "next/link";
+import { useActionState, useState } from "react";
+import { signupAction } from "@/app/actions/authActions";
 import { AuthForm } from "@/components/AuthForm";
 
 export default function SignupPage() {
+  const [state, formAction, pending] = useActionState(
+    async (_prev: { error?: string; token?: string } | null, formData: FormData) => {
+      return (await signupAction(formData)) ?? null;
+    },
+    null,
+  );
+  const [sent, setSent] = useState(Boolean(state?.token));
+
   return (
     <main className="min-h-dvh bg-slate-950 text-slate-100">
       <div className="mx-auto grid min-h-dvh max-w-6xl items-center gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_27rem] lg:gap-16 lg:px-10">
@@ -29,16 +41,41 @@ export default function SignupPage() {
               Start keeping your reading life in one place.
             </p>
           </div>
-          <AuthForm mode="signup" />
-          <p className="mt-6 border-t border-slate-800 pt-5 text-sm text-slate-400">
-            Already have an account?{" "}
-            <Link
-              href="/login"
-              className="font-semibold text-emerald-400 hover:text-emerald-300"
-            >
-              Log in
-            </Link>
-          </p>
+
+          {!sent ? (
+            <AuthForm mode="signup" />
+          ) : (
+            <div className="space-y-5">
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4">
+                <p className="text-sm font-semibold text-emerald-300">
+                  Check your inbox
+                </p>
+                <p className="mt-1 text-sm text-slate-400">
+                  Your account has been created. Click the link below to confirm
+                  your email address and activate your account:
+                </p>
+                <a
+                  href={`/verify-email?token=${state?.token ?? ""}`}
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-300 hover:bg-emerald-500/20"
+                >
+                  Confirm email address
+                </a>
+                <p className="mt-3 text-xs text-slate-500">
+                  No email? Check your spam folder, or try again.
+                </p>
+              </div>
+              <AuthForm mode="signup" />
+              <p className="mt-6 text-sm text-slate-400">
+                Already have an account?{" "}
+                <Link
+                  href="/login"
+                  className="font-semibold text-emerald-400 hover:text-emerald-300"
+                >
+                  Log in
+                </Link>
+              </p>
+            </div>
+          )}
         </section>
       </div>
     </main>

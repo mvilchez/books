@@ -311,6 +311,27 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 * **`src/app/enrich-author-nationality/page.tsx`** — replaced the standalone "Start Enrichment" button with (a) an `<Link href="/">` "← Return" button in the action row, matching the primary button styling used by sibling pages (`/sagas`, `/stats`, `/mapa-mundi`); and (b) `import Link from "next/link"`.
 * **Validation** — `npm test` 73/73, `npm run build` compiled successfully (no new lint errors; the page retains its pre-existing `react-hooks/set-state-in-effect` lint error and the unrelated `no-unused-vars`/no-img warnings are pre-existing).
 
+**Logout button in users panel (2026-11-12):**
+* **Implementation** — The `LogoutButton` client component (`src/components/LogoutButton.tsx`) is wired to the existing `logoutAction` which destroys the session and redirects to `/login`.
+* **Placement** — Placed inside the user panel within `DashboardShell` (`src/components/DashboardShell.tsx`, line 309), appearing alongside the "Account" link and "Change password" button when the user clicks on their name/avatar in the header.
+* This completes the logout functionality in the user menu profile, moved from the previous floating bottom-right button placement (2026-10-25) to the top-left user menu profile (2026-11-05).
+
+**Logout button in users panel (2026-11-12):**
+* **Implementation** — The `LogoutButton` client component (`src/components/LogoutButton.tsx`) is wired to the existing `logoutAction` which destroys the session and redirects to `/login`.
+* **Placement** — Placed inside the user panel within `DashboardShell` (`src/components/DashboardShell.tsx`, line 309), appearing alongside the "Account" link and "Change password" button when the user clicks on their name/avatar in the header.
+* This completes the logout functionality in the user menu profile, moved from the previous floating bottom-right button placement (2026-10-25) to the top-left user menu profile (2026-11-05).
+
+**Personal account view + email confirmation on signup (2026-11-12):**
+* **Schema** — added `emailVerified` Boolean (`@default(false)`, `@map("email_verified")`) to `User` model in `prisma/schema.prisma`.
+* **Auth lib** (`src/lib/auth.ts`) — added `getUnverifiedUserByEmail()` (selects `id`, `email`, `name`, `emailVerified`, `passwordHash`), `markEmailAsVerified()`, `updateUserProfile()`, and `emailVerified` field on `CurrentUser` type returned by `getCurrentUser()`.
+* **Server actions** (`src/app/actions/authActions.ts`) — `signupAction()` now creates users with `emailVerified: false` and returns `{ token }` (no session, no redirect); `loginAction()` requires `emailVerified === true`; added `verifyEmail()` (wraps `verifyEmailAction`) and `saveProfileAction()` (updates name/email, resets `emailVerified` when email changes).
+* **Signup page** (`src/app/signup/page.tsx`) — after successful signup, shows "Check your inbox" with a "Confirm email address" link to `/verify-email?token=<userId>` instead of auto-redirecting.
+* **Account page** (`src/app/account/page.tsx`) — rewritten as a Server Component showing profile (name/email via `PersonalProfileForm`), password change (`ChangePasswordForm`), and an "Email not verified" banner when `emailVerified` is false.
+* **Profile form** (`src/app/account/PersonalProfileForm.tsx`) — new client component using `useFormState` with `saveProfileAction`, editable name/email fields.
+* **Verify-email route** (`src/app/verify-email/route.ts`) — GET handler verifies email via token, creates session, redirects to `/account`.
+* **Proxy middleware** (`src/proxy.ts`) — added `/verify-email` to `PUBLIC_PATHS`.
+* **Validation** — `npm test` 73/73, `npm run build` compiled successfully, `npm run lint` introduces no new errors (only pre-existing `page.tsx` set-state-in-effect error remains).
+
 **Enrich Author Nationality incremental progress (2026-11-11):**
 * **Problem** — The enrichment POST runs sequentially (~1s per author + Wikidata lookups), so for hundreds of authors the client sat at `0.0%` for several minutes with no feedback, looking stuck.
 * **Fix** — Added `src/lib/enrichment-progress.ts` (in-memory progress store), `src/app/api/v1/author-nationality/progress/route.ts` (GET endpoint), and updated the enrich API route to write progress after each author. The client now polls `/api/v1/author-nationality/progress` every second during enrichment and updates the progress bar accordingly.

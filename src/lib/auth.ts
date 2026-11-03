@@ -11,6 +11,7 @@ export type CurrentUser = {
   id: string;
   email: string;
   name: string | null;
+  emailVerified: boolean;
   role: "USER" | "ADMIN";
 };
 
@@ -43,6 +44,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     id: session.user.id,
     email: session.user.email,
     name: session.user.name,
+    emailVerified: session.user.emailVerified,
     role: session.user.role as "USER" | "ADMIN",
   };
 });
@@ -109,6 +111,33 @@ export async function findUserByEmail(email: string) {
   return prisma.user.findUnique({ where: { email } });
 }
 
+/** Find an unverified user by email, or null. */
+export async function getUnverifiedUserByEmail(email: string) {
+  return prisma.user.findUnique({
+    where: { email },
+    select: { id: true, email: true, name: true, emailVerified: true, passwordHash: true },
+  });
+}
+
+/** Mark the user's email as verified. */
+export async function markEmailAsVerified(userId: string): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { emailVerified: true },
+  });
+}
+
+/** Update the signed-in user's profile (name and/or email). */
+export async function updateUserProfile(
+  userId: string,
+  data: { name: string | null; email: string; emailVerified?: boolean },
+): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data,
+  });
+}
+
 /** Create a new user with a hashed password. */
 export async function createUser(input: {
   name?: string | null;
@@ -123,4 +152,5 @@ export async function createUser(input: {
     },
   });
 }
+
 export { hashPassword, verifyPassword };

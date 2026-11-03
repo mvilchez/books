@@ -293,6 +293,12 @@ export default function DashboardShell({
                   <ChevronsRightIcon />
                 </button>
               </div>
+              <Link
+                href="/account"
+                className="inline-flex items-center rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+              >
+                Account
+              </Link>
               <button
           type="button"
           onClick={() => setUserPanelOpen(false)}
