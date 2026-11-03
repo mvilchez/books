@@ -322,9 +322,13 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 * This completes the logout functionality in the user menu profile, moved from the previous floating bottom-right button placement (2026-10-25) to the top-left user menu profile (2026-11-05).
 
 **Email type definitions fix (2026-11-12):**
-* **Problem** — `src/lib/email.ts(9,18): error TS2503: Cannot find namespace 'nodemailer'` — TypeScript could not resolve the `nodemailer` namespace despite the `nodemailer` npm package being installed.
-* **Fix** — Installed `@types/nodemailer@8.0.2` as a dev dependency (`package.json`). This provides the TypeScript type definitions needed for proper namespace resolution. No source code changes to `email.ts` were required.
-* **Verification** — `npm test` 73/73 passing; TypeScript can now resolve `nodemailer.Transporter` and related types.
+* **Problem** — `src/lib/email.ts(9,18): error TS2503: Cannot find namespace 'nodemailer'` — TypeScript could not resolve the `nodemailer` namespace despite the `nodemailer` npm package being installed. The root cause was a version mismatch: the project had `nodemailer@10.3.1` installed, but the code used `nodemailer.Transporter` which is not how nodemailer v10 exports its types.
+* **Fix** — Updated `src/lib/email.ts` import and type annotations to use nodemailer v10's named type export:
+  - Changed `import nodemailer from "nodemailer"` to `import nodemailer, { type Transporter } from "nodemailer"`
+  - Changed `let transporter: nodemailer.Transporter | null` to `let transporter: Transporter | null`
+  - Changed `function getTransporter(): nodemailer.Transporter | null` to `function getTransporter(): Transporter | null`
+  - Removed `@types/nodemailer@8.0.2` dev dependency (version-incompatible with nodemailer v10; nodemailer v10 includes its own types).
+* **Verification** — `npm run build` compiles successfully; `npm test` 73/73 passing; TypeScript resolves `Transporter` type correctly.
 
 **Personal account view + email confirmation on signup (2026-11-12):**
 * **Schema** — added `emailVerified` Boolean (`@default(false)`, `@map("email_verified")`) to `User` model in `prisma/schema.prisma`.
