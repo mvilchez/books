@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { PersonalProfileForm } from "./PersonalProfileForm";
 import { AlertCircleIcon } from "@/components/icons";
+import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 
 export default function AccountPage() {
   return (
@@ -44,6 +45,7 @@ async function AccountContent() {
         <p className="mb-3 text-sm text-slate-400">
           Update your password. All active sessions are revoked on change.
         </p>
+        <ChangePasswordForm />
       </section>
 
       {!user.emailVerified && (

@@ -322,13 +322,14 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 * This completes the logout functionality in the user menu profile, moved from the previous floating bottom-right button placement (2026-10-25) to the top-left user menu profile (2026-11-05).
 
 **Email type definitions fix (2026-11-12):**
-* **Problem** — `src/lib/email.ts(9,18): error TS2503: Cannot find namespace 'nodemailer'` — TypeScript could not resolve the `nodemailer` namespace despite the `nodemailer` npm package being installed. The root cause was a version mismatch: the project had `nodemailer@10.3.1` installed, but the code used `nodemailer.Transporter` which is not how nodemailer v10 exports its types.
-* **Fix** — Updated `src/lib/email.ts` import and type annotations to use nodemailer v10's named type export:
-  - Changed `import nodemailer from "nodemailer"` to `import nodemailer, { type Transporter } from "nodemailer"`
-  - Changed `let transporter: nodemailer.Transporter | null` to `let transporter: Transporter | null`
-  - Changed `function getTransporter(): nodemailer.Transporter | null` to `function getTransporter(): Transporter | null`
-  - Removed `@types/nodemailer@8.0.2` dev dependency (version-incompatible with nodemailer v10; nodemailer v10 includes its own types).
-* **Verification** — `npm run build` compiles successfully; `npm test` 73/73 passing; TypeScript resolves `Transporter` type correctly.
+* **Root cause** — `/enrich-author-nationality` is a "use client" page that called the Prisma-backed `findAuthorsWithoutNationality()` directly in a `useEffect`, so no authors loaded in the browser; and `startEnrichment` checked the stale `authors` state right after `await loadAuthors()`, so the button returned early with "No authors without nationality to enrich."
+* **Fix** — Added `src/app/actions/authorNationalityActions.ts` exposing `getAuthorsWithoutNationality()`, a server action that reads through `@/lib/author-nationality-service`. The page now loads authors via that action and uses the freshly returned list (not stale state) to decide whether to start enrichment. Enrichment still POSTs to `/api/v1/author-nationality/enrich`.
+* **Validation** — `npm test` 73/73, `npm run check:encapsulation` OK, `npm run build` compiled successfully. (`page.tsx` retains a pre-existing `react-hooks/set-state-in-effect` lint error and 3 pre-existing unused-variable warnings also present in the original; no new lint issues introduced.)
+
+**Change password on account profile (2026-11-12):**
+* **Feature** — Moved `ChangePasswordForm` from standalone component to the account profile view (`src/app/account/page.tsx`), now displayed alongside `PersonalProfileForm` in the Password section
+* **Change** — Added `ChangePasswordForm` import and rendering in the account page's Password section; the form verifies current password, requires minimum 8 chars, and confirms match; all active sessions are revoked on change
+* **Validation** — `npm test` 73/73, `npm run build` compiled successfully
 
 **Personal account view + email confirmation on signup (2026-11-12):**
 * **Schema** — added `emailVerified` Boolean (`@default(false)`, `@map("email_verified")`) to `User` model in `prisma/schema.prisma`.
