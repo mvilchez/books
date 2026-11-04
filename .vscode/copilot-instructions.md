@@ -9,9 +9,10 @@
 - **MANDATORY**: When locating symbols, callers, or implementations, ALWAYS query CodeGraph (`codegraph_explore` or `codegraph`) before grepping.
 - **FORBIDDEN**: NEVER perform brute-force directory grep searches when CodeGraph semantic indexing is available.
 
-### CLI Output Compression
-- **MANDATORY**: Report only test failure details and status summaries — skip passing test lines.
-- **FORBIDDEN**: NEVER run full verbose test suites or print entire git diffs into prompt context without range limits.
+### CLI Output Compression (RTK)
+- **MANDATORY**: When proposing or running terminal commands for `git`, `test`, `build`, `ls`, or `grep`, ALWAYS prefix them with `rtk` (e.g. `rtk git status`, `rtk git diff`, `rtk test`, `rtk ls`).
+- **FORBIDDEN**: NEVER execute or propose raw `git` commands (`git status`, `git diff`, `git log`) directly in terminal. Always route through `rtk git <cmd>` to compress token output by 60-90%.
+- Report only test failure details and status summaries rather than full stdout logs.
 
 ### Concise Direct Responses (full mode)
 - **MANDATORY**: Answer code-first and immediately. Provide dense, direct solutions targeting ~35% response token reduction.

@@ -378,4 +378,13 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 **View orphan authors before deletion (2026-11-02):**
 * **Problem** — Deleting orphan authors risked accidental deletion with no visibility into which authors would be removed.
 * **Fix** — Added a modal workflow: clicking "Delete Orphan Authors (N)" first fetches and shows the list of orphan authors in a centered modal with a Cancel button. The Confirm Delete button only appears after the list is loaded and displays the exact number to be deleted (`Delete N`). Modal shows a spinner while loading. Refreshes the orphan count afterward.
-* **Validation** — `npm test` 73/73, `npm run build` compiled successfully (TypeScript clean), `npm run check:encapsulation` OK.`n**Image caching on local FS (2026-11-11):**
+* **Validation** — `npm test` 73/73, `npm run build` compiled successfully (TypeScript clean), `npm run check:encapsulation` OK.
+
+**TypeScript errors fixed for `npm run dev` (2026-11-12):**
+* **Problem** — `npm run dev` failed with TypeScript errors in `AuthorPortrait.tsx`, `cache-portrait/route.ts`, and `cache-author-portraits.ts`.
+* **Fix** —
+  - `src/components/AuthorPortrait.tsx`: Added missing `size?: string` to props type annotation (the `size` parameter was destructured but not declared in the type).
+  - `src/app/api/cache-portrait/route.ts`: Converted `authorId` (string from `searchParams.get()`) to `number` before passing to `getOpenLibraryAuthorPhotoUrl()` (expects `number` for `photoId`); removed stray `EOF` at end of file.
+  - `src/scripts/cache-author-portraits.ts`: Converted `author.wikidataId` (string | null) to `number` before passing to `getOpenLibraryAuthorPhotoUrl()`.
+* **Validation** — `npx tsc --noEmit` clean for source files, `npm run dev` starts successfully without compilation errors.
+  - `src/app/api/cache-cover/route.ts`: Replaced incorrect dynamic `params` usage (the route has no `[editionKey]` folder, so `params` was always empty) with `searchParams.get("editionKey")`, matching the pattern used by `cache-portrait/route.ts`. This also resolves the Next.js 16 route handler type validator error.

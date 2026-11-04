@@ -2,6 +2,38 @@
   "version": 1,
   "events": [
     {
+      "id": "evt-1793813395486-qwfv",
+      "timestamp": "2026-11-04T17:29:55.486Z",
+      "directive": "Diff-Only Output",
+      "source": "task template.md",
+      "tokensSaved": 56,
+      "costSavedUsd": 0.000168,
+      "details": "Applied 81 token diff hunk instead of rewriting full 137 token file (41% tokens saved)",
+      "sessionNumber": 2,
+      "beforeTokens": 137,
+      "afterTokens": 81,
+      "reductionPercent": 41,
+      "modelName": "Auto",
+      "beforeContent": "Task: <one sentence>\n\nRead first:\n- AGENTS.md\n- CONTEXT.md\n- <exact relevant files only, e.g. src/lib/x.ts, src/lib/x.test.ts>\n\nDo not read:\n- PLAN.md unless historical phase details are needed\n- .next/, node_modules/, DB dumps, lockfiles\n\nConstraints:\n- Minimal targeted change\n- Follow existing patterns/tests\n- Update CONTEXT.md with a dated delta if behavior changes\n\nValidation:\n- <exact commands, e.g. npm test, npm run lint, npm run build>\n\nExpected output:\n- Summary of changed files\n- Commands run and results\n- Any assumptions/limitations",
+      "afterContent": "diff --git a/task template.md b/task template.md\nindex 36aa27f..91c08e3 100644\n--- a/task template.md\t\n+++ b/task template.md\t\n@@ -20,4 +20,4 @@ Validation:\n Expected output:\n - Summary of changed files\n - Commands run and results\n-- Any assumptions/limitations\n+- Any assumptions/limitations\n\\ No newline at end of file\n"
+    },
+    {
+      "id": "evt-1793813373732-cj7g",
+      "timestamp": "2026-11-04T17:29:33.732Z",
+      "directive": "Diff-Only Output",
+      "source": "task template.md",
+      "tokensSaved": 73,
+      "costSavedUsd": 0.000219,
+      "details": "Applied 146 token diff hunk instead of rewriting full 219 token file (33% tokens saved)",
+      "sessionNumber": 2,
+      "beforeTokens": 219,
+      "afterTokens": 146,
+      "reductionPercent": 33,
+      "modelName": "Auto",
+      "beforeContent": "Task: <one sentence>\n\nRead first:\n- AGENTS.md\n- CONTEXT.md\n- <exact relevant files only, e.g. src/lib/x.ts, src/lib/x.test.ts>\n\nDo not read:\n- PLAN.md unless historical phase details are needed\n- .next/, node_modules/, DB dumps, lockfiles\n\nConstraints:\n- Minimal targeted change\n- Follow existing patterns/tests\n- Update CONTEXT.md with a dated delta if behavior changes\n\nValidation:\n- <exact commands, e.g. npm test, npm run lint, npm run build>\n\nExpected output:\n- Summary of changed files\n- Commands run and results\n- Any assumptions/limitations\n\n- Create a cron to backup database \n- Create a pie graph with all author's nationality\n- Organize all features about metadata in left panel by 'Metadata ops'\n- Next books already purchased and pending to read. Add a book to this list, delete, start reading, etc..\n- Wishlist, recommendations, next saga book with intelligence\n",
+      "afterContent": "diff --git a/task template.md b/task template.md\nindex 36aa27f..11557e9 100644\n--- a/task template.md\t\n+++ b/task template.md\t\n@@ -21,3 +21,9 @@ Expected output:\n - Summary of changed files\n - Commands run and results\n - Any assumptions/limitations\n+\n+- Create a cron to backup database \n+- Create a pie graph with all author's nationality\n+- Organize all features about metadata in left panel by 'Metadata ops'\n+- Next books already purchased and pending to read. Add a book to this list, delete, start reading, etc..\n+- Wishlist, recommendations, next saga book with intelligence\n"
+    },
+    {
       "id": "evt-1793641315942-p91h",
       "timestamp": "2026-11-02T17:41:55.942Z",
       "directive": "Diff-Only Output",

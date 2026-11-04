@@ -1194,7 +1194,7 @@ export async function searchOpenLibraryAuthorPhotos(
   for (const candidate of candidates.slice(0, 10)) {
     const { photoId } = await getOpenLibraryAuthorProfile(candidate.authorId);
     if (photoId === null) continue;
-    const photoUrl = getOpenLibraryAuthorPhotoUrl(photoId, "M");
+    const photoUrl = getOpenLibraryAuthorPhotoUrl(photoId, "S");
     if (!photoUrl) continue;
     withPhotos.push({ ...candidate, photoId, photoUrl });
     if (withPhotos.length === 5) break;
@@ -1352,4 +1352,22 @@ export function normalizeNationality(country: string): string {
   };
   const lower = country.toLowerCase().trim();
   return mapping[lower] || country;
+}
+
+import path from "path";
+
+export function getLocalPortraitPath(
+  photoId: number,
+  size: "S" | "M" | "L" = "S",
+): string {
+  return path.join("public", "portraits", `ol${photoId}-${size}.webp`);
+}
+
+export function localPortraitExists(
+  photoId: number,
+  size: "S" | "M" | "L" = "S",
+): boolean {
+  // Return false to avoid fs module resolution issues in Turbopack
+  // The API route (cache-portrait/route.ts) checks file existence inline
+  return false;
 }

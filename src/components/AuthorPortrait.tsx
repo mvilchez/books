@@ -83,8 +83,8 @@ export default function AuthorPortrait({
   searchLink = true,
   nationality,
 }: {
-  author: PortraitAuthor;
-  size?: "small" | "large";
+  author: PortraitAuthor & { wikidataId?: string | null };
+  size?: string;
   links?: boolean;
   nationality?: string;
   searchLink?: boolean;
@@ -99,6 +99,10 @@ export default function AuthorPortrait({
     imageFailed || !hasAttribution
       ? null
       : trustedPortraitUrl(author.portraitUrl);
+
+  const hasWikidataId = typeof author.wikidataId === "string" && author.wikidataId.trim().length > 0;
+  const portraitCacheUrl = hasWikidataId ? `/api/cache-portrait?authorId=${author.wikidataId}` : null;
+  const effectivePortraitUrl = portraitCacheUrl || portraitUrl;
   const isLarge = size === "large";
   const initials = author.name
     .trim()

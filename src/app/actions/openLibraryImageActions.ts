@@ -603,7 +603,7 @@ export async function saveAuthorPhoto(
   photoId: number,
 ): Promise<ActionResult<null>> {
   const sourceUrl = getOpenLibraryAuthorUrl(authorId);
-  const photoUrl = getOpenLibraryAuthorPhotoUrl(photoId, "M");
+  const photoUrl = getOpenLibraryAuthorPhotoUrl(photoId, "S");
   if (!bookId || !sourceUrl || !photoUrl) {
     return { status: "error", message: "Invalid Open Library author photo selection." };
   }
