@@ -36,7 +36,8 @@ function trustedPortraitUrl(value: string | null): string | null {
       url.hostname === "thumb.wikimedia.org" && url.pathname.startsWith("/wikipedia/commons/thumb/");
     const isOpenLibraryImage =
       url.hostname === "covers.openlibrary.org" && /^\/a\/id\/\d+-[SML]\\.jpg$/.test(url.pathname);
-    return url.protocol === "https:" && (isCommonsImage || isOpenLibraryImage) ? url.toString() : null;
+    const isLocalPortrait = url.pathname.startsWith("/portraits/");
+    return url.protocol === "https:" && (isCommonsImage || isOpenLibraryImage || isLocalPortrait) ? url.toString() : null;
   } catch {
     return null;
   }
@@ -93,8 +94,10 @@ export default function AuthorPortrait({
   const sourceUrl = trustedCommonsSourceUrl(author.portraitSourceUrl);
   const openLibrarySourceUrl = trustedOpenLibrarySourceUrl(author.portraitSourceUrl);
   const licenseUrl = trustedHttpsLink(author.portraitLicenseUrl);
-  const hasAttribution = openLibrarySourceUrl !== null ||
-    (!!sourceUrl && !!author.portraitArtist?.trim() && !!author.portraitLicense?.trim());
+  const hasLocalPortraitSource = author.portraitSourceUrl?.startsWith("/portraits/");
+const hasAttribution = openLibrarySourceUrl !== null ||
+    (!!sourceUrl && !!author.portraitArtist?.trim() && !!author.portraitLicense?.trim()) ||
+    hasLocalPortraitSource;
   const portraitUrl =
     imageFailed || !hasAttribution
       ? null
