@@ -72,13 +72,21 @@ export async function getAvailableReadingYears(): Promise<
 }
 
 /** All books of one reading year with author and genre included. */
-export async function getBooksByReadingYear(year: number): Promise<
-  DashboardBook[]
-> {
+export async function getBooksByReadingYear(
+  year: number,
+  status?: "READING" | "COMPLETED"
+): Promise<DashboardBook[]> {
   const userId = await currentUserId();
   if (!userId) return [];
+  const where: { readingYear: number; userId: string; status?: "READING" | "COMPLETED" } = {
+    readingYear: year,
+    userId,
+  };
+  if (status) {
+    where.status = status as "READING" | "COMPLETED";
+  }
   return prisma.book.findMany({
-    where: { readingYear: year, userId },
+    where,
     include: { author: true, genre: true },
   });
 }

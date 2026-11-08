@@ -7,7 +7,7 @@ import {
 import { getUsedTags } from "@/lib/tags";
 import BookSearch from "@/components/BookSearch";
 import DashboardShell from "@/components/DashboardShell";
-import DashboardSortControls from "@/components/DashboardSortControls";
+import DashboardSortAndFilterControls from "@/components/dashboard/DashboardSortAndFilterControls";
 import TagCloud from "@/components/TagCloud";
 import DisclosurePanel from "@/components/DisclosurePanel";
 import { GridIcon, ListIcon } from "@/components/icons";
@@ -21,6 +21,7 @@ import { getYearKpis } from "@/lib/analytics";
 import { PRE_TAB_READING_YEAR_SENTINEL } from "@/lib/ingestion/workbook-parser";
 import {
   DASHBOARD_PAGE_SIZE,
+  parseDashboardFilter,
   parseDashboardPage,
   parseDashboardSort,
   parseSortDirection,
@@ -64,12 +65,15 @@ async function DashboardContent({
     sort: rawSort,
     direction: rawDirection,
     page: rawPage,
+    filter,
   } = await searchParams;
   const requestedYear = typeof rawYear === "string" ? Number(rawYear) : NaN;
-  const requestedYearIsValid =
+const requestedYearIsValid =
     Number.isInteger(requestedYear) && requestedYear >= 1 && requestedYear <= 9999;
   const view: DashboardView = rawView === "list" ? "list" : "cards";
   const sort = parseDashboardSort(rawSort);
+  const statusFilter =
+    filter === "READING" || filter === "COMPLETED" ? filter : undefined;
   const requestedPage = parseDashboardPage(rawPage);
   const hasExplicitDirection = rawDirection === "asc" || rawDirection === "desc";
   const direction = parseSortDirection(
@@ -83,7 +87,7 @@ async function DashboardContent({
     ? requestedYear
     : (latestYear ?? PRE_TAB_READING_YEAR_SENTINEL);
   const [unsortedBooks, kpis, storedTags] = await Promise.all([
-    getBooksByReadingYear(year),
+    getBooksByReadingYear(year, statusFilter),
     getYearKpis(year),
     getUsedTags(),
   ]);
@@ -219,11 +223,12 @@ async function DashboardContent({
           ))}
         </nav>
       </div>
-      <DashboardSortControls
+      <DashboardSortAndFilterControls
         year={year}
         view={view}
         sort={sort}
         direction={direction}
+        filter={parseDashboardFilter(filter)}
       />
       {books.length > DASHBOARD_PAGE_SIZE ? (
         <BookPagination

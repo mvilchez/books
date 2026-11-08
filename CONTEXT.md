@@ -298,7 +298,7 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 
 * **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.
 
-* **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.
+* **Filter card added to main books view (2026-11-12):** Added `DashboardFilterControls` component beside `DashboardSortControls` in the main dashboard page with 'Reading' and 'Read' filters. The filters correspond to Prisma `ReadingStatus` enum values (READING and COMPLETED). Updated `getBooksByReadingYear` in `src/lib/books.ts` to support optional status filtering. Validation — `npm test` 73/73, `npm run lint` 0 errors (2 pre-existing unrelated failures), `npm run build` compiled successfully.
 
 
 **Enrich Author Nationality page fixes (2026-11-11):**
@@ -420,6 +420,13 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 * Added `src/components/charts/NationalityChart.tsx` — Recharts PieChart visualizing author distribution by nationality using `getCountryStats()` from `analytics.ts`
 * Updated `src/app/stats/page.tsx` — Integrated NationalityChart into the main stats page alongside other charts (OriginChart, GenreChart, etc.)
 * Fetches data server-side via `getCountryStats()` and passes it as a prop to the client-side chart component
+
+**Dashboard sort+filter controls (2026-11-08):**
+* Recreated `src/components/dashboard/DashboardSortAndFilterControls.tsx` (file was corrupted to `line1`/`line2` and exported nothing, breaking `src/app/page.tsx`). The module exposes `DashboardSortAndFilterControlsProps` and renders a status filter (Reading/Read, `DashboardFilter`) plus the cards sort selector, navigating via `next/navigation` `useRouter`.
+* `src/app/page.tsx` now imports `parseDashboardFilter` from `@/lib/dashboard` and passes `filter={parseDashboardFilter(filter)}` instead of the `filter as string` cast; `onFilterChange` is typed as `(filter: DashboardFilter) => void`.
+* Deleted stray zero-extension file `src/components/dashboard/DashboardSortAndFilterControls` that would have shadowed module resolution.
+* Validation — `npm run build` compiles successfully (TS errors TS2306/TS7006/TS2304 resolved), `npm test` 71/73 (2 pre-existing open-library-images failures), `npm run lint` no new issues, `npm run check:encapsulation` OK.
+* Runtime fix (2026-11-08): Removed `onFilterChange` prop — a Server Component (`page.tsx`) cannot pass event-handler function props to a Client Component (`"use client"` DashboardSortAndFilterControls). Navigation now lives entirely inside the client component via `useRouter()` + `useSearchParams()` (preserving `view`, resetting `page`), so all props crossing the boundary are serializable (`year`, `view`, `sort`, `direction`, `filter`).
 
 **Plan (ordered by impact):**
 1. Database query optimization - indexes verified optimal
