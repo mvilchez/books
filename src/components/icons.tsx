@@ -192,6 +192,24 @@ export function RefreshCwIcon() {
   );
 }
 
+export function DuplicateIcon() {
+  return (
+    <Icon>
+      <rect x="3" y="3" width="8" height="8" rx="1" />
+      <rect x="13" y="13" width="8" height="8" rx="1" />
+    </Icon>
+  );
+}
+
+export function BookOpenIcon() {
+  return (
+    <Icon>
+      <path d="M2 5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" />
+      <path d="M16 5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6a2 2 0 0 1-2-2z" />
+    </Icon>
+  );
+}
+
 export function GlobeIcon() {
   return (
     <Icon>

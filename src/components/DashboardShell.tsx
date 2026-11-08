@@ -5,15 +5,19 @@ import LogoutButton from "@/components/LogoutButton";
 import { usePathname } from "next/navigation";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import {
+  AlertCircleIcon,
+  BookOpenIcon,
   BooksIcon,
   ChartIcon,
   ChevronsLeftIcon,
   ChevronsRightIcon,
   CopyTagsIcon,
+  DuplicateIcon,
+  GlobeIcon,
   PlusIcon,
   SearchIcon,
   TagIcon,
-  GlobeIcon,
+  TrashIcon,
 } from "@/components/icons";
 
 /**
@@ -33,6 +37,8 @@ type MenuEntry = {
   label: string;
   Icon: () => ReactNode;
   primary?: boolean;
+  /** Section heading shown above this entry when it starts a new group. */
+  group?: string;
 };
 
 const MENU_ENTRIES: MenuEntry[] = [
@@ -41,22 +47,53 @@ const MENU_ENTRIES: MenuEntry[] = [
   { href: "/sagas", label: "Book sagas", Icon: BooksIcon },
   { href: "/stats", label: "Statistics & graphs", Icon: ChartIcon },
   {
+    group: "Metadata ops",
     href: "/reports/open-library-tags",
     label: "Open Library tag report",
     Icon: TagIcon,
   },
   {
+    group: "Metadata ops",
     href: "/reports/open-library-matches",
     label: "Possible Open Library matches",
     Icon: SearchIcon,
   },
   {
+    group: "Metadata ops",
     href: "/enrich-author-nationality",
     label: "Bulk nationality script",
     Icon: GlobeIcon,
-    primary: true,
   },
-  { href: "/tags/manage", label: "Review similar tags", Icon: CopyTagsIcon },
+  {
+    group: "Metadata ops",
+    href: "/tags/manage",
+    label: "Review similar tags",
+    Icon: CopyTagsIcon,
+  },
+  {
+    group: "Metadata ops",
+    href: "/reports/duplicate-books",
+    label: "Duplicate books finder",
+    Icon: DuplicateIcon,
+  },
+  {
+    group: "Metadata ops",
+    href: "/reports/books-without-pub-year",
+    label: "Find books without pub year",
+    Icon: AlertCircleIcon,
+  },
+  {
+    group: "Metadata ops",
+    href: "/reports/orphan-authors",
+    label: "Delete orphan authors",
+    Icon: TrashIcon,
+  },
+  {
+    group: "Metadata ops",
+    href: "/reports/orphan-books",
+    label: "Orphan books maintenance",
+    Icon: BookOpenIcon,
+  },
   {
     href: "/api/v1/books/export",
     label: "Export to Excel",
@@ -153,6 +190,55 @@ export default function DashboardShell({
     }
   }
 
+  /** Flatten menu entries, inserting a group heading before each new group. */
+  function buildMenuItems(): ReactNode[] {
+    const items: ReactNode[] = [];
+    let previousGroup: string | undefined;
+    for (const entry of MENU_ENTRIES) {
+      if (entry.group && entry.group !== previousGroup) {
+        previousGroup = entry.group;
+        items.push(
+          <p
+            key={entry.group}
+            className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500"
+          >
+            {entry.group}
+          </p>,
+        );
+      }
+      items.push(renderMenuEntry(entry));
+    }
+    return items;
+  }
+
+  function renderMenuEntry(entry: MenuEntry): ReactNode {
+    const { href, label, primary, Icon } = entry;
+    const active = pathname === href;
+    return (
+      <Link
+        key={href}
+        href={href}
+        aria-current={active ? "page" : undefined}
+        title={!menuOpen && !isMobileViewport ? label : undefined}
+        onClick={isMobileViewport ? closeMenu : undefined}
+        className={
+          primary
+            ? `inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-emerald-500 px-3 py-2 text-center text-sm font-bold text-slate-950 transition hover:bg-emerald-400 ${!menuOpen && !isMobileViewport ? "md:rounded-xl md:px-0" : "px-4"}`
+            : `inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-3 py-2 text-center text-sm font-semibold transition ${
+                active
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                  : "border-slate-700 text-slate-300 hover:border-emerald-500/50 hover:text-white"
+              } ${!menuOpen && !isMobileViewport ? "md:rounded-xl md:px-0" : "px-4"}`
+        }
+      >
+        <span className="shrink-0"><Icon /></span>
+        <span className={!menuOpen && !isMobileViewport ? "md:sr-only" : ""}>
+          {label}
+        </span>
+      </Link>
+    );
+  }
+
   return (
     <div className="flex min-h-dvh flex-col bg-slate-900 text-slate-100 md:h-dvh md:min-h-0 md:flex-row md:overflow-hidden">
       {menuOpen && isMobileViewport ? (
@@ -179,32 +265,7 @@ export default function DashboardShell({
             Menu
           </p>
           <nav aria-label="Main" className="flex flex-col gap-2">
-            {MENU_ENTRIES.map(({ href, label, primary, Icon }) => {
-              const active = pathname === href;
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  aria-current={active ? "page" : undefined}
-                  title={!menuOpen && !isMobileViewport ? label : undefined}
-                  onClick={isMobileViewport ? closeMenu : undefined}
-                  className={
-                    primary
-                      ? `inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-emerald-500 px-3 py-2 text-center text-sm font-bold text-slate-950 transition hover:bg-emerald-400 ${!menuOpen && !isMobileViewport ? "md:rounded-xl md:px-0" : "px-4"}`
-                      : `inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-3 py-2 text-center text-sm font-semibold transition ${
-                          active
-                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
-                            : "border-slate-700 text-slate-300 hover:border-emerald-500/50 hover:text-white"
-                        } ${!menuOpen && !isMobileViewport ? "md:rounded-xl md:px-0" : "px-4"}`
-                  }
-                >
-                  <span className="shrink-0"><Icon /></span>
-                  <span className={!menuOpen && !isMobileViewport ? "md:sr-only" : ""}>
-                    {label}
-                  </span>
-                </Link>
-              );
-            })}
+            {buildMenuItems()}
           </nav>
           <div className="mt-auto border-t border-slate-800 pt-4">
             <button

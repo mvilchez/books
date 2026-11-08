@@ -6,8 +6,10 @@ import {
   createPendingBookRecord,
   createReadingBookRecord,
   deleteBookById,
+  fuseBooks,
   markBookUnread,
   saveBookDetails,
+  setBookGenre as saveBookGenre,
   setBookProgressPages,
   setBookStillReadingRecord,
   startSagaWishlistBook,
@@ -22,6 +24,11 @@ export type BookFormState = {
   status: "idle" | "error" | "success";
   message: string;
   year?: number;
+};
+
+export type BookActionResult = {
+  status: "idle" | "error" | "success";
+  message: string;
 };
 
 function formString(formData: FormData, name: string): string | null {
@@ -211,6 +218,82 @@ export async function deleteBook(
   revalidatePath("/stats");
   revalidatePath(`/books/${bookId}`);
   return { status: "success", message: "Book deleted." };
+}
+
+/**
+ * Server Action — fuse duplicate book records. The kept record absorbs the
+ * tags of every deleted record; the duplicates are then removed.
+ */
+export async function fuseDuplicateBooks(
+  _previousState: BookActionResult,
+  formData: FormData,
+): Promise<BookActionResult> {
+  const keeper = formData.get("keeper");
+  const bookIds = Array.from(formData.getAll("bookIds")).filter(
+    (value): value is string => typeof value === "string",
+  );
+  if (!keeper || typeof keeper !== "string") {
+    return { status: "error", message: "Choose the book to keep." };
+  }
+  if (!bookIds.includes(keeper)) {
+    return { status: "error", message: "Invalid selection." };
+  }
+  const duplicates = bookIds.filter((id) => id !== keeper);
+  if (duplicates.length === 0) {
+    return { status: "error", message: "Select at least two books." };
+  }
+  try {
+    await fuseBooks(keeper, duplicates);
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Fusion failed.",
+    };
+  }
+  revalidatePath("/");
+  revalidatePath("/stats");
+  revalidatePath("/reports/duplicate-books");
+  for (const bookId of bookIds) {
+    revalidatePath(`/books/${encodeURIComponent(bookId)}`);
+  }
+  return {
+    status: "success",
+    message: `Fused ${duplicates.length} duplicate record(s) into the kept book.`,
+  };
+}
+
+/**
+ * Server Action — assign (or clear) the genre of one book.
+ */
+export async function setBookGenre(
+  _previousState: BookActionResult,
+  formData: FormData,
+): Promise<BookActionResult> {
+  const bookId = formString(formData, "bookId");
+  const genreIdRaw = formData.get("genreId");
+  const genreId =
+    typeof genreIdRaw === "string" && genreIdRaw !== "" ? genreIdRaw : null;
+  if (!bookId) {
+    return { status: "error", message: "Invalid book." };
+  }
+  try {
+    const { updated } = await saveBookGenre(bookId, genreId);
+    if (!updated) {
+      return { status: "error", message: "Book not found." };
+    }
+  } catch (error) {
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Could not assign the genre.",
+    };
+  }
+  revalidatePath("/");
+  revalidatePath("/reports/orphan-books");
+  revalidatePath(`/books/${encodeURIComponent(bookId)}`);
+  return {
+    status: "success",
+    message: genreId ? "Genre assigned." : "Genre cleared.",
+  };
 }
 
 export async function setBookStillReading(

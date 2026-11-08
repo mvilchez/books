@@ -318,6 +318,18 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 * **`src/app/enrich-author-nationality/page.tsx`** — replaced the standalone "Start Enrichment" button with (a) an `<Link href="/">` "← Return" button in the action row, matching the primary button styling used by sibling pages (`/sagas`, `/stats`, `/mapa-mundi`); and (b) `import Link from "next/link"`.
 * **Validation** — `npm test` 73/73, `npm run build` compiled successfully (no new lint errors; the page retains its pre-existing `react-hooks/set-state-in-effect` lint error and the unrelated `no-unused-vars`/no-img warnings are pre-existing).
 
+**Metadata ops group in left panel (2026-11-12):**
+* **`src/components/DashboardShell.tsx`** — menu entries reorganized under a new **"Metadata ops"** group heading: Open Library tag report, Possible Open Library matches, Bulk nationality script, Review similar tags, plus four new metadata features (Duplicate books finder, Find books without pub year, Delete orphan authors, Orphan books maintenance). Group separators render between sections in both desktop icon rail and mobile drawer.
+* **`src/components/icons.tsx`** — new `DuplicateIcon` and `BookOpenIcon` (new icons for duplicate finder and orphan-books maintenance).
+
+**New metadata features (2026-11-12):**
+* **Duplicate books finder** (`/reports/duplicate-books`) — groups same-title/same-author records (accents/punctuation/case folded), radio-pick the record to keep, "Fuse into the selected record and delete the others" server action merges all tags and removes the duplicates. Client component: `src/components/DuplicateGroupFusion.tsx`.
+* **Find books without pub year** (`/reports/books-without-pub-year`) — lists books with `publicationYear: null`, link to each book's detail editor. Seeded by `src/lib/books.ts: getBooksWithoutPublicationYear()`.
+* **Delete orphan authors** (`/reports/orphan-authors`) — backend existed in `src/lib/author-nationality-service.ts` (`findOrphanAuthors`, `deleteOrphanAuthors`) with server actions in `src/app/actions/authorNationalityActions.ts`; now exposed as its own page with a one-click "Delete all N" form action + confirm.
+* **Orphan books maintenance** (`/reports/orphan-books`) — "orphan books" defined as books without a genre (`genreId: null`); per-book genre assignment from existing library genre tags via `src/app/actions/bookActions.ts: setBookGenre` + client `src/components/BookGenreAssigner.tsx`.
+
+**Validation** — `npm test` 81/79 pass + 2 pre-existing `open-library-images` failures, `npm run check:encapsulation` OK, `npm run lint` 0 errors (2 pre-existing warnings from form-action unused args), `npm run build` compiled successfully, `npm run tsc --noEmit` clean. `npm run build` route manifest lists `/reports/duplicate-books`, `/reports/books-without-pub-year`, `/reports/orphan-authors`, `/reports/orphan-books`.
+
 **Logout button in users panel (2026-11-12):**
 * **Implementation** — The `LogoutButton` client component (`src/components/LogoutButton.tsx`) is wired to the existing `logoutAction` which destroys the session and redirects to `/login`.
 * **Placement** — Placed inside the user panel within `DashboardShell` (`src/components/DashboardShell.tsx`, line 309), appearing alongside the "Account" link and "Change password" button when the user clicks on their name/avatar in the header.

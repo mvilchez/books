@@ -8,6 +8,36 @@ export type AuthorWithoutNationality = {
   wikidataId: string | null;
 };
 
+export type AuthorActionResult = {
+  status: "idle" | "error" | "success";
+  message: string;
+};
+
+/**
+ * Server Action form wrapper — delete all orphan authors (authors with no
+ * books). Exposed as a form action so `useActionState` can drive the button.
+ */
+export async function deleteOrphanAuthorsForm(
+  _previousState: AuthorActionResult,
+  _formData: FormData,
+): Promise<AuthorActionResult> {
+  try {
+    const { deleted } = await deleteOrphanAuthors();
+    return {
+      status: "success",
+      message: deleted
+        ? `Deleted ${deleted} orphan author(s).`
+        : "No orphan authors to delete.",
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      message:
+        error instanceof Error ? error.message : "Could not delete orphan authors.",
+    };
+  }
+}
+
 /**
  * Server Action — list authors that are still missing a nationality.
  *

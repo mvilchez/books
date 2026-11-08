@@ -8,6 +8,11 @@
 import { Prisma, ReadingStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { buildLibraryBookTags, replaceBookTags } from "@/lib/book-tags";
+import {
+  buildDuplicateGroups,
+  type DuplicateBookGroup,
+  type DuplicateBookSummary,
+} from "@/lib/duplicate-books";
 import { getCurrentUser } from "@/lib/auth";
 import {
   BOOK_SEARCH_RESULT_LIMIT,
@@ -1002,4 +1007,126 @@ export async function getAuthorsWithNationality(): Promise<MapDataPoint[]> {
   }
 
   return mapData;
+}
+
+/** Books whose publication year ("Año" column) was never recorded. */
+export async function getBooksWithoutPublicationYear() {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  return prisma.book.findMany({
+    where: { userId, publicationYear: null },
+    select: {
+      id: true,
+      title: true,
+      readingYear: true,
+      totalPages: true,
+      status: true,
+      author: { select: { name: true } },
+      genre: { select: { name: true } },
+    },
+    orderBy: [{ author: { name: "asc" } }, { title: "asc" }],
+  });
+}
+
+/** Groups of same-title/same-author book records possibly worth fusing. */
+export async function findDuplicateBooks(): Promise<DuplicateBookGroup[]> {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  const books = await prisma.book.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      title: true,
+      readingYear: true,
+      totalPages: true,
+      status: true,
+      author: { select: { name: true } },
+    },
+    orderBy: [{ author: { name: "asc" } }, { title: "asc" }, { readingYear: "desc" }],
+  });
+  const summaries: DuplicateBookSummary[] = books.map((book) => ({
+    id: book.id,
+    title: book.title,
+    authorName: book.author.name,
+    readingYear: book.readingYear,
+    totalPages: book.totalPages,
+    status: book.status,
+  }));
+  return buildDuplicateGroups(summaries);
+}
+
+/** Books without a genre assigned (uncategorized / orphan books). */
+export async function findOrphanBooks() {
+  const userId = await currentUserId();
+  if (!userId) return [];
+  return prisma.book.findMany({
+    where: { userId, genreId: null },
+    select: {
+      id: true,
+      title: true,
+      readingYear: true,
+      totalPages: true,
+      status: true,
+      author: { select: { name: true } },
+    },
+    orderBy: [{ author: { name: "asc" } }, { title: "asc" }],
+  });
+}
+
+/** Assign (or clear) the genre of a book. */
+export async function setBookGenre(
+  bookId: string,
+  genreId: string | null,
+): Promise<{ updated: boolean }> {
+  const userId = await requireCurrentUserId();
+  if (genreId !== null) {
+    const genre = await prisma.genre.findUnique({ where: { id: genreId } });
+    if (!genre) throw new Error("Genre not found.");
+  }
+  const result = await prisma.book.updateMany({
+    where: { id: bookId, userId },
+    data: { genreId },
+  });
+  return { updated: result.count > 0 };
+}
+
+/**
+ * Fuse duplicate book records into the kept one: every tag (Open Library and
+ * library) of each duplicate is moved to the kept book, then the duplicates
+ * are deleted. Returns the number of deleted records.
+ */
+export async function fuseBooks(
+  keeperBookId: string,
+  duplicateBookIds: string[],
+): Promise<{ fused: number }> {
+  const userId = await requireCurrentUserId();
+  if (!keeperBookId || duplicateBookIds.length === 0) {
+    throw new Error("Invalid selection.");
+  }
+  if (duplicateBookIds.includes(keeperBookId)) {
+    throw new Error("The kept book cannot be one of the duplicates.");
+  }
+  const allIds = [keeperBookId, ...duplicateBookIds];
+  const existing = await prisma.book.findMany({
+    where: { id: { in: allIds }, userId },
+    select: { id: true },
+  });
+  if (existing.length !== allIds.length) {
+    throw new Error("One or more books no longer exist.");
+  }
+  await prisma.$transaction(async (transaction) => {
+    for (const duplicateId of duplicateBookIds) {
+      await transaction.$executeRaw`
+        UPDATE book_tags
+        SET book_id = ${keeperBookId}
+        WHERE book_id = ${duplicateId}
+        ON CONFLICT (book_id, tag_id, source) DO NOTHING
+      `;
+      await transaction.bookTag.deleteMany({ where: { bookId: duplicateId } });
+    }
+    await transaction.book.deleteMany({
+      where: { id: { in: duplicateBookIds }, userId },
+    });
+  });
+  return { fused: duplicateBookIds.length };
 }
