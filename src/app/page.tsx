@@ -73,7 +73,7 @@ const requestedYearIsValid =
   const view: DashboardView = rawView === "list" ? "list" : "cards";
   const sort = parseDashboardSort(rawSort);
   const statusFilter =
-    filter === "READING" || filter === "COMPLETED" ? filter : undefined;
+    filter === "READING" || filter === "COMPLETED" || filter === "ALL" ? filter : undefined;
   const requestedPage = parseDashboardPage(rawPage);
   const hasExplicitDirection = rawDirection === "asc" || rawDirection === "desc";
   const direction = parseSortDirection(

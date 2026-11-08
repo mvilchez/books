@@ -79,7 +79,7 @@ export async function getAvailableReadingYears(): Promise<
 /** All books of one reading year with author and genre included. */
 export async function getBooksByReadingYear(
   year: number,
-  status?: "READING" | "COMPLETED"
+  status: "READING" | "COMPLETED" | "ALL" | undefined
 ): Promise<DashboardBook[]> {
   const userId = await currentUserId();
   if (!userId) return [];
@@ -87,7 +87,7 @@ export async function getBooksByReadingYear(
     readingYear: year,
     userId,
   };
-  if (status) {
+  if (status && status !== "ALL") {
     where.status = status as "READING" | "COMPLETED";
   }
   return prisma.book.findMany({

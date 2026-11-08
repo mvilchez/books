@@ -305,7 +305,7 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 
 * **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.
 
-* **Filter card added to main books view (2026-11-12):** Added `DashboardFilterControls` component beside `DashboardSortControls` in the main dashboard page with 'Reading' and 'Read' filters. The filters correspond to Prisma `ReadingStatus` enum values (READING and COMPLETED). Updated `getBooksByReadingYear` in `src/lib/books.ts` to support optional status filtering. Validation — `npm test` 73/73, `npm run lint` 0 errors (2 pre-existing unrelated failures), `npm run build` compiled successfully.
+* **Filter card with 'All' state fused with Sort card (2026-11-12):** Added 'All' filter option to the combined DashboardSortAndFilterControls component alongside 'Reading' and 'Completed'. The 'All' filter shows every book regardless of status. Filter state persists in URL search params (e.g., `?filter=ALL`). Updated `DashboardFilter` type in `src/lib/dashboard.ts`, `parseDashboardFilter()` function, FILTER_OPTIONS in the component, and `statusFilter` logic in `src/app/page.tsx`. Validation — `npm test` 73/73, `npm run lint` 0 errors, `npm run build` compiled successfully.
 
 
 **Enrich Author Nationality page fixes (2026-11-11):**

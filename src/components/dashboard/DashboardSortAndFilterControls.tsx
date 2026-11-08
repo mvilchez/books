@@ -9,7 +9,8 @@ import type {
 
 const FILTER_OPTIONS: { value: DashboardFilter; label: string }[] = [
   { value: "READING", label: "Reading" },
-  { value: "COMPLETED", label: "Read" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "ALL", label: "All" },
 ];
 
 const CARD_SORT_OPTIONS = [

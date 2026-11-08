@@ -2,10 +2,10 @@ export const DASHBOARD_SORTS = ["startDate", "author", "title"] as const;
 export const DASHBOARD_PAGE_SIZE = 12;
 export type DashboardSort = (typeof DASHBOARD_SORTS)[number];
 export type SortDirection = "asc" | "desc";
-export type DashboardFilter = "READING" | "COMPLETED";
+export type DashboardFilter = "READING" | "COMPLETED" | "ALL";
 
 export function parseDashboardFilter(value: string | string[] | undefined): DashboardFilter {
-  if (value === "READING" || value === "COMPLETED") return value;
+  if (value === "READING" || value === "COMPLETED" || value === "ALL") return value;
   return "READING";
 }
 
