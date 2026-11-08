@@ -9,6 +9,7 @@ import {
   getMonthlyPace, getMostValuableBooks, getOriginShares, getPublicationEraBuckets,
   getRatingDistribution, getRereads, getSeriesProgress, getTopAuthors,
   getTopAuthorsByPages, getTopAuthorsByRating, getTopSubjects, getYearKpis, getYearlyTrend,
+  getCountryStats,
 } from '@/lib/analytics';
 import { Kpi, nf, StatsSkeleton, SuggestionsList, TopAuthorsBooks, TopList } from './_components';
 
@@ -20,6 +21,7 @@ const RatingChart = dynamic(() => import('@/components/charts/RatingChart'), { l
 const GenreChart = dynamic(() => import('@/components/charts/GenreChart'), { loading: chartLoading });
 const AuthorsChart = dynamic(() => import('@/components/charts/AuthorsChart'), { loading: chartLoading });
 const MonthlyPaceChart = dynamic(() => import('@/components/charts/MonthlyPaceChart'), { loading: chartLoading });
+const NationalityChart = dynamic(() => import('@/components/charts/NationalityChart'), { loading: chartLoading });
 const OriginChart = dynamic(() => import('@/components/charts/OriginChart'), { loading: chartLoading });
 const PublicationEraChart = dynamic(() => import('@/components/charts/PublicationEraChart'), { loading: chartLoading });
 const CumulativeTrendChart = dynamic(() => import('@/components/charts/CumulativeTrendChart'), { loading: chartLoading });
@@ -104,6 +106,7 @@ async function StatsContent({ searchParams }: { searchParams: StatsSearchParams 
       coverage,
       topAuthorsPages,
       topAuthorsRating,
+      countryStats,
     ],
     discovery,
   ] = await Promise.all([
@@ -123,6 +126,7 @@ async function StatsContent({ searchParams }: { searchParams: StatsSearchParams 
       getMetadataCoverage(),
       getTopAuthorsByPages(8),
       getTopAuthorsByRating(8),
+      getCountryStats(),
     ]),
     discoveryPromise,
   ]);
@@ -210,6 +214,7 @@ async function StatsContent({ searchParams }: { searchParams: StatsSearchParams 
         </div>
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
           <OriginChart data={origins} />
+          <NationalityChart data={countryStats} />
           <PublicationEraChart data={eras} />
         </div>
       </section>

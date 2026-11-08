@@ -416,6 +416,11 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 - Next.js 16 App Router with React 19, Tailwind CSS 4
 - Minimal targeted changes to avoid breaking existing functionality
 
+**Author nationality pie chart (2026-11-23):**
+* Added `src/components/charts/NationalityChart.tsx` — Recharts PieChart visualizing author distribution by nationality using `getCountryStats()` from `analytics.ts`
+* Updated `src/app/stats/page.tsx` — Integrated NationalityChart into the main stats page alongside other charts (OriginChart, GenreChart, etc.)
+* Fetches data server-side via `getCountryStats()` and passes it as a prop to the client-side chart component
+
 **Plan (ordered by impact):**
 1. Database query optimization - indexes verified optimal
 2. JavaScript Baseline optimization - ES2017 target, minimal polyfills
