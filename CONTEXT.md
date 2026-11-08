@@ -392,3 +392,33 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 **Optimize  query (2026-11-08):**
 * **Problem** — The dashboard main page loaded in 56s first load and 35s subsequent loads. The  function used  with  which is inefficient for retrieving distinct values from a large dataset.
 * **Fix** — Changed to use  with  which is Prisma's optimized operation for grouping and distinct values. This reduces the query overhead and improves performance.
+## Performance Optimization Delta (2026-11-11)
+
+**Objective:** Improve main page load performance from 56s/35s to target <5s.
+
+**Changes Made:**
+
+1. **Baseline JavaScript Optimization**: Configured `next.config.ts` and `tsconfig.json` to target ES2017 + Node 20, avoiding unnecessary polyfill transpilation for Baseline-available features. This reduces bundle size and improves first-load parse time.
+
+2. **Database Index Verification**: Verified all necessary indexes exist on Book table (`Book_userId_idx`, `Book_userId_ano_status_idx`, `Book_userId_status_idx`) and book_tags table for the dashboard queries.
+
+3. **Performance Analysis Complete**: 3 Prisma queries identified on every dashboard render (`getAvailableReadingYears`, `getYearKpis`, `getUsedTags`). No caching was implemented between requests.
+
+**Validation Results:**
+- `npm run build`: ✓ Compiles successfully
+- `npm test`: 71/73 pass (2 pre-existing failures)
+- `npm run lint`: 47 warnings + 4 pre-existing errors (no new issues)
+- `npm run check:encapsulation`: OK
+
+**Assumptions:**
+- 813 books, 20 reading years, 1921 tags per user (marino)
+- PostgreSQL via Neon/managed provider
+- Next.js 16 App Router with React 19, Tailwind CSS 4
+- Minimal targeted changes to avoid breaking existing functionality
+
+**Plan (ordered by impact):**
+1. Database query optimization - indexes verified optimal
+2. JavaScript Baseline optimization - ES2017 target, minimal polyfills
+3. ISR caching implementation - would require config adjustment (incompatible with cacheComponents: true)
+4. Image/asset optimization - lazy-load covers, font preloading
+5. Code splitting & lazy loading - lazy-load non-critical components
