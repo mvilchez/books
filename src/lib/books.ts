@@ -852,12 +852,40 @@ export async function completeBookRecord(
   bookId: string,
   rating: number,
   finishDate: Date,
-): Promise<{ count: number }> {
+): Promise<{ count: number; previousReadingBooks: ReadonlyArray<{ id: string; title: string; readingYear: number }> }> {
   const userId = await requireCurrentUserId();
-  return prisma.book.updateMany({
+  // Complete the book
+  const updateResult = await prisma.book.updateMany({
     where: { id: bookId, userId, status: "READING" },
     data: { status: "COMPLETED", finishDate, rating },
   });
+
+  // Find other books in READING state from different years
+  const completedBook = await prisma.book.findFirst({
+    where: { id: bookId, userId },
+    select: { readingYear: true },
+  });
+
+  let previousReadingBooks: ReadonlyArray<{ id: string; title: string; readingYear: number }> = [];
+  if (completedBook) {
+    const otherReading = await prisma.book.findMany({
+      where: {
+        userId,
+        status: "READING",
+        readingYear: { not: completedBook.readingYear },
+      },
+      select: {
+        id: true,
+        title: true,
+        readingYear: true,
+      },
+      orderBy: { readingYear: "desc" },
+    });
+    // Use concat to add items to the readonly array
+    previousReadingBooks = previousReadingBooks.concat(otherReading);
+  }
+
+  return { count: updateResult.count, previousReadingBooks };
 }
 
 /** Save the selected Open Library cover/work ids on a book. */

@@ -58,6 +58,14 @@ export default function CompleteBookForm({
           {state.message}
         </p>
       )}
+      {state.previousReadingBooks && state.previousReadingBooks.length > 0 && (
+        <p role="alert" className="text-xs text-emerald-400 mt-2">
+          {state.previousReadingBooks.length} book(s) still in reading state from previous year(s):{" "}
+          {state.previousReadingBooks
+            .map((book) => `${book.title} (${book.readingYear})`)
+            .join(", ")}. {"Would you like to delete them?"}
+        </p>
+      )}
     </form>
   );
 }

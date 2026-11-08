@@ -24,6 +24,11 @@ export type BookFormState = {
   status: "idle" | "error" | "success";
   message: string;
   year?: number;
+  previousReadingBooks?: ReadonlyArray<{
+    id: string;
+    title: string;
+    readingYear: number;
+  }>;
 };
 
 export type BookActionResult = {
@@ -599,5 +604,9 @@ export async function completeReadingBook(
   revalidatePath("/");
   revalidatePath("/stats");
   revalidatePath(`/books/${bookId}`);
-  return { status: "success", message: "Book marked as completed." };
+  return {
+    status: "success",
+    message: "Book marked as completed.",
+    previousReadingBooks: result.previousReadingBooks,
+  };
 }
