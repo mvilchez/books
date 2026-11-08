@@ -63,12 +63,12 @@ export async function getAvailableReadingYears(): Promise<
 > {
   const userId = await currentUserId();
   if (!userId) return [];
-  return prisma.book.findMany({
+  const rows = await prisma.book.groupBy({
+    by: ["readingYear"],
     where: { userId },
-    select: { readingYear: true },
-    distinct: ["readingYear"],
     orderBy: { readingYear: "asc" },
   });
+  return rows.map((r) => ({ readingYear: r.readingYear }));
 }
 
 /** All books of one reading year with author and genre included. */

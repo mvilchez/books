@@ -388,3 +388,7 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
   - `src/scripts/cache-author-portraits.ts`: Converted `author.wikidataId` (string | null) to `number` before passing to `getOpenLibraryAuthorPhotoUrl()`.
 * **Validation** — `npx tsc --noEmit` clean for source files, `npm run dev` starts successfully without compilation errors.
   - `src/app/api/cache-cover/route.ts`: Replaced incorrect dynamic `params` usage (the route has no `[editionKey]` folder, so `params` was always empty) with `searchParams.get("editionKey")`, matching the pattern used by `cache-portrait/route.ts`. This also resolves the Next.js 16 route handler type validator error.
+
+**Optimize  query (2026-11-08):**
+* **Problem** — The dashboard main page loaded in 56s first load and 35s subsequent loads. The  function used  with  which is inefficient for retrieving distinct values from a large dataset.
+* **Fix** — Changed to use  with  which is Prisma's optimized operation for grouping and distinct values. This reduces the query overhead and improves performance.
