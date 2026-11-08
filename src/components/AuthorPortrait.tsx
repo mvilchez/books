@@ -30,14 +30,16 @@ function getUnFlagUrl(): string {
 
 function trustedPortraitUrl(value: string | null): string | null {
   if (!value) return null;
+  // Check for local portrait paths first (before URL parsing, since new URL() fails on relative paths)
+  const isLocalPortraitPath = value.startsWith("/portraits/");
+  if (isLocalPortraitPath) return value;
   try {
     const url = new URL(value);
     const isCommonsImage =
       url.hostname === "thumb.wikimedia.org" && url.pathname.startsWith("/wikipedia/commons/thumb/");
     const isOpenLibraryImage =
       url.hostname === "covers.openlibrary.org" && /^\/a\/id\/\d+-[SML]\\.jpg$/.test(url.pathname);
-    const isLocalPortrait = url.pathname.startsWith("/portraits/");
-    return url.protocol === "https:" && (isCommonsImage || isOpenLibraryImage || isLocalPortrait) ? url.toString() : null;
+    return url.protocol === "https:" && (isCommonsImage || isOpenLibraryImage) ? url.toString() : null;
   } catch {
     return null;
   }
