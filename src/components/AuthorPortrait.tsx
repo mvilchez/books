@@ -96,7 +96,7 @@ export default function AuthorPortrait({
   const sourceUrl = trustedCommonsSourceUrl(author.portraitSourceUrl);
   const openLibrarySourceUrl = trustedOpenLibrarySourceUrl(author.portraitSourceUrl);
   const licenseUrl = trustedHttpsLink(author.portraitLicenseUrl);
-  const hasLocalPortraitSource = author.portraitSourceUrl?.startsWith("/portraits/");
+  const hasLocalPortraitSource = author.portraitSourceUrl?.startsWith("/portraits/") || author.portraitUrl?.startsWith("/portraits/");
 const hasAttribution = openLibrarySourceUrl !== null ||
     (!!sourceUrl && !!author.portraitArtist?.trim() && !!author.portraitLicense?.trim()) ||
     hasLocalPortraitSource;
