@@ -206,6 +206,13 @@ The updated parser excludes 18 additional footer/aggregate rows (812 books inste
 * **App config** — switched dev `.env` to `local-postgres`; Prisma client regenerated.
 * **Validation** — `npm test` 61/61, `npm run lint` 0 errors.
 
+**Database backup scripts — local + Neon (2026-11-08):**
+* **New script** — `scripts/backup-local.sh` (npm: `backup:local`) one-shot backup of the local PostgreSQL database to `db/backups/reading_tracker_local_YYYYMMDD_HHMMSS.sql[.gz]`, with gzip rotation (`KEEP_COUNT`).
+* **New script** — `scripts/backup-cloud-local.sh` (npm: `backup:cloud-local`) one-shot backup of the remote (Neon) PostgreSQL database to `db/backups/reading_tracker_cloud_YYYYMMDD_HHMMSS.sql[.gz]`, resolving the URL from `PG_SOURCE_URL`/`NEON_DB_URL`/`POSTGRES_URL`/`DATABASE_URL` or `.env.production`.
+* **Refactor** — `scripts/backup-postgresql-local.sh` now sources `scripts/pg-backup-common.sh` (shared `parse_pg_url`, `run_pg`, `pg_dump_to_file`, `rotate_backups`); dump/restore/row-count-verify/rotate behavior unchanged.
+* **Removed** — decommissioned `backup:postgresql` npm script (pointed at the deleted `scripts/backup-to-postgresql.sh` MariaDB migration); fixed `backup:cloud-local` npm script (was referencing a missing script via an absolute path and an undefined `NEON_DB_URL`).
+* **Validation** — `bash -n` on all scripts; `npm run backup:local` and `npm run backup:cloud-local` produced valid dumps against local PostgreSQL and Neon.
+
 
 
 **Stats expansion (2026-10-25):**

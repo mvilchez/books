@@ -122,36 +122,30 @@ All scripts live under `scripts/` and most are also exposed as npm scripts.
 **`npm run check:encapsulation`** (npm: `check:encapsulation`) — Verifies module encapsulation rules.
 
 **`scripts/backup-local.sh`** (npm: `backup:local`) — One-shot backup of the local
-MariaDB database to `db/backups/` as a timestamped, gzipped SQL dump.
+PostgreSQL database to `db/backups/` as a timestamped, gzipped SQL dump
+(`db/backups/reading_tracker_local_YYYYMMDD_HHMMSS.sql.gz`). Keeps the newest
+10 backups (override with `KEEP_COUNT`). Set `COMPRESS=0` to skip gzip.
+Read-only for the source database; safe to run before schema changes or deploys.
 
 ```bash
 npm run backup:local
 # or, with explicit credentials:
-DATABASE_URL="mysql://book:password@127.0.0.1:3306/reading_tracker_local" \
+PG_SOURCE_URL="postgresql://book:password@127.0.0.1:5432/reading_tracker_local" \
   ./scripts/backup-local.sh
 ```
 
-Writes `db/backups/reading_tracker_YYYYMMDD_HHMMSS.sql.gz` and keeps the newest
-10 backups (override with `KEEP_COUNT`). Set `COMPRESS=0` to skip gzip. Read-only
-for the source database; safe to run before schema changes or deploys.
+**`scripts/backup-cloud-local.sh`** (npm: `backup:cloud-local`) — One-shot backup of the
+remote (Neon) PostgreSQL database to `db/backups/`
+(`db/backups/reading_tracker_cloud_YYYYMMDD_HHMMSS.sql.gz`). Resolves the Neon URL
+from `PG_SOURCE_URL`/`NEON_DB_URL`/`POSTGRES_URL`/`DATABASE_URL` or `.env.production`
+(`POSTGRES_URL`). Keeps the newest 10 backups (override with `KEEP_COUNT`).
+Set `COMPRESS=0` to skip gzip. Read-only for the source database.
 
-1. Requires `prisma/schema.prisma` to use `provider = "postgresql"` (run
-   `npx prisma generate` first).
-2. Runs `prisma db push` against PostgreSQL to create the schema.
-3. Dumps **data only** from MariaDB in foreign-key-safe order
-   (Author → Genre → Tag → Book → BookTag → BookMetadataCandidate).
-4. Normalizes the dump for PostgreSQL and loads it inside a single transaction.
-5. Verifies per-table row counts on both databases.
-
-Read-only for MariaDB (never writes to the source); the PostgreSQL target is
-loaded into, so back it up before running.
-
-Writes `db/backups/reading_tracker_cloud_YYYYMMDD_HHMMSS.sql.gz` and keeps the
-newest 10 backups (override with `KEEP_COUNT`). Set `COMPRESS=0` to skip gzip.
-The cloud password must be supplied via `CLOUD_DB_URL` or `CLOUD_DB_PASSWORD` —
-it is never hard-coded in the script. Pair this with
-`scripts/connect-skysql.sh` when you need an interactive cloud session instead
-of a file backup.
+```bash
+npm run backup:cloud-local
+# or, with explicit credentials:
+PG_SOURCE_URL="postgresql://user:pass@ep-...aws.neon.tech/db?sslmode=require" \
+  ./scripts/backup-cloud-local.sh
 
 **`scripts/backup-postgresql-local.sh`** (npm: `backup:postgresql:local`) — Back up a
 PostgreSQL database (NeonDB by default) and restore it into a local PostgreSQL
@@ -316,36 +310,30 @@ All scripts live under `scripts/` and most are also exposed as npm scripts.
 **`npm run check:encapsulation`** (npm: `check:encapsulation`) — Verifies module encapsulation rules.
 
 **`scripts/backup-local.sh`** (npm: `backup:local`) — One-shot backup of the local
-MariaDB database to `db/backups/` as a timestamped, gzipped SQL dump.
+PostgreSQL database to `db/backups/` as a timestamped, gzipped SQL dump
+(`db/backups/reading_tracker_local_YYYYMMDD_HHMMSS.sql.gz`). Keeps the newest
+10 backups (override with `KEEP_COUNT`). Set `COMPRESS=0` to skip gzip.
+Read-only for the source database; safe to run before schema changes or deploys.
 
 ```bash
 npm run backup:local
 # or, with explicit credentials:
-DATABASE_URL="mysql://book:password@127.0.0.1:3306/reading_tracker_local" \
+PG_SOURCE_URL="postgresql://book:password@127.0.0.1:5432/reading_tracker_local" \
   ./scripts/backup-local.sh
 ```
 
-Writes `db/backups/reading_tracker_YYYYMMDD_HHMMSS.sql.gz` and keeps the newest
-10 backups (override with `KEEP_COUNT`). Set `COMPRESS=0` to skip gzip. Read-only
-for the source database; safe to run before schema changes or deploys.
+**`scripts/backup-cloud-local.sh`** (npm: `backup:cloud-local`) — One-shot backup of the
+remote (Neon) PostgreSQL database to `db/backups/`
+(`db/backups/reading_tracker_cloud_YYYYMMDD_HHMMSS.sql.gz`). Resolves the Neon URL
+from `PG_SOURCE_URL`/`NEON_DB_URL`/`POSTGRES_URL`/`DATABASE_URL` or `.env.production`
+(`POSTGRES_URL`). Keeps the newest 10 backups (override with `KEEP_COUNT`).
+Set `COMPRESS=0` to skip gzip. Read-only for the source database.
 
-1. Requires `prisma/schema.prisma` to use `provider = "postgresql"` (run
-   `npx prisma generate` first).
-2. Runs `prisma db push` against PostgreSQL to create the schema.
-3. Dumps **data only** from MariaDB in foreign-key-safe order
-   (Author → Genre → Tag → Book → BookTag → BookMetadataCandidate).
-4. Normalizes the dump for PostgreSQL and loads it inside a single transaction.
-5. Verifies per-table row counts on both databases.
-
-Read-only for MariaDB (never writes to the source); the PostgreSQL target is
-loaded into, so back it up before running.
-
-Writes `db/backups/reading_tracker_cloud_YYYYMMDD_HHMMSS.sql.gz` and keeps the
-newest 10 backups (override with `KEEP_COUNT`). Set `COMPRESS=0` to skip gzip.
-The cloud password must be supplied via `CLOUD_DB_URL` or `CLOUD_DB_PASSWORD` —
-it is never hard-coded in the script. Pair this with
-`scripts/connect-skysql.sh` when you need an interactive cloud session instead
-of a file backup.
+```bash
+npm run backup:cloud-local
+# or, with explicit credentials:
+PG_SOURCE_URL="postgresql://user:pass@ep-...aws.neon.tech/db?sslmode=require" \
+  ./scripts/backup-cloud-local.sh
 
 **`scripts/backup-postgresql-local.sh`** (npm: `backup:postgresql:local`) — Back up a
 PostgreSQL database (NeonDB by default) and restore it into a local PostgreSQL
@@ -510,36 +498,30 @@ All scripts live under `scripts/` and most are also exposed as npm scripts.
 **`npm run check:encapsulation`** (npm: `check:encapsulation`) — Verifies module encapsulation rules.
 
 **`scripts/backup-local.sh`** (npm: `backup:local`) — One-shot backup of the local
-MariaDB database to `db/backups/` as a timestamped, gzipped SQL dump.
+PostgreSQL database to `db/backups/` as a timestamped, gzipped SQL dump
+(`db/backups/reading_tracker_local_YYYYMMDD_HHMMSS.sql.gz`). Keeps the newest
+10 backups (override with `KEEP_COUNT`). Set `COMPRESS=0` to skip gzip.
+Read-only for the source database; safe to run before schema changes or deploys.
 
 ```bash
 npm run backup:local
 # or, with explicit credentials:
-DATABASE_URL="mysql://book:password@127.0.0.1:3306/reading_tracker_local" \
+PG_SOURCE_URL="postgresql://book:password@127.0.0.1:5432/reading_tracker_local" \
   ./scripts/backup-local.sh
 ```
 
-Writes `db/backups/reading_tracker_YYYYMMDD_HHMMSS.sql.gz` and keeps the newest
-10 backups (override with `KEEP_COUNT`). Set `COMPRESS=0` to skip gzip. Read-only
-for the source database; safe to run before schema changes or deploys.
+**`scripts/backup-cloud-local.sh`** (npm: `backup:cloud-local`) — One-shot backup of the
+remote (Neon) PostgreSQL database to `db/backups/`
+(`db/backups/reading_tracker_cloud_YYYYMMDD_HHMMSS.sql.gz`). Resolves the Neon URL
+from `PG_SOURCE_URL`/`NEON_DB_URL`/`POSTGRES_URL`/`DATABASE_URL` or `.env.production`
+(`POSTGRES_URL`). Keeps the newest 10 backups (override with `KEEP_COUNT`).
+Set `COMPRESS=0` to skip gzip. Read-only for the source database.
 
-1. Requires `prisma/schema.prisma` to use `provider = "postgresql"` (run
-   `npx prisma generate` first).
-2. Runs `prisma db push` against PostgreSQL to create the schema.
-3. Dumps **data only** from MariaDB in foreign-key-safe order
-   (Author → Genre → Tag → Book → BookTag → BookMetadataCandidate).
-4. Normalizes the dump for PostgreSQL and loads it inside a single transaction.
-5. Verifies per-table row counts on both databases.
-
-Read-only for MariaDB (never writes to the source); the PostgreSQL target is
-loaded into, so back it up before running.
-
-Writes `db/backups/reading_tracker_cloud_YYYYMMDD_HHMMSS.sql.gz` and keeps the
-newest 10 backups (override with `KEEP_COUNT`). Set `COMPRESS=0` to skip gzip.
-The cloud password must be supplied via `CLOUD_DB_URL` or `CLOUD_DB_PASSWORD` —
-it is never hard-coded in the script. Pair this with
-`scripts/connect-skysql.sh` when you need an interactive cloud session instead
-of a file backup.
+```bash
+npm run backup:cloud-local
+# or, with explicit credentials:
+PG_SOURCE_URL="postgresql://user:pass@ep-...aws.neon.tech/db?sslmode=require" \
+  ./scripts/backup-cloud-local.sh
 
 **`scripts/backup-postgresql-local.sh`** (npm: `backup:postgresql:local`) — Back up a
 PostgreSQL database (NeonDB by default) and restore it into a local PostgreSQL

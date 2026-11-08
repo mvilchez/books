@@ -7,6 +7,9 @@
 #
 set -euo pipefail
 
+# shellcheck source=./pg-backup-common.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/pg-backup-common.sh"
+
 BACKUP_DIR="${BACKUP_DIR:-db/backups}"
 KEEP_COUNT="${KEEP_COUNT:-10}"
 COMPRESS="${COMPRESS:-1}"
@@ -45,65 +48,15 @@ if [[ ! "$PG_TARGET_URL" == postgresql://* && ! "$PG_TARGET_URL" == postgres://*
 fi
 
 have() { command -v "$1" >/dev/null 2>&1; }
-
-# parse_pg_url <url> -> user pass host port dbname query (tab separated)
-parse_pg_url() {
-  local url="${1#postgresql://}"
-  url="${url#postgres://}"
-  local userpass="${url%%@*}"
-  local rest="${url#*@}"
-  local hostport="${rest%%/*}"
-  local dbpart="${rest#*/}"
-  local dbname="${dbpart%%\?*}"
-  local query=""
-  [[ "$dbpart" == *\?* ]] && query="${dbpart#*\?}"
-  local user="${userpass%%:*}"
-  local pass="${userpass#*:}"
-  [[ "$pass" == "$userpass" ]] && pass=""
-  local host="${hostport%%:*}"
-  local port="${hostport#*:}"
-  [[ "$port" == "$hostport" ]] && port="5432"
-  port="${port%%/*}"
-  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$user" "$pass" "$host" "$port" "$dbname" "$query"
-}
-
-sslmode_from_query() {
-  local q="$1" key val
-  local IFS='&'
-  for pair in $q; do
-    key="${pair%%=*}"
-    val="${pair#*=}"
-    if [[ "$key" == "sslmode" ]]; then
-      printf '%s' "$val"
-      return
-    fi
-  done
-}
-
 for tool in pg_dump psql; do
   have "$tool" || { echo "Error: $tool is not installed." >&2; exit 1; }
- done
+done
 
 IFS=$'\t' read -r SRC_USER SRC_PASS SRC_HOST SRC_PORT SRC_NAME SRC_QUERY < <(parse_pg_url "$PG_SOURCE_URL")
 IFS=$'\t' read -r TGT_USER TGT_PASS TGT_HOST TGT_PORT TGT_NAME TGT_QUERY < <(parse_pg_url "$PG_TARGET_URL")
 
-SRC_SSLMODE="$(sslmode_from_query "$SRC_QUERY")"
-TGT_SSLMODE="$(sslmode_from_query "$TGT_QUERY")"
-
-run_src() {
-  if [[ -n "$SRC_SSLMODE" ]]; then
-    PGPASSWORD="$SRC_PASS" PGSSLMODE="$SRC_SSLMODE" "$@"
-  else
-    PGPASSWORD="$SRC_PASS" "$@"
-  fi
-}
-run_tgt() {
-  if [[ -n "$TGT_SSLMODE" ]]; then
-    PGPASSWORD="$TGT_PASS" PGSSLMODE="$TGT_SSLMODE" "$@"
-  else
-    PGPASSWORD="$TGT_PASS" "$@"
-  fi
-}
+run_src() { run_pg "$PG_SOURCE_URL" "$@"; }
+run_tgt() { run_pg "$PG_TARGET_URL" "$@"; }
 
 # connection argument arrays (avoid putting secrets in argv where possible;
 # passwords are passed via PGPASSWORD)
@@ -131,21 +84,12 @@ BASE_NAME="reading_tracker_postgresql_${TIMESTAMP}"
 SQL_FILE="$BACKUP_DIR/${BASE_NAME}.sql"
 
 echo "==> Dumping source PostgreSQL database '$SRC_NAME' at $SRC_HOST:$SRC_PORT"
-if command -v pg_dump >/dev/null 2>&1; then
-  run_src pg_dump "${src_conn[@]}" \
-    --format=plain --no-owner --no-privileges --clean --if-exists \
-    > "$SQL_FILE"
-  if [[ ! -s "$SQL_FILE" ]]; then
-    echo "Warning: pg_dump produced empty file." >&2
-    echo "  Ensure pg_dump version matches server (Neon has PG 18)." >&2
-    echo "  Or manually download a dump from Neon console: https://console.neon.tech" >&2
-    rm -f "$SQL_FILE"
-    exit 1
-  fi
-else
-  echo "pg_dump not installed." >&2
-  echo "To create the dump: use Neon console (https://console.neon.tech) or install pg_dump 18." >&2
-  echo "The restore step below uses psql which handles version migration." >&2
+pg_dump_to_file "$PG_SOURCE_URL" "$SQL_FILE"
+if [[ ! -s "$SQL_FILE" ]]; then
+  echo "Warning: pg_dump produced empty file." >&2
+  echo "  Ensure pg_dump version matches server (Neon has PG 18)." >&2
+  echo "  Or manually download a dump from Neon console: https://console.neon.tech" >&2
+  rm -f "$SQL_FILE"
   exit 1
 fi
 
@@ -197,15 +141,7 @@ else
 fi
 
 echo "==> Rotating backups (keeping newest $KEEP_COUNT)"
-mapfile -t ALL_BACKUPS < <(ls -1 "$BACKUP_DIR"/reading_tracker_postgresql_*.sql* 2>/dev/null | sort -r)
-if [[ "${#ALL_BACKUPS[@]}" -gt "$KEEP_COUNT" ]]; then
-  for old in "${ALL_BACKUPS[@]:$KEEP_COUNT}"; do
-    rm -f -- "$old"
-    echo "   removed: $old"
-  done
-else
-  echo "   nothing to rotate (${#ALL_BACKUPS[@]} backups present)"
-fi
+rotate_backups "$BACKUP_DIR" "reading_tracker_postgresql" "$KEEP_COUNT"
 
 echo "==> Backup + restore complete."
 echo "   Point the app at the local database with:"
