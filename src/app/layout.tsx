@@ -18,6 +18,7 @@ export const metadata: Metadata = {
   description: "Books app built with Next.js 13, Tailwind CSS, and TypeScript",
   icons: {
     icon: [{ url: "/app-icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/app-icon.svg", type: "image/svg+xml" }],
   },
 };
 

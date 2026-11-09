@@ -302,6 +302,7 @@ To debug, run the enrichment script with `--limit 5 --execute` to see the first 
 
 * **Icon (2026-11-05):** Created `public/app-icon.svg` — a vintage/old book-themed app icon following the project's existing SVG icon pattern (24px viewBox, `stroke="currentColor"`, `strokeWidth="3"`, round line caps/joins). Features a classic book silhouette with visible page edges and cover details, stroke width 3 for better visibility at small sizes, serving as the application's visual identity icon. Designed to reflect the project's focus on reading/legacy data migration.
 * **Dashboard icon (2026-11-05):** Added `BooksIcon` to the `DashboardShell` header near the "Books Tracker Workspace" title, providing a visual book logo alongside the application title.
+* **Desktop browser & PWA icon (2026-11-11):** Added `apple` icon entry to `next.config.ts` metadata alongside existing `icon` entry, enabling Safari PWA "Add to homescreen" support using the same `app-icon.svg`. Also serves as the desktop browser tab icon and title bar icon.
 
 * **Validation** — `npm test` 67/67, `npm run lint` 0 errors, `npm run build` compiled successfully.
 
