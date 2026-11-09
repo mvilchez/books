@@ -52,6 +52,8 @@ or the app. `db push` synchronizes the Prisma schema with the configured
 development database; do not point it at production. Run the tag backfill once
 after applying the schema to turn existing genres and known e-book origins into
 database-backed tags. New books, edits, and workbook imports maintain these tags.
+Password recovery requires `APP_URL` to be set to the public application URL
+(HTTPS in production) and the SMTP settings documented in `.env.example`.
 
 Open [http://localhost:3000](http://localhost:3000) after `npm run dev`.
 Dashboard source is in `src/app/page.tsx`; book creation, details, and statistics

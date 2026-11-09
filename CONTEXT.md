@@ -1,6 +1,10 @@
 # Technical Architecture & Context Continuity Blueprint: project "books"
 
+**Tag query mapping (2026-11-09):** Updated `getUsedTags()` to query the PostgreSQL `tags` table name declared by `Tag @@map("tags")`, avoiding a raw-query reference to the nonexistent `"Tag"` relation.
+
 **Prisma schema alignment (2026-11-09):** Kept `Book.userId` mapped to the existing PostgreSQL `userId` column and restored missing inverse relations so Prisma Client generation validates against the current schema.
+
+**Unauthenticated password reset (2026-11-09):** Added public `/forgot-password` and `/reset-password` routes. Recovery emails use a one-hour, one-time token stored only as a SHA-256 hash; successful resets revoke all sessions. Responses do not disclose whether an email is registered. Configure `APP_URL` and SMTP for delivery.
 
 **Mobile-first responsive layout (2026-11-02):** Updated dashboard shell for viewport-height scrolling, compact mobile gutters, touch-sized navigation, mobile overlay drawer, Geist font, reduced-motion preferences, narrowed spacing on search/statistics/saga pages. Dashboard book lists retain horizontal scroll on narrow screens. Login/signup use responsive split desktop/mobile layouts.
 

@@ -50,7 +50,7 @@ export async function getUsedTags(): Promise<UsedTag[]> {
     { id: string; name: string; category: BookTagCategory; count: bigint }[]
   >`
     SELECT t.id, t.name, t.category, COUNT(DISTINCT bt.book_id) AS count
-    FROM "Tag" AS t
+    FROM "tags" AS t
     INNER JOIN book_tags AS bt ON bt.tag_id = t.id
     INNER JOIN "Book" AS b ON b.id = bt.book_id
     WHERE bt.deleted = false AND b."userId" = ${user.id}

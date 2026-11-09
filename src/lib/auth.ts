@@ -106,6 +106,72 @@ export async function updateUserPassword(userId: string, password: string): Prom
   await prisma.session.deleteMany({ where: { userId } });
 }
 
+/** Find a verified user without selecting password credentials. */
+export async function findVerifiedUserByEmail(email: string) {
+  return prisma.user.findFirst({
+    where: { email, emailVerified: true },
+    select: { id: true, email: true },
+  });
+}
+
+/** Create or replace the user's one active password-reset token. */
+export async function createPasswordResetToken(userId: string): Promise<string> {
+  const token = randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+  await prisma.passwordResetToken.upsert({
+    where: { userId },
+    update: {
+      tokenHash: sha256(token),
+      expiresAt,
+    },
+    create: {
+      userId,
+      tokenHash: sha256(token),
+      expiresAt,
+    },
+  });
+  return token;
+}
+
+/** Consume a valid reset token, update the password, and revoke all sessions. */
+export async function resetPasswordWithToken(
+  token: string,
+  password: string,
+): Promise<boolean> {
+  const tokenHash = sha256(token);
+  const resetToken = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash },
+    select: { id: true, userId: true, expiresAt: true },
+  });
+  if (!resetToken || resetToken.expiresAt <= new Date()) {
+    return false;
+  }
+  const passwordHash = hashPassword(password);
+
+  return prisma.$transaction(async (transaction) => {
+    const now = new Date();
+    const consumed = await transaction.passwordResetToken.deleteMany({
+      where: {
+        id: resetToken.id,
+        tokenHash,
+        expiresAt: { gt: now },
+      },
+    });
+    if (consumed.count !== 1) {
+      return false;
+    }
+
+    await transaction.user.update({
+      where: { id: resetToken.userId },
+      data: { passwordHash },
+    });
+    await transaction.session.deleteMany({
+      where: { userId: resetToken.userId },
+    });
+    return true;
+  });
+}
+
 /** Find a user by email (includes passwordHash). */
 export async function findUserByEmail(email: string) {
   return prisma.user.findUnique({ where: { email } });

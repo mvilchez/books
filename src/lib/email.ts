@@ -90,3 +90,39 @@ If you did not make this change, please contact support immediately.
 
   return sendEmail({ to, subject, text, html });
 }
+
+/** Send a password-reset link to a verified account. */
+export async function sendPasswordResetEmail({
+  to,
+  token,
+}: {
+  to: string;
+  token: string;
+}): Promise<boolean> {
+  const appUrl =
+    process.env.APP_URL ||
+    (process.env.NODE_ENV === "production" ? undefined : "http://localhost:3000");
+  if (!appUrl) {
+    throw new Error("APP_URL must be configured to send password reset links.");
+  }
+
+  const appBaseUrl = new URL(appUrl);
+  if (
+    !["http:", "https:"].includes(appBaseUrl.protocol) ||
+    (process.env.NODE_ENV === "production" && appBaseUrl.protocol !== "https:")
+  ) {
+    throw new Error("APP_URL must use HTTP or HTTPS, and HTTPS in production.");
+  }
+
+  const resetUrl = new URL("/reset-password", appBaseUrl);
+  resetUrl.searchParams.set("token", token);
+  const link = resetUrl.toString();
+  const safeLink = link.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
+
+  return sendEmail({
+    to,
+    subject: "Reset your Books Tracker password",
+    text: `Use this link to reset your password. It expires in one hour and can only be used once:\n\n${link}\n\nIf you did not request this, you can ignore this email.`,
+    html: `<p>Use the link below to reset your password. It expires in one hour and can only be used once.</p><p><a href="${safeLink}">Reset your password</a></p><p>If you did not request this, you can ignore this email.</p>`,
+  });
+}

@@ -36,6 +36,14 @@ export default function LoginPage() {
             </p>
           </div>
           <AuthForm mode="login" />
+          <p className="mt-4 text-right text-sm">
+            <Link
+              href="/forgot-password"
+              className="font-semibold text-emerald-400 hover:text-emerald-300"
+            >
+              Forgot password?
+            </Link>
+          </p>
           <p className="mt-6 border-t border-slate-800 pt-5 text-sm text-slate-400">
             No account?{" "}
             <Link

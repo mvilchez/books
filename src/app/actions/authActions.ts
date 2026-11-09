@@ -6,6 +6,8 @@ import {
   findUserByEmail,
   getUnverifiedUserByEmail,
   createUser,
+  createPasswordResetToken,
+  findVerifiedUserByEmail,
   hashPassword,
   verifyPassword,
   createSession,
@@ -15,9 +17,13 @@ import {
   getCurrentUser,
   markEmailAsVerified,
   updateUserProfile,
+  resetPasswordWithToken,
 } from "@/lib/auth";
-import { sendProfileChangedEmail } from "@/lib/email";
+import { sendPasswordResetEmail, sendProfileChangedEmail } from "@/lib/email";
 import { checkRateLimit } from "@/lib/rate-limit";
+
+const passwordResetRequestMessage =
+  "If an account exists for that email, a password reset link will be sent.";
 
 const signupSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
@@ -29,6 +35,72 @@ const loginSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(1),
 });
+
+const passwordResetRequestSchema = z.object({
+  email: z.string().trim().email(),
+});
+
+const passwordResetSchema = z.object({
+  token: z.string().regex(/^[a-f0-9]{64}$/),
+  password: z.string().min(8).max(128),
+  confirmPassword: z.string().min(1),
+});
+
+/** Start password recovery without revealing whether an email is registered. */
+export async function requestPasswordResetAction(formData: FormData) {
+  const parsed = passwordResetRequestSchema.safeParse({
+    email: formData.get("email"),
+  });
+  if (!parsed.success) {
+    return { error: "Enter a valid email address." };
+  }
+
+  const { email } = parsed.data;
+  const rateLimit = checkRateLimit(`password-reset:${email.toLowerCase()}`, {
+    maxAttempts: 3,
+    windowMs: 15 * 60 * 1000,
+  });
+  if (!rateLimit.allowed) {
+    return { success: passwordResetRequestMessage };
+  }
+
+  const user = await findVerifiedUserByEmail(email);
+  if (!user) {
+    return { success: passwordResetRequestMessage };
+  }
+
+  const token = await createPasswordResetToken(user.id);
+  try {
+    await sendPasswordResetEmail({ to: user.email, token });
+  } catch (error) {
+    console.error("Failed to send password reset email:", error);
+  }
+
+  return { success: passwordResetRequestMessage };
+}
+
+/** Change a password using a valid, single-use reset token. */
+export async function resetPasswordAction(formData: FormData) {
+  const parsed = passwordResetSchema.safeParse({
+    token: formData.get("token"),
+    password: formData.get("password"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+  if (!parsed.success) {
+    return { error: "Invalid or expired reset link, or invalid password." };
+  }
+
+  const { token, password, confirmPassword } = parsed.data;
+  if (password !== confirmPassword) {
+    return { error: "Passwords do not match." };
+  }
+
+  const reset = await resetPasswordWithToken(token, password);
+  if (!reset) {
+    return { error: "This reset link is invalid or expired. Request a new one." };
+  }
+  return { success: "Password reset. You can now log in." };
+}
 
 /** Verify the email address linked to the given token and create a session. */
 async function verifyEmailAction(formData: FormData) {
