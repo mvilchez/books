@@ -1,6 +1,6 @@
 "use client";
 
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { saveProfileAction } from "@/app/actions/authActions";
 
 type ProfileState = { success: string | null; error: string | null };
@@ -8,7 +8,7 @@ type ProfileState = { success: string | null; error: string | null };
 const initialState: ProfileState = { success: null, error: null };
 
 export function PersonalProfileForm() {
-  const [state, formAction, pending] = useFormState<ProfileState, FormData>(
+  const [state, formAction, pending] = useActionState<ProfileState, FormData>(
     async (_prev: ProfileState, formData: FormData) => {
       return (await saveProfileAction(formData)) ?? null;
     },

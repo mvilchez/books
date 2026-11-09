@@ -13,7 +13,7 @@ Constraints:
 - Minimal targeted change
 - Follow existing patterns/tests
 - Update CONTEXT.md with a dated delta if behavior changes
-
+- Update Changelog.md with a short brief a what changed
 Validation:
 - <exact commands, e.g. npm test, npm run lint, npm run build>
 
@@ -21,3 +21,4 @@ Expected output:
 - Summary of changed files
 - Commands run and results
 - Any assumptions/limitations
+

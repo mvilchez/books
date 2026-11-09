@@ -303,6 +303,11 @@ export default function DashboardShell({
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <BooksIcon />
+                <img
+                  src="/books-logo.png"
+                  alt="Books logo"
+                  className="h-6 w-auto"
+                />
                 <h1 className="truncate text-lg font-extrabold tracking-tight text-white sm:text-2xl">
                   <span className="md:hidden">Books</span>
                   <span className="hidden md:inline">{title}</span>

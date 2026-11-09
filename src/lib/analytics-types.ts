@@ -65,12 +65,32 @@ export interface Suggestion {
   genre: string | null;
 }
 
+/** Personalized recommendation from the combined engine */
+export interface PersonalizedRecommendation {
+  id: string;
+  title: string;
+  author: string;
+  workId: string | null;
+  firstPublishYear: number | null;
+  reason: string; // e.g. " similar genre", " same author", " Open Library match"
+  source: "internal" | "open_library";
+  similarityScore: number;
+}
+
+/** Result of a personalized recommendations query */
+export interface PersonalizedRecommendationsResult {
+  recommendations: PersonalizedRecommendation[];
+  engineVersion: string;
+  generatedAt: string;
+}
+
 export interface DiscoveryMetrics {
   topAuthors: AuthorRank[];  // top 5
   topAuthorBooks: AuthorBookList[];
   genreShares: GenreShare[];
   topGenres: GenreShare[];   // top 5, names resolved
   suggestions: Suggestion[]; // up to 3
+  personalizedRecommendations: PersonalizedRecommendation[]; // up to 5
 }
 
 

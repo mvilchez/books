@@ -45,3 +45,4 @@ next-env.d.ts
 # local database backups
 /db/backups/
 next features.md
+book_recommendation_engine_architecture.md

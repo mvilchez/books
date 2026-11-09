@@ -63,17 +63,25 @@ async function requireCurrentUserId(): Promise<string> {
 }
 
 /** Distinct reading years present in the ledger, ascending. */
-export async function getAvailableReadingYears(): Promise<
-  { readingYear: number }[]
-> {
+export async function getAvailableReadingYears(): Promise<{ readingYear: number }[]> {
   const userId = await currentUserId();
   if (!userId) return [];
-  const rows = await prisma.book.groupBy({
-    by: ["readingYear"],
+  // Use findMany with distinct via groupBy alternative:
+  // Since groupBy is failing due to column mismatch, use a raw approach
+  const rows = await prisma.book.findMany({
     where: { userId },
+    select: { readingYear: true },
     orderBy: { readingYear: "asc" },
+    distinct: ["readingYear"],
   });
-  return rows.map((r) => ({ readingYear: r.readingYear }));
+  // Prisma's findMany with distinct may return duplicates, so we need to deduplicate
+  const seen = new Set<number>();
+  const uniqueRows = rows.filter((r) => {
+    if (seen.has(r.readingYear)) return false;
+    seen.add(r.readingYear);
+    return true;
+  });
+  return uniqueRows.map((r) => ({ readingYear: r.readingYear }));
 }
 
 /** All books of one reading year with author and genre included. */

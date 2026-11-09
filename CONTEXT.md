@@ -1,6 +1,10 @@
 # Technical Architecture & Context Continuity Blueprint: project "books"
 
+**Prisma schema alignment (2026-11-09):** Kept `Book.userId` mapped to the existing PostgreSQL `userId` column and restored missing inverse relations so Prisma Client generation validates against the current schema.
+
 **Mobile-first responsive layout (2026-11-02):** Updated dashboard shell for viewport-height scrolling, compact mobile gutters, touch-sized navigation, mobile overlay drawer, Geist font, reduced-motion preferences, narrowed spacing on search/statistics/saga pages. Dashboard book lists retain horizontal scroll on narrow screens. Login/signup use responsive split desktop/mobile layouts.
+
+**Logo integration (2026-11-11):** Added `books-logo.png` to the public folder and integrated it into the login page (`src/app/login/page.tsx`) and dashboard header (`src/components/DashboardShell.tsx`). Login page displays the logo in the desktop layout; dashboard header includes the logo alongside the "Books" title.
 
 **Document Purpose:** Current project architecture and implementation status for the `books` reading analytics platform.
 
@@ -47,6 +51,7 @@
 
 **Recent additions (2026-11):**
 - **Author nationality pie chart (2026-11-23):** Recharts PieChart visualizing author distribution by nationality using `getCountryStats()` from `analytics.ts`. Updated `src/app/stats/page.tsx`.
+- **Preference profile builder (2026-11-23):** Added `buildPreferenceProfileAction` server action in `src/app/actions/personalizedRecommendationsActions.ts` that builds a user preference profile from high-rated completed books and saves it to the `user_preference_vectors` PostgreSQL table. Updated `src/app/account/page.tsx` with a "Build Preference Profile" button in the user's account section.
 ## 6. Performance Optimization Delta (2026-11-11)
 
 **Objective:** Improve main page load performance from 56s/35s to target <5s.
@@ -99,6 +104,8 @@ Deleted stray zero-extension file `src/components/dashboard/DashboardSortAndFilt
 
 **Earlier phases (2026-10):** PostgreSQL/Neon migration, ISBN fallback to Google Books, tag management, recommendation matching, transaction timeout hardening, stats expansion, backup scripts.
 - Recommendation same-book matching
+
+- **Book recommendation engine (2026-11-23):** New feature - personalized book recommendations combining internal tag/genre/author similarity with Open Library external search. Implements `getPersonalizedRecommendations()` server action and `RecommendationsList` component. Updates `DiscoveryMetrics` to include recommendation source data.
 
 **Scripts:** `src/scripts/`, `npm run validate:ingestion` (parse source workbook without DB)
 

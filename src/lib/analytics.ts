@@ -1,5 +1,6 @@
 // src/lib/analytics.ts
-import { prisma } from '@/lib/prisma'; // Step 2.3 singleton — NEVER `new PrismaClient()`
+import { prisma } from '@/lib/prisma';
+import { getPersonalizedRecommendations } from '@/lib/personalized-recommendations';
 import { getCurrentUser } from '@/lib/auth';
 import { computeValueScore } from '@/lib/book-value';
 import { rankSimilar } from '@/lib/similar-books';
@@ -286,6 +287,7 @@ export async function getDiscoveryMetrics(
       genreShares: [],
       topGenres: [],
       suggestions: [],
+      personalizedRecommendations: [],
     };
   }
   const [rankedAuthors, genreRows, ungenred] = await Promise.all([
@@ -323,6 +325,7 @@ export async function getDiscoveryMetrics(
     take: 3,
   });
 
+  const personalizedRecs = await getPersonalizedRecommendations(5);
   return {
     topAuthors,
     topAuthorBooks: topAuthors.map((author) => ({
@@ -337,6 +340,7 @@ export async function getDiscoveryMetrics(
       author: b.author.name,
       genre: b.genre?.name ?? null,
     })),
+    personalizedRecommendations: personalizedRecs.recommendations,
   };
 }
 
@@ -686,6 +690,9 @@ export async function getTopSubjects(limit = 20): Promise<SubjectShare[]> {
 }
 
 export async function getMetadataCoverage(): Promise<MetadataCoverage> {
+
+/** @deprecated Use getPersonalizedRecommendations directly from "@/lib/personalized-recommendations" */
+
   const userId = await currentUserId();
   if (!userId) return { total: 0, withOpenLibraryWork: 0, withCover: 0, withPublicationYear: 0, withPages: 0 };
   const [total, withOpenLibraryWork, withCover, withPublicationYear, withPages] = await getBookCounts(userId);
@@ -803,3 +810,4 @@ export async function getSimilarBooks(seedId: string, limit = 5): Promise<Simila
     };
   });
 }
+

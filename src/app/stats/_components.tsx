@@ -134,6 +134,7 @@ export function SuggestionsList({ items }: { items: Suggestion[] }) {
 }
 
 export function StatsSkeleton() {
+
   return (
     <div className="animate-pulse space-y-6" aria-busy="true" aria-label="Loading statistics">
       <div className="space-y-3">
@@ -152,3 +153,5 @@ export function StatsSkeleton() {
     </div>
   );
 }
+
+export { RecommendationsList } from "./_componentsRecommendations"

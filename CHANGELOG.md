@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Preference profile builder**: Added `buildPreferenceProfileAction` server action in `src/app/actions/personalizedRecommendationsActions.ts` that builds a user preference profile from high-rated completed books and saves it to the `user_preference_vectors` PostgreSQL table. Updated `src/app/account/page.tsx` with a "Build Preference Profile" button in the user's account section.
+
 ## [2026.11.23]
 
 ### Added

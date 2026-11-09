@@ -11,7 +11,7 @@ import {
   getTopAuthorsByPages, getTopAuthorsByRating, getTopSubjects, getYearKpis, getYearlyTrend,
   getCountryStats,
 } from '@/lib/analytics';
-import { Kpi, nf, StatsSkeleton, SuggestionsList, TopAuthorsBooks, TopList } from './_components';
+import { Kpi, nf, StatsSkeleton, SuggestionsList, TopAuthorsBooks, TopList, RecommendationsList } from './_components';
 
 const chartLoading = () => (
   <div className="h-[min(70vw,360px)] min-h-56 animate-pulse rounded-xl bg-slate-800" />
@@ -266,6 +266,9 @@ async function StatsContent({ searchParams }: { searchParams: StatsSearchParams 
           items={rereads.map((r, i) => ({ id: String(i), label: `${r.title} (${r.author})`, value: `${r.count}×` }))}
         />
         <SuggestionsList items={discovery.suggestions} />
+        <RecommendationsList
+  items={discovery.personalizedRecommendations ?? []}
+/>
       </section>
       </DisclosurePanel>
 

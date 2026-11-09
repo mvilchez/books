@@ -16,6 +16,13 @@ export default function LoginPage() {
             Keep your books, reading progress, and yearly insights together.
           </p>
         </section>
+        <section className="lg:block flex items-center justify-center">
+          <img
+            src="/books-logo.png"
+            alt="Books logo"
+            className="h-20 w-auto"
+          />
+        </section>
         <section className="mx-auto w-full max-w-md rounded-2xl border border-slate-700/80 bg-slate-900 p-6 shadow-2xl shadow-black/30 sm:p-8">
           <div className="mb-8">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400 lg:hidden">
