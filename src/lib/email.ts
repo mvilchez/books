@@ -119,10 +119,17 @@ export async function sendPasswordResetEmail({
   const link = resetUrl.toString();
   const safeLink = link.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
 
-  return sendEmail({
+  const sent = await sendEmail({
     to,
     subject: "Reset your Books Tracker password",
     text: `Use this link to reset your password. It expires in one hour and can only be used once:\n\n${link}\n\nIf you did not request this, you can ignore this email.`,
     html: `<p>Use the link below to reset your password. It expires in one hour and can only be used once.</p><p><a href="${safeLink}">Reset your password</a></p><p>If you did not request this, you can ignore this email.</p>`,
   });
+  if (!sent) {
+    // SMTP not configured — print the reset link to the logs so it can be used directly.
+    console.warn(
+      `[password reset] SMTP not configured. Reset link for ${to}: ${link}`,
+    );
+  }
+  return sent;
 }

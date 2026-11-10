@@ -38,7 +38,7 @@ function trustedPortraitUrl(value: string | null): string | null {
     const isCommonsImage =
       url.hostname === "thumb.wikimedia.org" && url.pathname.startsWith("/wikipedia/commons/thumb/");
     const isOpenLibraryImage =
-      url.hostname === "covers.openlibrary.org" && /^\/a\/id\/\d+-[SML]\\.jpg$/.test(url.pathname);
+      url.hostname === "covers.openlibrary.org" && /^\/a\/id\/\d+-[SML]\.jpg$/.test(url.pathname);
     return url.protocol === "https:" && (isCommonsImage || isOpenLibraryImage) ? url.toString() : null;
   } catch {
     return null;
@@ -105,9 +105,6 @@ const hasAttribution = openLibrarySourceUrl !== null ||
       ? null
       : trustedPortraitUrl(author.portraitUrl);
 
-  const hasWikidataId = typeof author.wikidataId === "string" && author.wikidataId.trim().length > 0;
-  const portraitCacheUrl = hasWikidataId ? `/api/cache-portrait?authorId=${author.wikidataId}` : null;
-  const effectivePortraitUrl = portraitCacheUrl || portraitUrl;
   const isLarge = size === "large";
   const initials = author.name
     .trim()

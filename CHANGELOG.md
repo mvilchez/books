@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Author portraits not displaying**: Fixed a broken regex in `trustedPortraitUrl()` (`src/components/AuthorPortrait.tsx:41`) where `\\/` in the regex literal was parsed as an escaped backslash followed by `/` closing the regex, causing every Open Library portrait URL to be rejected and `portraitUrl` to return `null`. Corrected to `/^\/a\/id\/\d+-[SML]\.jpg$/`. Also removed dead code that passed `/api/cache-portrait?authorId=...` (a local URL with a query string) to `<Image>`, which triggered the `images.localPatterns` error. Portraits now render from `portraitUrl` directly (Open Library via `remotePatterns`, local `/portraits/...` paths) and work cross-browser without `localPatterns`.
+
+- **Linked orphaned local portrait files**: 62 `public/portraits/*.webp` files whose filenames match an `Author.id` were linked to their authors by setting `portrait_url`. Result: 63 authors now display local portraits (was 0), 227 authors have any portrait (was 165). One file remains unlinked only because its author already has an Open Library portrait.
+
 ### Added
 
 - **Unauthenticated password reset**: Added public `/forgot-password` and `/reset-password` flows with generic account-safe responses, per-email rate limiting, one-hour single-use tokens stored only as SHA-256 hashes, and session revocation after a successful reset. Password-reset emails require `APP_URL` and SMTP configuration; the database change is in `prisma/migrations/20261109204400_add_password_reset_tokens`.

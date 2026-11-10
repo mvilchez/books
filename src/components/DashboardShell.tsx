@@ -14,6 +14,7 @@ import {
   CopyTagsIcon,
   DuplicateIcon,
   GlobeIcon,
+  ImageIcon,
   PlusIcon,
   SearchIcon,
   TagIcon,
@@ -93,6 +94,12 @@ const MENU_ENTRIES: MenuEntry[] = [
     href: "/reports/orphan-books",
     label: "Orphan books maintenance",
     Icon: BookOpenIcon,
+  },
+  {
+    group: "Metadata ops",
+    href: "/reports/cache-author-portraits",
+    label: "Cache author portraits",
+    Icon: ImageIcon,
   },
   {
     href: "/api/v1/books/export",
