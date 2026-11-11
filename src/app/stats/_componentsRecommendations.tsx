@@ -1,5 +1,6 @@
-/** @client */
+"use client"
 import type { PersonalizedRecommendation } from "@/lib/analytics-types";
+import { useState, useCallback } from "react";
 
 /**
  * RecommendationsList component with action buttons
@@ -9,6 +10,8 @@ export function RecommendationsList({
 }: {
   items: PersonalizedRecommendation[];
 }) {
+  const { handleMarkAsRead, showSelector, selectedBookId, confirmSelection, closeSelector } = useMarkAsRead(items);
+
   return (
     <div className="min-w-0 rounded-xl border border-slate-700 bg-slate-800/80 p-4 sm:p-5">
       <h3 className="mb-4 text-base font-bold text-white sm:text-lg">
@@ -58,7 +61,7 @@ export function RecommendationsList({
                 </button>
                 {/* Mark as read button - same book, different workId */}
                 <button
-                  onClick={() => alert('Mark as read for ' + book.author)}
+                  onClick={() => handleMarkAsRead(book)}
                   className="rounded-md border border-slate-700/30 bg-slate-900/60 px-2 py-1 text-xs text-slate-300 hover:border-slate-500 hover:bg-slate-900 transition-colors"
                   disabled={false}
                 >
@@ -71,4 +74,92 @@ export function RecommendationsList({
       )}
     </div>
   );
+}
+
+/** Fetch completed books by author and mark recommendation as read */
+async function markRecommendationAsRead(
+  recommendationId: string,
+  readBookId: string
+): Promise<void> {
+  const { prisma } = await import("@/lib/prisma");
+  await prisma.personalizedRecommendation.update({
+    where: { id: recommendationId },
+    data: {
+      status: "MARKED_AS_READ" as const,
+      readBookId,
+    },
+  });
+}
+
+/** Hook to handle the mark-as-read selection logic */
+function useMarkAsRead(items: PersonalizedRecommendation[]) {
+  const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
+  const [showSelector, setShowSelector] = useState<boolean>(false);
+  const [completedBooks, setCompletedBooks] = useState<
+    Array<{ id: string; title: string }>
+  >([]);
+
+  const handleMarkAsRead = useCallback(
+    async (book: PersonalizedRecommendation) => {
+      const { getCurrentUser } = await import("@/lib/auth");
+      const { prisma } = await import("@/lib/prisma");
+
+      const user = await getCurrentUser();
+      if (!user) {
+        alert("User not authenticated");
+        return;
+      }
+
+      const author = book.author;
+      const books = await prisma.book.findMany({
+        where: {
+          userId: user.id,
+          author: { name: author },
+          status: "COMPLETED",
+        },
+        select: { id: true, title: true },
+        orderBy: { title: "asc" },
+      });
+
+      if (books.length === 0) {
+        alert(`No completed books found by "${author}" in your library.`);
+        return;
+      }
+
+      if (books.length === 1) {
+        await markRecommendationAsRead(book.id, books[0].id);
+        alert(`Marked "${books[0].title}" as read for recommendation`);
+        return;
+      }
+
+      setSelectedBookId("multiple");
+      setShowSelector(true);
+    },
+    [items]
+  );
+
+  const confirmSelection = useCallback(
+    async (bookId: string) => {
+      const recId = items.length > 0 ? items[items.length - 1].id : "";
+      setShowSelector(false);
+      setSelectedBookId(bookId);
+      await markRecommendationAsRead(recId, bookId);
+      alert("Book marked as read");
+    },
+    [items]
+  );
+
+  const closeSelector = useCallback(() => {
+    setShowSelector(false);
+    setSelectedBookId(null);
+    setCompletedBooks([]);
+  }, []);
+
+  return {
+    handleMarkAsRead,
+    showSelector,
+    selectedBookId,
+    confirmSelection,
+    closeSelector,
+  };
 }

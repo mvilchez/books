@@ -174,4 +174,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 - **Phase 5 executed**: Phase 5 features executed.
 ### Fixed
-- **Return-to-main-view button**: Replaced the standalone "Start Enrichment" button with (a) an `<Link href="/">` "← Return" button in the action row, matching the primary button styling used by sibling pages (`/sagas`, `/stats`, `/mapa-mundi`); and (b) `import Link from "next/link"`.
+- **Return-to-main-view button**: Replaced the standalone "Start Enrichment" button with (a) an `<Link href="/">` "← Return" button in the action row, matching the primary button styling used by sibling pages (`/sagas`, `/stats`, `/mapa-mundi`); and (b) `import Link from "next/link"`.## [2026-11-26]
+### Recommendation buttons update
+
+## [2026-11-26]
+### Recommendation buttons update
+- **Mark as read button**: Fixed to show author's completed books for selection and mark recommendation as MARKED_AS_READ with readBookId
+- **Dismissed button**: Changed to \"Dismissed\" - marks recommendation as OLD_DISMISSED status instead of deleting from database\n- **Refresh button**: Renamed to \"Recalculate\" - marks existing recommendations as OLD_DISMISSED and generates 5 new recommendations one-by-one\n
