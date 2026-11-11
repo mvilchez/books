@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Recommendation buttons**: Updated the Delete button to mark recommendations as old dismissed (OLD_DISMISSED status), renamed Refresh to Recalculate and generate 5 new recommendations one-by-one, and implemented Mark as read to find all books by the author and let user mark which one was read without recommending already-read books.
+
+
+
 ### Fixed
 
 - **Author portraits not displaying**: Fixed a broken regex in `trustedPortraitUrl()` (`src/components/AuthorPortrait.tsx:41`) where `\\/` in the regex literal was parsed as an escaped backslash followed by `/` closing the regex, causing every Open Library portrait URL to be rejected and `portraitUrl` to return `null`. Corrected to `/^\/a\/id\/\d+-[SML]\.jpg$/`. Also removed dead code that passed `/api/cache-portrait?authorId=...` (a local URL with a query string) to `<Image>`, which triggered the `images.localPatterns` error. Portraits now render from `portraitUrl` directly (Open Library via `remotePatterns`, local `/portraits/...` paths) and work cross-browser without `localPatterns`.

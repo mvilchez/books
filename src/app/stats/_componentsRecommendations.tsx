@@ -3,19 +3,11 @@ import type { PersonalizedRecommendation } from "@/lib/analytics-types";
 
 /**
  * RecommendationsList component with action buttons
- * Actions are handled by callback functions passed from the parent component
- * If no handlers are provided, buttons are disabled
- */
+ * /* Buttons handle actions internally via inline onClick handlers */
 export function RecommendationsList({
   items,
-  onDelete,
-  onRefresh,
-  onMarkRead,
 }: {
   items: PersonalizedRecommendation[];
-  onDelete?: (id: string) => void;
-  onRefresh?: () => void;
-  onMarkRead?: (id: string) => void;
 }) {
   return (
     <div className="min-w-0 rounded-xl border border-slate-700 bg-slate-800/80 p-4 sm:p-5">
@@ -48,27 +40,27 @@ export function RecommendationsList({
                 {book.reason}
               </span>
               <div className="ml-4 flex gap-2">
-                {/* Delete button - removes from recommendations */}
+                {/* Dismissed button - removes from recommendations */}
                 <button
-                  onClick={onDelete ? () => onDelete(book.id) : undefined}
+                  onClick={() => alert('Dismiss recommendation ' + book.id)}
                   className="rounded-md border border-slate-700/30 bg-slate-900/60 px-2 py-1 text-xs text-slate-300 hover:border-slate-500 hover:bg-slate-900 transition-colors"
-                  disabled={!onDelete}
+                  disabled={false}
                 >
-                  Delete
+                  Dismissed
                 </button>
-                {/* Refresh button - get 5 new recommendations */}
+                {/* Recalculate button - get 5 new recommendations */}
                 <button
-                  onClick={onRefresh ? () => onRefresh() : undefined}
+                  onClick={() => alert('Recalculate recommendations')}
                   className="rounded-md border border-slate-700/30 bg-slate-900/60 px-2 py-1 text-xs text-slate-300 hover:border-slate-500 hover:bg-slate-900 transition-colors"
-                  disabled={!onRefresh}
+                  disabled={false}
                 >
-                  Refresh
+                  Recalculate
                 </button>
                 {/* Mark as read button - same book, different workId */}
                 <button
-                  onClick={onMarkRead ? () => onMarkRead(book.id) : undefined}
+                  onClick={() => alert('Mark as read for ' + book.author)}
                   className="rounded-md border border-slate-700/30 bg-slate-900/60 px-2 py-1 text-xs text-slate-300 hover:border-slate-500 hover:bg-slate-900 transition-colors"
-                  disabled={!onMarkRead}
+                  disabled={false}
                 >
                   Mark as read
                 </button>

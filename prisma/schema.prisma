@@ -23,6 +23,7 @@ enum RecommendationStatus {
   ACTIVE
   DELETED
   MARKED_AS_READ
+  OLD_DISMISSED
 }
 
 /// Category for book tags

@@ -119,3 +119,10 @@ Deleted stray zero-extension file `src/components/dashboard/DashboardSortAndFilt
 **Stack status:** Phase 4 (cloud deployment) planned but not executed. Phase 5 stretch goals open (origin donut, publication-era histogram, CSV export, analytics caching). Phase 6 features 6.1, 6.2, 6.3 implemented.
 
 ---
+## 2026-11-26
+
+### Recommendation buttons update
+- **Delete button**: Changed to "Dismissed" - marks recommendation as OLD_DISMISSED status instead of deleting from database
+- **Refresh button**: Renamed to "Recalculate" - marks existing recommendations as OLD_DISMISSED and generates 5 new recommendations one-by-one
+- **Mark as read button**: Now finds all books by the recommendation's author in the database and allows user to mark which one was read, excluding already-read books from future recommendations
+

@@ -267,8 +267,7 @@ async function StatsContent({ searchParams }: { searchParams: StatsSearchParams 
         />
         <SuggestionsList items={discovery.suggestions} />
         <RecommendationsList
-  items={discovery.personalizedRecommendations ?? []}
-/>
+  items={discovery.personalizedRecommendations ?? []} />
       </section>
       </DisclosurePanel>
 
