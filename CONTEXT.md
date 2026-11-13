@@ -1,5 +1,7 @@
 # Technical Architecture & Context Continuity Blueprint: project "books"
 
+**Recommendation Prisma browser error (2026-11-13):** Moved recommendation book lookups and read-status updates from the client component into authenticated server actions. Multi-book selection now targets the clicked recommendation, and server actions verify user ownership and completed-book status before updating.
+
 **Tag query mapping (2026-11-09):** Updated `getUsedTags()` to query the PostgreSQL `tags` table name declared by `Tag @@map("tags")`, avoiding a raw-query reference to the nonexistent `"Tag"` relation.
 
 **Prisma schema alignment (2026-11-09):** Kept `Book.userId` mapped to the existing PostgreSQL `userId` column and restored missing inverse relations so Prisma Client generation validates against the current schema.

@@ -1,6 +1,10 @@
 "use client"
 import type { PersonalizedRecommendation } from "@/lib/analytics-types";
 import { useState, useCallback } from "react";
+import {
+  getCompletedBooksByAuthor,
+  markRecommendationAsRead,
+} from "@/app/actions/recommendationActions";
 
 /**
  * RecommendationsList component with action buttons
@@ -10,7 +14,14 @@ export function RecommendationsList({
 }: {
   items: PersonalizedRecommendation[];
 }) {
-  const { handleMarkAsRead, showSelector, selectedBookId, confirmSelection, closeSelector } = useMarkAsRead(items);
+  const {
+    handleMarkAsRead,
+    selection,
+    selectedBookId,
+    setSelectedBookId,
+    confirmSelection,
+    closeSelector,
+  } = useMarkAsRead();
 
   return (
     <div className="min-w-0 rounded-xl border border-slate-700 bg-slate-800/80 p-4 sm:p-5">
@@ -72,93 +83,95 @@ export function RecommendationsList({
           ))}
         </div>
       )}
+      {selection && (
+        <div className="mt-4 rounded-lg border border-slate-700 p-4" role="dialog" aria-label="Select completed book">
+          <label htmlFor="completed-book" className="mb-2 block text-sm text-slate-300">
+            Select the completed book by {selection.author}:
+          </label>
+          <select
+            id="completed-book"
+            value={selectedBookId ?? ""}
+            onChange={(event) => setSelectedBookId(event.target.value)}
+            className="w-full rounded-md border border-slate-700 bg-slate-900 p-2 text-white"
+          >
+            {selection.books.map((book) => (
+              <option key={book.id} value={book.id}>{book.title}</option>
+            ))}
+          </select>
+          <div className="mt-3 flex gap-2">
+            <button onClick={confirmSelection} className="rounded-md bg-blue-600 px-3 py-1 text-sm text-white">
+              Confirm
+            </button>
+            <button onClick={closeSelector} className="rounded-md border border-slate-700 px-3 py-1 text-sm text-slate-300">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-/** Fetch completed books by author and mark recommendation as read */
-async function markRecommendationAsRead(
-  recommendationId: string,
-  readBookId: string
-): Promise<void> {
-  const { prisma } = await import("@/lib/prisma");
-  await prisma.personalizedRecommendation.update({
-    where: { id: recommendationId },
-    data: {
-      status: "MARKED_AS_READ" as const,
-      readBookId,
-    },
-  });
-}
-
 /** Hook to handle the mark-as-read selection logic */
-function useMarkAsRead(items: PersonalizedRecommendation[]) {
+function useMarkAsRead() {
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
-  const [showSelector, setShowSelector] = useState<boolean>(false);
-  const [completedBooks, setCompletedBooks] = useState<
-    Array<{ id: string; title: string }>
-  >([]);
+  const [selection, setSelection] = useState<{
+    recommendationId: string;
+    author: string;
+    books: { id: string; title: string }[];
+  } | null>(null);
 
   const handleMarkAsRead = useCallback(
     async (book: PersonalizedRecommendation) => {
-      const { getCurrentUser } = await import("@/lib/auth");
-      const { prisma } = await import("@/lib/prisma");
-
-      const user = await getCurrentUser();
-      if (!user) {
-        alert("User not authenticated");
-        return;
-      }
-
-      const author = book.author;
-      const books = await prisma.book.findMany({
-        where: {
-          userId: user.id,
-          author: { name: author },
-          status: "COMPLETED",
-        },
-        select: { id: true, title: true },
-        orderBy: { title: "asc" },
-      });
+      const books = await getCompletedBooksByAuthor(book.author);
 
       if (books.length === 0) {
-        alert(`No completed books found by "${author}" in your library.`);
+        alert(`No completed books found by "${book.author}" in your library.`);
         return;
       }
 
       if (books.length === 1) {
-        await markRecommendationAsRead(book.id, books[0].id);
+        const result = await markRecommendationAsRead(book.id, books[0].id);
+        if (!result.success) {
+          alert("Could not mark this recommendation as read.");
+          return;
+        }
         alert(`Marked "${books[0].title}" as read for recommendation`);
         return;
       }
 
-      setSelectedBookId("multiple");
-      setShowSelector(true);
+      setSelection({ recommendationId: book.id, author: book.author, books });
+      setSelectedBookId(books[0].id);
     },
-    [items]
-  );
-
-  const confirmSelection = useCallback(
-    async (bookId: string) => {
-      const recId = items.length > 0 ? items[items.length - 1].id : "";
-      setShowSelector(false);
-      setSelectedBookId(bookId);
-      await markRecommendationAsRead(recId, bookId);
-      alert("Book marked as read");
-    },
-    [items]
+    []
   );
 
   const closeSelector = useCallback(() => {
-    setShowSelector(false);
+    setSelection(null);
     setSelectedBookId(null);
-    setCompletedBooks([]);
   }, []);
+
+  const confirmSelection = useCallback(async () => {
+    if (!selection || !selectedBookId) return;
+
+    const result = await markRecommendationAsRead(
+      selection.recommendationId,
+      selectedBookId,
+    );
+    if (!result.success) {
+      alert("Could not mark this recommendation as read.");
+      return;
+    }
+
+    closeSelector();
+      alert("Book marked as read");
+  }, [closeSelector, selectedBookId, selection]);
 
   return {
     handleMarkAsRead,
-    showSelector,
+    selection,
     selectedBookId,
+    setSelectedBookId,
     confirmSelection,
     closeSelector,
   };
