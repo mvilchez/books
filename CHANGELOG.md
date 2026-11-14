@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Task template workflow**: Repository requests now follow `task template.md`, with the user's request included after `Task:` in the task brief.
 
 - **Recommendation buttons**: Updated the Delete button to mark recommendations as old dismissed (OLD_DISMISSED status), renamed Refresh to Recalculate and generate 5 new recommendations one-by-one, and implemented Mark as read to find all books by the author and let user mark which one was read without recommending already-read books.
 

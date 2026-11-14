@@ -2,9 +2,9 @@
 
 **Duplicate book fusion SQL fix (2026-11-14):** Changed tag transfer to `INSERT ... SELECT ... ON CONFLICT DO NOTHING`, the valid PostgreSQL form for preserving existing keeper tags while moving tags from duplicate books.
 
-**Recommendation discard action (2026-11-14):** Added a per-recommendation Discard button; it marks only that record as `DELETED` and fills the active list without archiving remaining recommendations.
+**Recommendation refresh behavior (2026-11-14):** Recommendation generation now runs only when the user explicitly selects the generate/refresh button. It appends up to five new recommendations without changing any existing status; reading, discarding, starting a recommendation, completing books, and opening stats do not generate recommendations. No code automatically sets `OLD_DISMISSED`.
 
-**Recommendation list updates (2026-11-14):** Marking a recommendation read or starting it as a reading book deletes only that recommendation and fills the active list without archiving its other entries. The recommendations panel can show full history, including deleted rows. Starting one adds it to the user's `READING` books. Open Library recommendations search for Spanish works first.
+**Recommendation list updates (2026-11-14):** Marking a recommendation read, discarding it, or starting it as a reading book changes only that recommendation to `DELETED`; remaining recommendations stay unchanged. The recommendations panel can show full history, including deleted rows. Starting one adds it to the user's `READING` books. Open Library recommendations search for Spanish works first.
 
 **Recommendation Prisma browser error (2026-11-13):** Moved recommendation book lookups and read-status updates from the client component into authenticated server actions. Multi-book selection now targets the clicked recommendation, and server actions verify user ownership and completed-book status before updating.
 

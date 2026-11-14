@@ -30,24 +30,9 @@ function displayRecommendation(
 
 async function recalculateForUser(
   userId: string,
-  preserveActive = false,
 ): Promise<PersistedPersonalizedRecommendation[]> {
   await refreshUserPreferenceVector(userId);
-  const activeCount = preserveActive
-    ? await prisma.personalizedRecommendation.count({
-        where: { userId, status: "ACTIVE" },
-      })
-    : 0;
-  const limit = preserveActive ? Math.max(0, 5 - activeCount) : 5;
-  if (!preserveActive) {
-    await prisma.personalizedRecommendation.updateMany({
-      where: { userId, status: "ACTIVE" },
-      data: { status: "OLD_DISMISSED" },
-    });
-  }
-  if (limit === 0) return getRecommendationHistory(userId);
-
-  const generated = await getPersonalizedRecommendationsForUser(userId, limit);
+  const generated = await getPersonalizedRecommendationsForUser(userId, 5);
   const recommendations = generated.recommendations.filter(
     (recommendation): recommendation is PersonalizedRecommendation & {
       workId: string;
@@ -120,7 +105,7 @@ async function markAsReadAndRefresh(
   if (result.count !== 1) return { success: false, newRecs: [] };
   return {
     success: true,
-    newRecs: await recalculateForUser(userId, true),
+    newRecs: await getRecommendationHistory(userId),
   };
 }
 
@@ -145,7 +130,7 @@ export async function discardRecommendationForCurrentUser(
   }
   return {
     success: true,
-    recommendations: await recalculateForUser(user.id, true),
+    recommendations: await getRecommendationHistory(user.id),
   };
 }
 
@@ -250,11 +235,10 @@ export async function startRecommendedBookForCurrentUser(
     throw error;
   }
 
-  const recommendations = await recalculateForUser(user.id, true);
   return {
     success: true,
     message: "Book added to your currently reading list.",
-    recommendations,
+    recommendations: await getRecommendationHistory(user.id),
   };
 }
 

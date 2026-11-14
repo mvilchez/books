@@ -9,6 +9,9 @@ import { Prisma } from "@prisma/client";
 import type { PersonalizedRecommendation, PersonalizedRecommendationsResult } from "@/lib/analytics-types";
 
 const ENGINE_VERSION = "1.0.0";
+// In-memory cache for preference vectors (TTL: 24h)
+const preferenceVectorCache = new Map<string, { data: any; timestamp: number }>();
+const PREFERENCE_VECTOR_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 type PreferenceBook = Prisma.BookGetPayload<{
   include: {
@@ -330,14 +333,34 @@ export async function getPersonalizedRecommendationsForUser(
     };
   }
 
-  const [vector, highRatedBooks, exclusions] = await Promise.all([
-    prisma.userPreferenceVector.findUnique({
-      where: { userId },
-      select: { authorWeights: true, genreWeights: true, tagWeights: true },
-    }),
-    getHighRatedCompletedBooks(userId),
-    getExcludedBooks(userId),
-  ]);
+  // Check cache first for preference vector
+  const cachedVector = preferenceVectorCache.get(userId);
+  let vector: any;
+  let highRatedBooks: any[];
+  let exclusions: any;
+
+  if (cachedVector && Date.now() - cachedVector.timestamp < PREFERENCE_VECTOR_TTL) {
+    vector = cachedVector.data;
+    highRatedBooks = [];
+    exclusions = { titles: new Set(), workIds: new Set() };
+  } else {
+    const [vectorResult, highRatedBooksResult, exclusionsResult] = await Promise.all([
+      prisma.userPreferenceVector.findUnique({
+        where: { userId },
+        select: { authorWeights: true, genreWeights: true, tagWeights: true },
+      }),
+      getHighRatedCompletedBooks(userId),
+      getExcludedBooks(userId),
+    ]);
+    vector = vectorResult;
+    highRatedBooks = highRatedBooksResult;
+    exclusions = exclusionsResult;
+    // Cache the vector if found
+    if (vectorResult) {
+      preferenceVectorCache.set(userId, { data: vectorResult, timestamp: Date.now() });
+    }
+  }
+
   const profile = vector
     ? preferenceProfileFromWeights(vector)
     : buildPreferenceProfile(highRatedBooks);

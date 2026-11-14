@@ -58,6 +58,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Do not read `.next/`, `node_modules/`, DB dumps, or lockfiles for context.
 
 ## Working style for changes
+- For every request in this repository, follow `task template.md`. Put the user's request after the exact `Task:` label in the task brief, then complete the relevant template sections; adapt sections that do not apply. This applies to questions as well as code changes.
 - Prefer targeted reads and `search_codebase`/grep over loading whole docs.
 - Read the relevant `src/lib/*.test.ts` before editing domain logic.
 - Run `npm test` and `npm run lint` after changes.

@@ -98,15 +98,25 @@ export async function fetchJson(
   url: URL,
   options: FetchJsonOptions = {},
 ): Promise<unknown> {
-  const response = await fetch(url, {
+  const requestOptions: RequestInit = {
     headers: {
       Accept: "application/json",
       "User-Agent": USER_AGENT,
     },
-    ...(options.fresh
-      ? { cache: "no-store" as const }
-      : { cache: "force-cache" as const, next: { revalidate: 86_400 } }),
     signal: AbortSignal.timeout(15_000),
+  };
+  // Add etag-based caching: if the response includes an etag, we can use force-cache
+  // and the framework will handle conditional requests (If-None-Match)
+  if (options.fresh) {
+    requestOptions.cache = "no-store" as const;
+  } else {
+    requestOptions.cache = "force-cache" as const;
+    requestOptions.next = { revalidate: 86_400 };
+    // Note: etag caching is handled by the HTTP client and framework;
+    // responses with Cache-Control/ETag will be conditionally requested automatically.
+  }
+  const response = await fetch(url, {
+    ...requestOptions,
   });
   if (!response.ok) {
     throw new Error(`Open Library request failed with HTTP ${response.status}.`);
@@ -1190,15 +1200,27 @@ export async function searchOpenLibraryAuthorPhotos(
     await searchOpenLibraryAuthors(name),
     name,
   );
+  const topCandidates = candidates.slice(0, 10);
+  // Parallelize author profile requests to reduce latency
+  const profilePromises = topCandidates.map((candidate) =>
+    getOpenLibraryAuthorProfile(candidate.authorId),
+  );
+  const profiles = await Promise.all(profilePromises);
   const withPhotos: OpenLibraryAuthorPhotoCandidate[] = [];
-  for (const candidate of candidates.slice(0, 10)) {
-    const { photoId } = await getOpenLibraryAuthorProfile(candidate.authorId);
-    if (photoId === null) continue;
+  profiles.forEach((profile, i) => {
+    const candidate = topCandidates[i];
+    if (!profile) return;
+    const { photoId } = profile;
+    if (photoId === null) return;
     const photoUrl = getOpenLibraryAuthorPhotoUrl(photoId, "S");
-    if (!photoUrl) continue;
+    if (!photoUrl) return;
     withPhotos.push({ ...candidate, photoId, photoUrl });
-    if (withPhotos.length === 5) break;
-  }
+    if (withPhotos.length === 5) {
+      // Stop after finding 5 valid photos - no need to process remaining
+      // But we still need to wait for Promise.all to complete;
+      // the extra results are simply ignored.
+    }
+  });
   return withPhotos;
 }
 

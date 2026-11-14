@@ -2,6 +2,34 @@
   "version": 1,
   "events": [
     {
+      "id": "evt-1794659831036-r4n2",
+      "timestamp": "2026-11-14T12:37:11.036Z",
+      "directive": "CLI Output Compression",
+      "source": "rtk git diff -- AGENTS...",
+      "tokensSaved": 40,
+      "costSavedUsd": 0.00012000000000000002,
+      "details": "Compressed 3 shell command(s) (rtk git diff -- AGENTS...) output by ~21%",
+      "sessionNumber": 2,
+      "beforeTokens": 427,
+      "afterTokens": 394,
+      "reductionPercent": 21,
+      "modelName": "Auto"
+    },
+    {
+      "id": "evt-1794659735098-gq63",
+      "timestamp": "2026-11-14T12:35:35.098Z",
+      "directive": "CLI Output Compression",
+      "source": "rtk lint eslint src/ap...",
+      "tokensSaved": 243,
+      "costSavedUsd": 0.000729,
+      "details": "Compressed 2 shell command(s) (rtk lint eslint src/ap...) output by ~21%",
+      "sessionNumber": 2,
+      "beforeTokens": 249,
+      "afterTokens": 6,
+      "reductionPercent": 21,
+      "modelName": "Auto"
+    },
+    {
       "id": "evt-1794659212631-6uq4",
       "timestamp": "2026-11-14T12:26:52.631Z",
       "directive": "CLI Output Compression",
