@@ -5,19 +5,32 @@
 
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { Prisma } from "@prisma/client";
 import type { PersonalizedRecommendation, PersonalizedRecommendationsResult } from "@/lib/analytics-types";
 
 const ENGINE_VERSION = "1.0.0";
 
-async function getUserId(): Promise<string | null> {
-  const user = await getCurrentUser();
-  return user?.id ?? null;
-}
+type PreferenceBook = Prisma.BookGetPayload<{
+  include: {
+    author: true;
+    genre: true;
+    tags: { include: { tag: true }; where: { deleted: false } };
+  };
+}>;
+
+type PreferenceProfile = {
+  topAuthors: string[];
+  topGenres: string[];
+  topTags: string[];
+  authorWeights: Record<string, number>;
+  genreWeights: Record<string, number>;
+  tagWeights: Record<string, number>;
+};
 
 /**
  * Get the user's completed high-rating books to build a preference profile.
  */
-export async function getHighRatedCompletedBooks(userId: string): Promise<any[]> {
+export async function getHighRatedCompletedBooks(userId: string): Promise<PreferenceBook[]> {
   if (!userId) return [];
   return prisma.book.findMany({
     where: { userId, status: "COMPLETED", rating: { gte: 7 } },
@@ -30,7 +43,7 @@ export async function getHighRatedCompletedBooks(userId: string): Promise<any[]>
 /**
  * Build a preference profile from the user's high-rated completed books.
  */
-export function buildPreferenceProfile(books: any[]) {
+export function buildPreferenceProfile(books: PreferenceBook[]): PreferenceProfile {
   const authorCounts = new Map<string, number>();
   const genreCounts = new Map<string, number>();
   const tagCounts = new Map<string, number>();
@@ -53,139 +66,263 @@ export function buildPreferenceProfile(books: any[]) {
     }
   }
 
-  const topAuthors = Array.from(authorCounts.entries())
-    .sort((a, b) => b[1] - a[1])
+  const sortWeights = (weights: Map<string, number>) =>
+    Array.from(weights.entries()).sort(
+      ([nameA, countA], [nameB, countB]) =>
+        countB - countA || nameA.localeCompare(nameB),
+    );
+  const authorWeights = Object.fromEntries(authorCounts);
+  const genreWeights = Object.fromEntries(genreCounts);
+  const tagWeights = Object.fromEntries(tagCounts);
+  const topAuthors = sortWeights(authorCounts)
     .slice(0, 3)
     .map(([name]) => name);
 
-  const topGenres = Array.from(genreCounts.entries())
-    .sort((a, b) => b[1] - a[1])
+  const topGenres = sortWeights(genreCounts)
     .slice(0, 3)
     .map(([name]) => name);
 
-  const topTags = Array.from(tagCounts.entries())
-    .sort((a, b) => b[1] - a[1])
+  const topTags = sortWeights(tagCounts)
     .slice(0, 5)
     .map(([key]) => key);
 
-  return { topAuthors, topGenres, topTags };
+  return {
+    topAuthors,
+    topGenres,
+    topTags,
+    authorWeights,
+    genreWeights,
+    tagWeights,
+  };
 }
 
+function weightsToTopKeys(value: Prisma.JsonValue, limit: number): string[] {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return [];
+  }
+  return Object.entries(value)
+    .filter((entry): entry is [string, number] =>
+      typeof entry[1] === "number" && Number.isFinite(entry[1]) && entry[1] > 0,
+    )
+    .sort(([nameA, weightA], [nameB, weightB]) =>
+      weightB - weightA || nameA.localeCompare(nameB),
+    )
+    .slice(0, limit)
+    .map(([name]) => name);
+}
+
+export function preferenceProfileFromWeights(vector: {
+  authorWeights: Prisma.JsonValue;
+  genreWeights: Prisma.JsonValue;
+  tagWeights: Prisma.JsonValue;
+}): PreferenceProfile {
+  return {
+    topAuthors: weightsToTopKeys(vector.authorWeights, 3),
+    topGenres: weightsToTopKeys(vector.genreWeights, 3),
+    topTags: weightsToTopKeys(vector.tagWeights, 5),
+    authorWeights: {},
+    genreWeights: {},
+    tagWeights: {},
+  };
+}
+
+/** Rebuild the persisted profile from completed, highly rated books. */
+export async function refreshUserPreferenceVector(userId: string) {
+  const books = await getHighRatedCompletedBooks(userId);
+  const profile = buildPreferenceProfile(books);
+  const now = new Date();
+  return prisma.userPreferenceVector.upsert({
+    where: { userId },
+    update: {
+      authorWeights: profile.authorWeights,
+      genreWeights: profile.genreWeights,
+      tagWeights: profile.tagWeights,
+      lastGeneratedAt: now,
+      version: { increment: 1 },
+    },
+    create: {
+      userId,
+      authorWeights: profile.authorWeights,
+      genreWeights: profile.genreWeights,
+      tagWeights: profile.tagWeights,
+      lastGeneratedAt: now,
+    },
+  });
+}
+
+export type UserPreferenceVector = Awaited<
+  ReturnType<typeof refreshUserPreferenceVector>
+>;
+
 /**
- * Get completed books that should be excluded from recommendations.
+ * Exclude books already in the user's library and recommendations previously
+ * shown or marked read so refreshes do not resurrect them.
  */
 async function getExcludedBooks(userId: string): Promise<{
   titles: Set<string>;
   workIds: Set<string>;
 }> {
-  if (!userId) return { titles: new Set(), workIds: new Set() };
-
-  const readBooks = await prisma.book.findMany({
-    where: { userId, status: "COMPLETED" },
-    select: { title: true, openLibraryWorkId: true },
-  });
-
-  const titles = new Set(readBooks.map((b) => b.title.normalize("NFKC").toLowerCase()));
+  const [books, recommendations] = await Promise.all([
+    prisma.book.findMany({
+      where: { userId },
+      select: { title: true, openLibraryWorkId: true },
+    }),
+    prisma.personalizedRecommendation.findMany({
+      where: { userId },
+      select: { title: true, workId: true },
+    }),
+  ]);
+  const titles = new Set(
+    [...books, ...recommendations].map((book) =>
+      book.title.normalize("NFKC").trim().toLowerCase(),
+    ),
+  );
   const workIds = new Set(
-    readBooks.map((b) => b.openLibraryWorkId).filter(Boolean) as string[]
+    [
+      ...books.map((book) => book.openLibraryWorkId),
+      ...recommendations.map((recommendation) => recommendation.workId),
+    ].filter((workId): workId is string => Boolean(workId)),
   );
 
   return { titles, workIds };
 }
 
-/**
- * Search Open Library for recommendations based on the user's preference profile.
- * Note: This is a simplified search - in production would use proper Open Library API.
- */
-async function searchOpenLibraryRecommendations(
-  profile: ReturnType<typeof buildPreferenceProfile>,
+type OpenLibraryDoc = {
+  key?: unknown;
+  id?: unknown;
+  title?: unknown;
+  author_name?: unknown;
+  first_publish_year?: unknown;
+};
+
+function isOpenLibraryDoc(value: unknown): value is OpenLibraryDoc {
+  return typeof value === "object" && value !== null;
+}
+
+function getWorkId(doc: OpenLibraryDoc): string | null {
+  const key = typeof doc.key === "string" ? doc.key : doc.id;
+  if (typeof key !== "string") return null;
+  return key.startsWith("/works/") ? key.slice("/works/".length) : key;
+}
+
+async function searchOpenLibrary(
+  query: { field: "author" | "subject"; term: string; score: number },
   excludedTitles: Set<string>,
-  excludedWorkIds: Set<string>
+  excludedWorkIds: Set<string>,
+  alreadyAdded: Set<string>,
+  limit: number,
+  language: "spa" | null,
 ): Promise<PersonalizedRecommendation[]> {
+  const searchParams = new URLSearchParams({
+    [query.field]: query.term,
+    limit: "20",
+  });
+  if (language) searchParams.set("language", language);
+  const response = await fetch(
+    `https://openlibrary.org/search.json?${searchParams.toString()}`,
+  );
+  if (!response.ok) {
+    throw new Error(`Open Library search failed (${response.status}).`);
+  }
+  const payload: unknown = await response.json();
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    !("docs" in payload) ||
+    !Array.isArray(payload.docs)
+  ) {
+    throw new Error("Open Library returned an invalid search response.");
+  }
+
   const recommendations: PersonalizedRecommendation[] = [];
-
-  // Search by top authors first
-  if (profile.topAuthors.length > 0) {
-    const authorQuery = profile.topAuthors[0];
-    // Use Open Library API search
-    const searchUrl = `https://openlibrary.org/search.json?author=${encodeURIComponent(
-      authorQuery
-    )}&limit=5`;
-    try {
-      const response = await fetch(searchUrl);
-      if (response.ok) {
-        const data = await response.json();
-        for (const doc of data.docs || []) {
-          const titleKey = doc.title.normalize("NFKC").toLowerCase();
-          if (
-            !excludedTitles.has(titleKey) &&
-            !excludedWorkIds.has(doc.id as string)
-          ) {
-            recommendations.push({
-              id: `ol-${doc.id}`,
-              title: doc.title,
-              author: authorQuery,
-              workId: doc.id as string | null,
-              firstPublishYear: doc.first_publish_year ?? null,
-              reason: "Open Library match by author",
-              source: "open_library",
-              similarityScore: 50,
-            });
-          }
-          if (recommendations.length >= 5) break;
-        }
-      }
-    } catch (e) {
-      // Continue on error
+  for (const rawDoc of payload.docs) {
+    if (!isOpenLibraryDoc(rawDoc) || typeof rawDoc.title !== "string") continue;
+    const workId = getWorkId(rawDoc);
+    if (!workId) continue;
+    const normalizedTitle = rawDoc.title.normalize("NFKC").trim().toLowerCase();
+    if (
+      excludedTitles.has(normalizedTitle) ||
+      excludedWorkIds.has(workId) ||
+      alreadyAdded.has(workId) ||
+      alreadyAdded.has(normalizedTitle)
+    ) {
+      continue;
     }
-  }
 
-  // Search by top genres if we need more recommendations
-  if (recommendations.length < 5 && profile.topGenres.length > 0) {
-    const genreQuery = profile.topGenres[0];
-    const searchUrl = `https://openlibrary.org/search.json?subject=${encodeURIComponent(
-      genreQuery
-    )}&limit=5`;
-    try {
-      const response = await fetch(searchUrl);
-      if (response.ok) {
-        const data = await response.json();
-        for (const doc of data.docs || []) {
-          const titleKey = doc.title.normalize("NFKC").toLowerCase();
-          if (
-            !excludedTitles.has(titleKey) &&
-            !excludedWorkIds.has(doc.id as string)
-          ) {
-            recommendations.push({
-              id: `ol-${doc.id}`,
-              title: doc.title,
-              author: "Unknown",
-              workId: doc.id as string | null,
-              firstPublishYear: doc.first_publish_year ?? null,
-              reason: `Open Library match by genre: ${genreQuery}`,
-              source: "open_library",
-              similarityScore: 40,
-            });
-          }
-          if (recommendations.length >= 5) break;
-        }
-      }
-    } catch (e) {
-      // Continue on error
+    const authors = Array.isArray(rawDoc.author_name)
+      ? rawDoc.author_name.filter(
+          (author): author is string => typeof author === "string",
+        )
+      : [];
+    recommendations.push({
+      id: `ol-${workId}`,
+      title: rawDoc.title,
+      author: authors[0] ?? query.term,
+      workId,
+      firstPublishYear:
+        typeof rawDoc.first_publish_year === "number"
+          ? rawDoc.first_publish_year
+          : null,
+      reason:
+        query.field === "author"
+          ? `Based on books by ${query.term}`
+          : `Based on your interest in ${query.term}`,
+      source: "open_library",
+      similarityScore: query.score,
+    });
+    alreadyAdded.add(workId);
+    alreadyAdded.add(normalizedTitle);
+    if (recommendations.length >= limit) break;
+  }
+  return recommendations;
+}
+
+async function searchOpenLibraryRecommendations(
+  profile: PreferenceProfile,
+  excludedTitles: Set<string>,
+  excludedWorkIds: Set<string>,
+  limit: number,
+): Promise<PersonalizedRecommendation[]> {
+  const queries = [
+    ...profile.topAuthors.map((term) => ({ field: "author" as const, term, score: 50 })),
+    ...profile.topGenres.map((term) => ({ field: "subject" as const, term, score: 40 })),
+    ...profile.topTags.map((tag) => ({
+      field: "subject" as const,
+      term: tag.split(":").at(-1) ?? tag,
+      score: 30,
+    })),
+  ];
+  const recommendations: PersonalizedRecommendation[] = [];
+  const alreadyAdded = new Set<string>();
+
+  for (const language of ["spa", null] as const) {
+    for (const query of queries) {
+      if (recommendations.length >= limit) break;
+      recommendations.push(
+        ...await searchOpenLibrary(
+          query,
+          excludedTitles,
+          excludedWorkIds,
+          alreadyAdded,
+          limit - recommendations.length,
+          language,
+        ),
+      );
     }
+    if (recommendations.length >= limit) break;
   }
-
   return recommendations;
 }
 
 /**
- * Main function: get personalized recommendations for a user.
+ * Generate recommendations from the persisted preference vector and the
+ * user's library history. Persistence is handled by recommendation-service.
  */
-export async function getPersonalizedRecommendations(
-  limit = 5
+export async function getPersonalizedRecommendationsForUser(
+  userId: string,
+  limit = 5,
 ): Promise<PersonalizedRecommendationsResult> {
-  const userId = await getUserId();
-  if (!userId) {
+  if (!userId || limit <= 0) {
     return {
       recommendations: [],
       engineVersion: ENGINE_VERSION,
@@ -193,109 +330,43 @@ export async function getPersonalizedRecommendations(
     };
   }
 
-  // Get user's high-rated completed books
-  const highRatedBooks = await getHighRatedCompletedBooks(userId);
-
-  if (highRatedBooks.length === 0) {
-    return {
-      recommendations: [],
-      engineVersion: ENGINE_VERSION,
-      generatedAt: new Date().toISOString(),
-    };
-  }
-
-  // Build preference profile
-  const profile = buildPreferenceProfile(highRatedBooks);
-
-  // Get excluded books (already read completed books)
-  const { titles: excludedTitles, workIds: excludedWorkIds } =
-    await getExcludedBooks(userId);
-
-  // Calculate internal scores for the user's books
-  const internalRecommendations: PersonalizedRecommendation[] = [];
-
-  for (const book of highRatedBooks) {
-    let score = 0;
-
-    // Author match (highest weight)
-    if (book.author && profile.topAuthors.includes(book.author.name.toLowerCase())) {
-      score += 30;
-    }
-
-    // Genre match
-    if (book.genre?.name && profile.topGenres.includes(book.genre.name)) {
-      score += 20;
-    }
-
-    // Tag match
-    if (book.tags) {
-      for (const tag of book.tags) {
-        if (
-          tag.tag &&
-          profile.topTags.includes(`${tag.tag.category}:${tag.tag.name.toLowerCase()}`)
-        ) {
-          score += 10;
-          break; // Only count once per book for top tags
-        }
-      }
-    }
-
-    if (score > 0) {
-      internalRecommendations.push({
-        id: `internal-${book.id}`,
-        title: book.title,
-        author: book.author?.name ?? "Unknown",
-        workId: book.openLibraryWorkId,
-        firstPublishYear: book.publicationYear,
-        reason: score >= 50 ? "Strong match with your preferences" : "Matches your reading preferences",
-        source: "internal",
-        similarityScore: score,
-      });
-    }
-  }
-
-  // Sort internal by score descending, take top 3
-  internalRecommendations.sort(
-    (a: PersonalizedRecommendation, b: PersonalizedRecommendation) =>
-      b.similarityScore - a.similarityScore
-  );
-  const topInternal = internalRecommendations.slice(0, 3);
-
-  // Search Open Library for additional recommendations
-  const olRecommendations = await searchOpenLibraryRecommendations(
+  const [vector, highRatedBooks, exclusions] = await Promise.all([
+    prisma.userPreferenceVector.findUnique({
+      where: { userId },
+      select: { authorWeights: true, genreWeights: true, tagWeights: true },
+    }),
+    getHighRatedCompletedBooks(userId),
+    getExcludedBooks(userId),
+  ]);
+  const profile = vector
+    ? preferenceProfileFromWeights(vector)
+    : buildPreferenceProfile(highRatedBooks);
+  const recommendations = await searchOpenLibraryRecommendations(
     profile,
-    excludedTitles,
-    excludedWorkIds
+    exclusions.titles,
+    exclusions.workIds,
+    limit,
   );
-
-  // Combine: internal first, then Open Library to fill up to limit
-  const allRecommendations = [...topInternal];
-
-  for (const olRec of olRecommendations) {
-    if (allRecommendations.length >= limit) break;
-    // Check if already added (by workId)
-    if (
-      !allRecommendations.some((r) => r.workId === olRec.workId)
-    ) {
-      allRecommendations.push(olRec);
-    }
-  }
-
-  // Final sort by similarity score, then source priority (internal > open_library)
-  allRecommendations.sort(
-    (a: PersonalizedRecommendation, b: PersonalizedRecommendation) => {
-      if (b.similarityScore !== a.similarityScore) {
-        return b.similarityScore - a.similarityScore;
-      }
-      return a.source.localeCompare(b.source);
-    }
-  );
-
   return {
-    recommendations: allRecommendations.slice(0, limit),
+    recommendations,
     engineVersion: ENGINE_VERSION,
     generatedAt: new Date().toISOString(),
   };
+}
+
+/** Get personalized suggestions for the authenticated user without persisting them. */
+export async function getPersonalizedRecommendations(
+  limit = 5,
+): Promise<PersonalizedRecommendationsResult> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return {
+      recommendations: [],
+      engineVersion: ENGINE_VERSION,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+  return getPersonalizedRecommendationsForUser(user.id, limit);
 }
 
 /**

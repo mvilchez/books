@@ -18,6 +18,7 @@ import {
   isRecordNotFound,
   isUniqueConstraintViolation,
 } from "@/lib/prisma-errors";
+import { recalculateRecommendationsForCurrentUser } from "@/lib/recommendation-service";
 import { toIsbn13 } from "@/lib/isbn";
 
 export type BookFormState = {
@@ -66,6 +67,16 @@ function isReadingStatus(value: string | null): value is ReadingStatus {
 
 function optionalNumber(value: string | null): number | null {
   return value === null || value === "" ? null : Number(value);
+}
+
+async function refreshRecommendationsAfterBookChange(): Promise<boolean> {
+  try {
+    await recalculateRecommendationsForCurrentUser();
+    return true;
+  } catch (error) {
+    console.error("Could not refresh recommendations after a book update.", error);
+    return false;
+  }
 }
 
 export async function updateBookDetails(
@@ -199,7 +210,16 @@ export async function updateBookDetails(
   revalidatePath("/stats");
   revalidateTag("stats", "hours");
   revalidatePath(`/books/${bookId}`);
-  return { status: "success", message: "Book details saved." };
+  const recommendationsUpdated =
+    statusValue !== "COMPLETED" || rating === null
+      ? true
+      : await refreshRecommendationsAfterBookChange();
+  return {
+    status: "success",
+    message: recommendationsUpdated
+      ? "Book details saved."
+      : "Book details saved, but recommendations could not be refreshed.",
+  };
 }
 
 export type DeleteBookFormState = {
@@ -601,12 +621,15 @@ export async function completeReadingBook(
     };
   }
 
+  const recommendationsUpdated = await refreshRecommendationsAfterBookChange();
   revalidatePath("/");
   revalidatePath("/stats");
   revalidatePath(`/books/${bookId}`);
   return {
     status: "success",
-    message: "Book marked as completed.",
+    message: recommendationsUpdated
+      ? "Book marked as completed."
+      : "Book marked as completed, but recommendations could not be refreshed.",
     previousReadingBooks: result.previousReadingBooks,
   };
 }

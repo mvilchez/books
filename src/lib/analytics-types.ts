@@ -77,6 +77,10 @@ export interface PersonalizedRecommendation {
   similarityScore: number;
 }
 
+export type PersistedPersonalizedRecommendation = PersonalizedRecommendation & {
+  status: "ACTIVE" | "DELETED" | "MARKED_AS_READ" | "OLD_DISMISSED";
+};
+
 /** Result of a personalized recommendations query */
 export interface PersonalizedRecommendationsResult {
   recommendations: PersonalizedRecommendation[];
@@ -90,7 +94,7 @@ export interface DiscoveryMetrics {
   genreShares: GenreShare[];
   topGenres: GenreShare[];   // top 5, names resolved
   suggestions: Suggestion[]; // up to 3
-  personalizedRecommendations: PersonalizedRecommendation[]; // up to 5
+  personalizedRecommendations: PersistedPersonalizedRecommendation[];
 }
 
 

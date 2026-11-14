@@ -2,6 +2,48 @@
   "version": 1,
   "events": [
     {
+      "id": "evt-1794658445082-90ep",
+      "timestamp": "2026-11-14T12:14:05.082Z",
+      "directive": "CLI Output Compression",
+      "source": "rtk lint eslint src/ap...",
+      "tokensSaved": 187,
+      "costSavedUsd": 0.000561,
+      "details": "Compressed 2 shell command(s) (rtk lint eslint src/ap...) output by ~22%",
+      "sessionNumber": 2,
+      "beforeTokens": 193,
+      "afterTokens": 6,
+      "reductionPercent": 22,
+      "modelName": "Auto"
+    },
+    {
+      "id": "evt-1794658414955-dfvn",
+      "timestamp": "2026-11-14T12:13:34.955Z",
+      "directive": "CLI Output Compression",
+      "source": "rtk git status --short...",
+      "tokensSaved": 1,
+      "costSavedUsd": 0.000003,
+      "details": "Compressed 2 shell command(s) (rtk git status --short...) output by ~22%",
+      "sessionNumber": 2,
+      "beforeTokens": 142,
+      "afterTokens": 148,
+      "reductionPercent": 22,
+      "modelName": "Auto"
+    },
+    {
+      "id": "evt-1794658287940-hcvd",
+      "timestamp": "2026-11-14T12:11:27.940Z",
+      "directive": "CLI Output Compression",
+      "source": "rtk lint eslint src/ap...",
+      "tokensSaved": 187,
+      "costSavedUsd": 0.000561,
+      "details": "Compressed 3 shell command(s) (rtk lint eslint src/ap...) output by ~22%",
+      "sessionNumber": 2,
+      "beforeTokens": 322,
+      "afterTokens": 135,
+      "reductionPercent": 22,
+      "modelName": "Auto"
+    },
+    {
       "id": "evt-1794586598039-6uge",
       "timestamp": "2026-11-13T16:16:38.039Z",
       "directive": "CLI Output Compression",

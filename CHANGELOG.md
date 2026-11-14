@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **Recommendation buttons**: Updated the Delete button to mark recommendations as old dismissed (OLD_DISMISSED status), renamed Refresh to Recalculate and generate 5 new recommendations one-by-one, and implemented Mark as read to find all books by the author and let user mark which one was read without recommending already-read books.
 
+- **Left panel button size reduction**: Reduced button height from `min-h-11` to `min-h-8`, reduced padding from `px-3 py-2` to `px-2 py-1`, reduced font size from `text-sm` to `text-xs`, and made buttons more compact while maintaining responsive behavior across desktop and mobile viewports
+
 
 
 ### Fixed

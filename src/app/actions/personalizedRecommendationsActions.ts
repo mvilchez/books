@@ -1,22 +1,11 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { getHighRatedCompletedBooks, buildPreferenceProfile } from "@/lib/personalized-recommendations";
-import { Prisma } from "@prisma/client";
-
-// Type for user preference vectors (matches prisma.schema UserPreferenceVector)
-type UserPreferenceVector = {
-  id: string;
-  userId: string;
-  authorWeights: Prisma.JsonValue;
-  genreWeights: Prisma.JsonValue;
-  tagWeights: Prisma.JsonValue;
-  lastGeneratedAt: Date | null;
-  version: number;
-  createdAt: Date;
-  updatedAt: Date;
-};
+import {
+  getHighRatedCompletedBooks,
+  refreshUserPreferenceVector,
+  type UserPreferenceVector,
+} from "@/lib/personalized-recommendations";
 
 export type BuildPreferenceProfileResult = {
   status: "idle" | "success" | "error";
@@ -29,8 +18,7 @@ export type BuildPreferenceProfileResult = {
  *
  * This action:
  * 1. Gets the current user's high-rated completed books (rating >= 7)
- * 2. Builds a preference profile using buildPreferenceProfile()
- * 3. Saves/upverts the preference vector to user_preference_vectors table
+ * 2. Builds and saves the vector used by personalized recommendations.
  */
 export async function buildPreferenceProfileAction(
   _previous: BuildPreferenceProfileResult,
@@ -55,68 +43,7 @@ export async function buildPreferenceProfileAction(
       };
     }
 
-    // Step 2: Build the preference profile
-    const profile = buildPreferenceProfile(highRatedBooks);
-
-    // Step 3: Upsert the preference vector
-    const now = new Date();
-
-    const vector = await prisma.userPreferenceVector.upsert({
-      where: { userId: user.id },
-      update: {
-        authorWeights: profile.topAuthors.reduce(
-          (acc: Record<string, number>, author: string) => {
-            acc[author] = (acc[author] ?? 0) + 1;
-            return acc;
-          },
-          {}
-        ),
-        genreWeights: profile.topGenres.reduce(
-          (acc: Record<string, number>, genre: string) => {
-            acc[genre] = (acc[genre] ?? 0) + 1;
-            return acc;
-          },
-          {}
-        ),
-        tagWeights: profile.topTags.reduce(
-          (acc: Record<string, number>, tag: string) => {
-            acc[tag] = (acc[tag] ?? 0) + 1;
-            return acc;
-          },
-          {}
-        ),
-        lastGeneratedAt: now,
-        version: {
-          increment: 1,
-        },
-      },
-      create: {
-        userId: user.id,
-        authorWeights: profile.topAuthors.reduce(
-          (acc: Record<string, number>, author: string) => {
-            acc[author] = (acc[author] ?? 0) + 1;
-            return acc;
-          },
-          {}
-        ),
-        genreWeights: profile.topGenres.reduce(
-          (acc: Record<string, number>, genre: string) => {
-            acc[genre] = (acc[genre] ?? 0) + 1;
-            return acc;
-          },
-          {}
-        ),
-        tagWeights: profile.topTags.reduce(
-          (acc: Record<string, number>, tag: string) => {
-            acc[tag] = (acc[tag] ?? 0) + 1;
-            return acc;
-          },
-          {}
-        ),
-        lastGeneratedAt: now,
-        version: 1,
-      },
-    });
+    const vector = await refreshUserPreferenceVector(user.id);
 
     return {
       status: "success",

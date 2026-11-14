@@ -230,8 +230,8 @@ export default function DashboardShell({
         onClick={isMobileViewport ? closeMenu : undefined}
         className={
           primary
-            ? `inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-emerald-500 px-3 py-2 text-center text-sm font-bold text-slate-950 transition hover:bg-emerald-400 ${!menuOpen && !isMobileViewport ? "md:rounded-xl md:px-0" : "px-4"}`
-            : `inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-3 py-2 text-center text-sm font-semibold transition ${
+            ? `inline-flex min-h-8 items-center justify-center gap-2 rounded-full bg-emerald-500 px-2 py-1 text-center text-xs font-bold text-slate-950 transition hover:bg-emerald-400 ${!menuOpen && !isMobileViewport ? "md:rounded-xl md:px-0" : "px-4"}`
+            : `inline-flex min-h-8 items-center justify-center gap-2 rounded-full border px-2 py-1 text-center text-xs font-semibold transition ${
                 active
                   ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
                   : "border-slate-700 text-slate-300 hover:border-emerald-500/50 hover:text-white"
@@ -282,7 +282,7 @@ export default function DashboardShell({
               aria-controls="dashboard-menu"
               aria-label={menuOpen ? "Collapse navigation" : "Expand navigation"}
               title={menuOpen ? "Collapse navigation" : "Expand navigation"}
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+              className="inline-flex min-h-8 w-full items-center justify-center gap-2 rounded-lg border border-slate-700 px-2 py-1 text-xs font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
             >
               {menuOpen ? <ChevronsLeftIcon /> : <ChevronsRightIcon />}
               <span className={!menuOpen && !isMobileViewport ? "md:sr-only" : ""}>
@@ -303,7 +303,7 @@ export default function DashboardShell({
               aria-controls="dashboard-menu"
               aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
               title={menuOpen ? "Close navigation menu" : "Open navigation menu"}
-              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-slate-700 p-2 text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+              className="inline-flex min-h-8 min-w-11 shrink-0 items-center justify-center rounded-lg border border-slate-700 p-2 text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
             >
               {menuOpen ? <ChevronsLeftIcon /> : <ChevronsRightIcon />}
             </button>
@@ -330,7 +330,7 @@ export default function DashboardShell({
               aria-expanded={mobileSearchOpen}
               aria-controls="dashboard-search"
               aria-label={mobileSearchOpen ? "Close search" : "Open search"}
-              className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-slate-700 p-2 text-slate-300 transition hover:border-emerald-500/50 hover:text-white md:hidden"
+              className="inline-flex min-h-8 min-w-11 shrink-0 items-center justify-center rounded-lg border border-slate-700 p-2 text-slate-300 transition hover:border-emerald-500/50 hover:text-white md:hidden"
             >
               <SearchIcon />
             </button>
@@ -340,7 +340,7 @@ export default function DashboardShell({
               aria-expanded={userPanelOpen}
               aria-controls="dashboard-user-panel"
               aria-label={userPanelOpen ? "Close user menu" : `Open user menu for ${userName}`}
-              className="ml-auto inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 p-2 text-sm font-bold text-emerald-300 transition hover:border-emerald-400/60 hover:bg-emerald-500/20 md:ml-0"
+              className="ml-auto inline-flex min-h-8 min-w-11 shrink-0 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/10 p-2 text-xs font-bold text-emerald-300 transition hover:border-emerald-400/60 hover:bg-emerald-500/20 md:ml-0"
             >
               {userName.trim().charAt(0).toUpperCase() || "U"}
             </button>
@@ -368,7 +368,7 @@ export default function DashboardShell({
               </div>
               <Link
                 href="/account"
-                className="inline-flex items-center rounded-lg border border-slate-700 px-3 py-2 text-sm font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
+                className="inline-flex items-center rounded-lg border border-slate-700 px-2 py-1 text-xs font-semibold text-slate-300 transition hover:border-emerald-500/50 hover:text-white"
               >
                 Account
               </Link>

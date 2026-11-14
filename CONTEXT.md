@@ -1,5 +1,9 @@
 # Technical Architecture & Context Continuity Blueprint: project "books"
 
+**Recommendation discard action (2026-11-14):** Added a per-recommendation Discard button; it marks only that record as `DELETED` and fills the active list without archiving remaining recommendations.
+
+**Recommendation list updates (2026-11-14):** Marking a recommendation read or starting it as a reading book deletes only that recommendation and fills the active list without archiving its other entries. The recommendations panel can show full history, including deleted rows. Starting one adds it to the user's `READING` books. Open Library recommendations search for Spanish works first.
+
 **Recommendation Prisma browser error (2026-11-13):** Moved recommendation book lookups and read-status updates from the client component into authenticated server actions. Multi-book selection now targets the clicked recommendation, and server actions verify user ownership and completed-book status before updating.
 
 **Tag query mapping (2026-11-09):** Updated `getUsedTags()` to query the PostgreSQL `tags` table name declared by `Tag @@map("tags")`, avoiding a raw-query reference to the nonexistent `"Tag"` relation.
@@ -128,8 +132,4 @@ Deleted stray zero-extension file `src/components/dashboard/DashboardSortAndFilt
 - **Refresh button**: Renamed to "Recalculate" - marks existing recommendations as OLD_DISMISSED and generates 5 new recommendations one-by-one
 - **Mark as read button**: Now finds all books by the recommendation's author in the database and allows user to mark which one was read, excluding already-read books from future recommendations
 
-
-## 2026-11-26
-### Recommendation buttons update
-- **Mark as read button**: Fixed to show author's completed books for selection and mark recommendation as MARKED_AS_READ with readBookId. When clicked, fetches all completed books by the recommendation's author and allows user to select which one was read.
-- **Dismissed button**: Changed to \"Dismissed\" - marks recommendation as OLD_DISMISSED status instead of deleting from database\n- **Refresh button**: Renamed to \"Recalculate\" - marks existing recommendations as OLD_DISMISSED and generates 5 new recommendations one-by-one\n
+### Left panel button size reduction

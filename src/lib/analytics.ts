@@ -1,6 +1,5 @@
 // src/lib/analytics.ts
 import { prisma } from '@/lib/prisma';
-import { getPersonalizedRecommendations } from '@/lib/personalized-recommendations';
 import { getCurrentUser } from '@/lib/auth';
 import { computeValueScore } from '@/lib/book-value';
 import { rankSimilar } from '@/lib/similar-books';
@@ -290,10 +289,22 @@ export async function getDiscoveryMetrics(
       personalizedRecommendations: [],
     };
   }
-  const [rankedAuthors, genreRows, ungenred] = await Promise.all([
+  const [rankedAuthors, genreRows, ungenred, storedRecommendations] = await Promise.all([
     authorRanks ? Promise.resolve(authorRanks) : getTopAuthors(5),
     getCompletedGenreRanks(userId),
     prisma.book.count({ where: { userId, status: 'COMPLETED', genreId: null } }),
+    prisma.personalizedRecommendation.findMany({
+      where: { userId, status: 'ACTIVE' },
+      select: {
+        id: true,
+        title: true,
+        author: true,
+        workId: true,
+        firstPublishYear: true,
+        status: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
   ]);
   const topAuthors = rankedAuthors.slice(0, 5);
   const genreShares = toGenreShares(genreRows, ungenred);
@@ -325,7 +336,6 @@ export async function getDiscoveryMetrics(
     take: 3,
   });
 
-  const personalizedRecs = await getPersonalizedRecommendations(5);
   return {
     topAuthors,
     topAuthorBooks: topAuthors.map((author) => ({
@@ -340,7 +350,13 @@ export async function getDiscoveryMetrics(
       author: b.author.name,
       genre: b.genre?.name ?? null,
     })),
-    personalizedRecommendations: personalizedRecs.recommendations,
+    personalizedRecommendations: storedRecommendations.map((recommendation) => ({
+      ...recommendation,
+      reason: 'Based on your reading preferences',
+      source: 'open_library' as const,
+      similarityScore: 0,
+      status: recommendation.status,
+    })),
   };
 }
 
