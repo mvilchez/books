@@ -1,5 +1,7 @@
 # Technical Architecture & Context Continuity Blueprint: project "books"
 
+**Duplicate book fusion SQL fix (2026-11-14):** Changed tag transfer to `INSERT ... SELECT ... ON CONFLICT DO NOTHING`, the valid PostgreSQL form for preserving existing keeper tags while moving tags from duplicate books.
+
 **Recommendation discard action (2026-11-14):** Added a per-recommendation Discard button; it marks only that record as `DELETED` and fills the active list without archiving remaining recommendations.
 
 **Recommendation list updates (2026-11-14):** Marking a recommendation read or starting it as a reading book deletes only that recommendation and fills the active list without archiving its other entries. The recommendations panel can show full history, including deleted rows. Starting one adds it to the user's `READING` books. Open Library recommendations search for Spanish works first.

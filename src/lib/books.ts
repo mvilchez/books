@@ -1153,8 +1153,11 @@ export async function fuseBooks(
   await prisma.$transaction(async (transaction) => {
     for (const duplicateId of duplicateBookIds) {
       await transaction.$executeRaw`
-        UPDATE book_tags
-        SET book_id = ${keeperBookId}
+        INSERT INTO book_tags (
+          book_id, tag_id, source, deleted, deleted_at, created_at
+        )
+        SELECT ${keeperBookId}, tag_id, source, deleted, deleted_at, created_at
+        FROM book_tags
         WHERE book_id = ${duplicateId}
         ON CONFLICT (book_id, tag_id, source) DO NOTHING
       `;
